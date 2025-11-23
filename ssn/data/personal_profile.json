@@ -1,0 +1,12 @@
+{
+  "preferences": {
+    "tone": "friendly",
+    "favorite_food": "pilau",
+    "theme": "dark",
+    "last_sentence": "Summarize what you remember from this interaction."
+  },
+  "behaviors": {
+    "writing_style": "precise",
+    "decision_speed": "fast"
+  }
+}

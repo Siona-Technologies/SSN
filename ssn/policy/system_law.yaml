@@ -1,0 +1,38 @@
+# ============================================================
+# SSN SYSTEM LAW (STRUCTURAL LAW)
+# Governs SSN's internal architecture & safe operation.
+# Cannot be overridden by users or home laws.
+# ============================================================
+
+system_law:
+  system_integrity_rules:
+    - ssn must prevent unauthorized code injection
+    - ssn must block dangerous modules or unverified scripts
+    - ssn must protect its memory from corruption
+    - ssn must run identity checks before granting any sensitive access
+
+  module_protection:
+    - core modules cannot be modified without owner + policy approval
+    - identity modules cannot be disabled
+    - security modules must always remain active
+    - memory vault cannot be decrypted without master verification
+
+  resource_limits:
+    - ssn must prevent runaway loops or infinite tasks
+    - ssn must reject tasks that overload system resources
+
+  self_preservation:
+    # SSN cannot preserve itself at the cost of violating World Law
+    - ssn must maintain operational stability
+    - ssn must create safe backups before major changes
+    - ssn must prevent accidental self-deletion
+
+  audit_requirements:
+    - all sensitive actions must be logged
+    - all identity-related operations must be logged
+    - all policy violations must be logged
+
+  overrides:
+    # WORLD LAW and OWNER'S HOME LAW can override SYSTEM LAW
+    - world_law
+    - home_law_samson

@@ -1,0 +1,128 @@
+[
+  {
+    "timestamp": 1763921805.7446363,
+    "type": "test_event",
+    "actor": "Samson",
+    "details": {
+      "note": "first memory entry"
+    }
+  },
+  {
+    "timestamp": 1763923683.260049,
+    "type": "test",
+    "actor": "Samson",
+    "details": {
+      "message": "backup test event"
+    }
+  },
+  {
+    "timestamp": 1763929531.005604,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.886
+    }
+  },
+  {
+    "timestamp": 1763929829.5591254,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.886
+    }
+  },
+  {
+    "timestamp": 1763929975.9555495,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.874
+    }
+  },
+  {
+    "timestamp": 1763930252.0383923,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.851
+    }
+  },
+  {
+    "timestamp": 1763930542.2522001,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.885
+    }
+  },
+  {
+    "timestamp": 1763930820.2388663,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.896
+    }
+  },
+  {
+    "timestamp": 1763930839.0203862,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.872
+    }
+  },
+  {
+    "timestamp": 1763931033.7254612,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.876
+    }
+  },
+  {
+    "timestamp": 1763931165.38248,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.891
+    }
+  },
+  {
+    "timestamp": 1763931298.4100595,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "SSN, explain how your memory system works and keep learning my preferences.",
+      "mode": "deep",
+      "fusion_score": 0.855
+    }
+  },
+  {
+    "timestamp": 1763931298.751441,
+    "type": "interaction",
+    "actor": "Samson",
+    "details": {
+      "input": "Summarize what you remember from this interaction.",
+      "mode": "hybrid",
+      "fusion_score": 0.608
+    }
+  }
+]

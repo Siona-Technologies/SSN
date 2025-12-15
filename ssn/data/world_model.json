@@ -1,0 +1,45 @@
+{
+  "ts": 1765795799.2104948,
+  "entities": {
+    "person:synthetic": {
+      "entity": "person",
+      "status": "present",
+      "confidence": 0.7,
+      "last_seen_ts": 1765795799.1130059,
+      "attributes": {
+        "zone": "front"
+      },
+      "source": "sense_tick"
+    }
+  },
+  "events": [
+    {
+      "type": "vision_detection",
+      "ts": 1765795574.1338131,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765795574.1338131,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765795799.1129923,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765795799.1129923,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    }
+  ]
+}

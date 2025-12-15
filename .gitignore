@@ -1,34 +1,75 @@
-# Python cache
+# ============================
+# PYTHON CACHE
+# ============================
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Environment
+# ============================
+# ENVIRONMENT FILES
+# ============================
 .env
 *.env
+.env.local
 
-# VS Code
-.vscode/
-
-# Virtual environments
+# ============================
+# VIRTUAL ENVIRONMENTS
+# ============================
 venv/
 .venv/
+env/
+ENV/
 
-# Dev container cache
+# ============================
+# VS CODE
+# ============================
+.vscode/
 .vscode-server/
 
-# Secret data (DO NOT COMMIT)
+# ============================
+# DEV CONTAINER
+# ============================
+.devcontainer/
+
+# ============================
+# SECRETS & VAULT (DO NOT COMMIT)
+# ============================
 data/secret/
 data/secret/*
 data/secret/**
 
-# OS files
+data/secret_vault.json
+data/vault_master.key
+
+ssn/data/backup.key
+ssn/data/backups/
+ssn/data/backups/*
+
+# ============================
+# MEMORY FILES (OPTIONAL – if private)
+# ============================
+ssn/data/semantic_memory.json
+ssn/data/episodic_memory.json
+ssn/data/personal_profile.json
+ssn/data/profile_memory.json
+ssn/data/trace_memory.json
+
+# ============================
+# OS JUNK FILES
+# ============================
 .DS_Store
 Thumbs.db
 
-# Logs
+# ============================
+# LOGS
+# ============================
 logs/
 *.log
 
-# Build folders
+# ============================
+# BUILD / DIST
+# ============================
 build/
 dist/
+*.egg-info/

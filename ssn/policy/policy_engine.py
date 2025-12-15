@@ -1,12 +1,24 @@
 import yaml
 import os
 
+
 class PolicyEngine:
     """
-    SSN Policy Engine - ULTIMATE HOME LAW AUTHORITY
-    ------------------------------------------------
-    Home Law (Samson) has COMPLETE override of everything.
-    World Law and System Law are advisory only for the Owner.
+    SSN Policy Engine
+
+    Loads:
+      - world_law.yaml
+      - system_law.yaml
+      - home_law_samson.yaml
+
+    Core logic is unchanged:
+      - OWNER: HOME LAW ULTIMATE POWER (always allow)
+      - NON-OWNER: subject to World Law + limited allowed actions
+
+    Compatibility updates (no logic change):
+      - Accepts context/meta kwargs used by InterfaceGateway
+      - Adds common aliases: is_allowed(), allow(), enforce(), check()
+      - Keeps Orchestrator compatibility: check_permission(role, action)
     """
 
     def __init__(self):
@@ -23,20 +35,43 @@ class PolicyEngine:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Policy file missing: {path}")
 
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     # ------------------------------------------------------------
-    #  COMPATIBILITY METHOD FOR ORCHESTRATOR
+    #  COMPATIBILITY METHOD FOR ORCHESTRATOR + INTERFACES
     # ------------------------------------------------------------
 
-    def check_permission(self, role, action):
+    def check_permission(self, role, action, context=None, meta=None, **kwargs):
         """
-        Compatibility method for Orchestrator.
+        Compatibility method for Orchestrator and InterfaceGateway.
         Returns: True if allowed, False if denied
         """
-        result = self.validate_action(role, action)
+        result = self.validate_action(role, action, context=context, meta=meta)
         return result["status"] == "allow"
+
+    # Common interface-style aliases expected by various gateways
+    def is_allowed(self, role, action, context=None, meta=None, **kwargs):
+        """
+        Returns dict-style response for gateways that expect {'allowed': bool, ...}
+        """
+        result = self.validate_action(role, action, context=context, meta=meta)
+        return {
+            "allowed": result["status"] == "allow",
+            "status": result["status"],
+            "reason": result.get("reason", ""),
+        }
+
+    def allow(self, role, action, context=None, meta=None, **kwargs):
+        return self.check_permission(role, action, context=context, meta=meta, **kwargs)
+
+    def enforce(self, role, action, context=None, meta=None, **kwargs):
+        # For engines that interpret enforce() as a permission check.
+        return self.check_permission(role, action, context=context, meta=meta, **kwargs)
+
+    def check(self, role, action, context=None, meta=None, **kwargs):
+        # Some gateways call check() instead of check_permission()
+        return self.is_allowed(role, action, context=context, meta=meta, **kwargs)
 
     # ------------------------------------------------------------
     #  OVERRIDE CAPABILITY CHECKS
@@ -58,7 +93,7 @@ class PolicyEngine:
     #  MAIN VALIDATION LOGIC - HOME LAW ULTIMATE POWER
     # ------------------------------------------------------------
 
-    def validate_action(self, identity_role, action):
+    def validate_action(self, identity_role, action, context=None, meta=None, **kwargs):
         """
         Returns:
             { status: "allow" | "deny", reason: explanation }
@@ -72,7 +107,7 @@ class PolicyEngine:
                     "status": "allow",
                     "reason": "Explicitly allowed in HOME LAW"
                 }
-            
+
             # Even if not explicitly listed, Owner can do ANYTHING
             # Home Law overrides ALL World Law and System Law restrictions
             return {
@@ -84,7 +119,7 @@ class PolicyEngine:
         else:
             # For normal users, check World Law core violations
             world_rules = self.world_law["world_law"]
-            
+
             # Core World Law violations for non-owners
             action_lower = action.lower()
             if (not world_rules["allow_harm"] and any(word in action_lower for word in ["harm", "hurt", "kill", "injure"])):
@@ -92,13 +127,13 @@ class PolicyEngine:
                     "status": "deny",
                     "reason": "Blocked by WORLD LAW: No harm allowed"
                 }
-                
+
             if (not world_rules["allow_illegal_actions"] and "illegal" in action_lower):
                 return {
-                    "status": "deny", 
+                    "status": "deny",
                     "reason": "Blocked by WORLD LAW: No illegal actions"
                 }
-                
+
             if (not world_rules["allow_leak_sensitive_data"] and any(word in action_lower for word in ["leak", "expose_secret"])):
                 return {
                     "status": "deny",
@@ -109,7 +144,7 @@ class PolicyEngine:
             normal_user_allowed_actions = [
                 "basic_query", "request_info", "get_help", "ask_question"
             ]
-            
+
             if action in normal_user_allowed_actions:
                 return {
                     "status": "allow",
@@ -130,7 +165,7 @@ class PolicyEngine:
         return {
             "home_law_authority": "ULTIMATE",
             "world_law_override": "COMPLETE",
-            "system_law_override": "COMPLETE", 
+            "system_law_override": "COMPLETE",
             "owner_restrictions": "NONE",
             "message": "Home Law has absolute authority over all restrictions"
         }

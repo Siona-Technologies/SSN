@@ -22,14 +22,11 @@ class WorldContextProvider:
     Phase 5.7 — World Context Provider
 
     Produces a bounded, redacted world snapshot suitable for use in LLM context.
-    This avoids pushing raw sensor payloads or unbounded structures into cognition.
 
-    Inputs:
-      - world_model: should implement snapshot(include_events:bool, max_entities:int, max_events:int) -> dict
-        (Older snapshot implementations that only accept max_events are supported via fallback.)
-
-    Output:
-      - dict safe for context["world"]
+    Phase 6.4 hardening:
+      - Caller can override include_events/max_entities/max_events per request.
+      - WorldModel.snapshot(max_entities=..., max_events=...) remains the single source
+        of truth for bounding; this provider must not re-expand events beyond it.
     """
 
     def __init__(self, config: Optional[WorldContextConfig] = None):
@@ -41,21 +38,34 @@ class WorldContextProvider:
         if self.config.max_attr_keys <= 0:
             raise ValueError("max_attr_keys must be > 0")
 
-    def build(self, world_model: Any) -> Dict[str, Any]:
+    def build(
+        self,
+        world_model: Any,
+        *,
+        include_events: Optional[bool] = None,
+        max_entities: Optional[int] = None,
+        max_events: Optional[int] = None,
+    ) -> Dict[str, Any]:
         # If no world model or no snapshot method, return minimal marker
         snap_fn = getattr(world_model, "snapshot", None)
         if not callable(snap_fn):
             return {"available": False, "reason": "world_model_missing_snapshot"}
 
-        include_events = bool(self.config.include_events)
-        max_entities = int(self.config.max_entities)
-        max_events = int(self.config.max_events)
+        inc = bool(self.config.include_events) if include_events is None else bool(include_events)
+
+        me = self.config.max_entities if max_entities is None else int(max_entities or 0)
+        mv = self.config.max_events if max_events is None else int(max_events or 0)
+
+        if me < 0:
+            me = 0
+        if mv < 0:
+            mv = 0
 
         # Prefer passing max_entities + max_events; fall back for older signatures
         try:
-            raw = snap_fn(include_events=include_events, max_entities=max_entities, max_events=max_events)
+            raw = snap_fn(include_events=inc, max_entities=me, max_events=mv)
         except TypeError:
-            raw = snap_fn(include_events=include_events, max_events=max_events)
+            raw = snap_fn(include_events=inc, max_events=mv)
 
         if not isinstance(raw, dict):
             return {"available": False, "reason": "snapshot_not_dict"}
@@ -64,8 +74,8 @@ class WorldContextProvider:
         if not isinstance(entities, list):
             entities = []
 
-        # Keep top N entities (WorldModel.snapshot() is expected to sort by recency)
-        entities = entities[:max_entities]
+        # Snapshot SHOULD already be bounded; keep a defensive cap (never expand)
+        entities = entities[:me] if me > 0 else []
 
         safe_entities: List[Dict[str, Any]] = []
         for e in entities:
@@ -104,11 +114,17 @@ class WorldContextProvider:
             "entities": safe_entities,
         }
 
-        if include_events:
+        if inc:
             evs = raw.get("events", [])
             if not isinstance(evs, list):
                 evs = []
-            evs = evs[-max_events:] if max_events > 0 else []
+
+            # Snapshot SHOULD already be bounded; keep a defensive cap (never expand)
+            if mv > 0:
+                if len(evs) > mv:
+                    evs = evs[-mv:]
+            else:
+                evs = []
 
             safe_events: List[Dict[str, Any]] = []
             for ev in evs:
@@ -124,7 +140,6 @@ class WorldContextProvider:
                         # keep tiny known keys if present
                         "id": ev.get("id", None),
                         "entity": ev.get("entity", None),
-                        # do NOT include ev["payload"] (could be large)
                     }
                 )
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
@@ -11,29 +11,30 @@ from ssn.world.world_summary import WorldSummaryNormalizer, WorldSummaryConfig
 
 
 def _get_master_key(req: InterfaceRequest) -> Optional[str]:
+    # Prefer meta first (AgentShell mirrors master_key into meta)
     if isinstance(req.meta, dict):
         mk = req.meta.get("master_key")
         if isinstance(mk, str) and mk.strip():
             return mk.strip()
 
-    ctx = req.context if isinstance(req.context, dict) else {}
-    mk2 = ctx.get("master_key")
-    if isinstance(mk2, str) and mk2.strip():
-        return mk2.strip()
+    # Fallback to context
+    if isinstance(req.context, dict):
+        mk2 = req.context.get("master_key")
+        if isinstance(mk2, str) and mk2.strip():
+            return mk2.strip()
 
     return None
 
 
 def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
     """
-    Phase 5.9 — read-only world state action.
+    Read-only world state action.
 
-    OWNER-only:
-      - verifies using meta["master_key"] (fallback: context["master_key"])
-      - returns bounded world_context + world_summary
-      - never returns raw sensor payloads
+    OWNER-only (verified by master key):
+      - returns bounded world context + summary
+      - respects req.context max_entities/max_events/include_events
+      - Phase 6.4: uses WorldModel.snapshot as single source of truth for bounds.
     """
-    ctx = req.context or {}
     master_key = _get_master_key(req)
 
     scores = verify_owner(master_key)
@@ -57,11 +58,9 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         )
 
     depsd = deps if isinstance(deps, dict) else {}
-    world_model = depsd.get("world_model")
     orch = depsd.get("orchestrator")
-    if world_model is None and orch is not None:
-        world_model = getattr(orch, "world_model", None)
 
+    world_model = depsd.get("world_model") or (getattr(orch, "world_model", None) if orch else None)
     if world_model is None:
         return InterfaceResponse(
             ok=True,
@@ -78,30 +77,38 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
             error=None,
         )
 
+    ctx = req.context if isinstance(req.context, dict) else {}
+
     max_entities = int(ctx.get("max_entities", 8) or 8)
     max_events = int(ctx.get("max_events", 8) or 8)
     include_events = bool(ctx.get("include_events", True))
 
-    provider = depsd.get("world_context_provider")
-    if provider is None and orch is not None:
-        provider = getattr(orch, "world_context_provider", None)
+    max_entities = max(1, min(max_entities, 50))
+    max_events = max(0, min(max_events, 50))
 
-    if provider is None:
-        provider = WorldContextProvider(
-            WorldContextConfig(
-                max_entities=max(1, min(max_entities, 50)),
-                max_events=max(0, min(max_events, 50)),
-                max_attr_keys=10,
-                include_events=include_events,
-            )
+    # Provider config governs redaction limits; bounds are enforced by snapshot via overrides
+    provider = WorldContextProvider(
+        WorldContextConfig(
+            max_entities=max_entities,
+            max_events=max_events,
+            max_attr_keys=10,
+            include_events=include_events,
         )
+    )
 
-    world_context = provider.build(world_model)
+    # Phase 6.4: pass explicit overrides so provider cannot drift
+    world_context = provider.build(
+        world_model,
+        include_events=include_events,
+        max_entities=max_entities,
+        max_events=max_events,
+    )
 
+    # Phase 6.4: summary uses the SAME bounds so it corresponds to the returned world
     summarizer = WorldSummaryNormalizer(
         WorldSummaryConfig(
-            max_entities=min(12, max(1, max_entities)),
-            max_events=min(12, max(0, max_events)),
+            max_entities=max_entities,
+            max_events=max_events,
             max_attr_keys=4,
             max_chars=700,
         )

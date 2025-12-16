@@ -21,6 +21,7 @@ class AgentShell:
       - world      -> action: world
       - sense_tick -> action: sense_tick
       - tool       -> action: tool
+      - run_tool   -> action: run_tool   (Phase 6.5A)
     """
 
     def __init__(self, gateway: InterfaceGateway, default_role: str = "GUEST"):
@@ -98,6 +99,11 @@ class AgentShell:
 
         if etype == "tool":
             req = InterfaceRequest(action="tool", role=role, user_input=str(text or ""), context=context, meta=meta)
+            return self.gateway.handle(req)
+
+        # Phase 6.5A — tool registry execution
+        if etype == "run_tool":
+            req = InterfaceRequest(action="run_tool", role=role, user_input="", context=context, meta=meta)
             return self.gateway.handle(req)
 
         return InterfaceResponse(

@@ -1,11 +1,11 @@
 {
-  "ts": 1765795799.2104948,
+  "ts": 1765913343.48367,
   "entities": {
     "person:synthetic": {
       "entity": "person",
       "status": "present",
       "confidence": 0.7,
-      "last_seen_ts": 1765795799.1130059,
+      "last_seen_ts": 1765913343.382276,
       "attributes": {
         "zone": "front"
       },
@@ -15,28 +15,140 @@
   "events": [
     {
       "type": "vision_detection",
-      "ts": 1765795574.1338131,
+      "ts": 1765801183.991346,
       "confidence": 0.7,
       "source": "sense_tick",
       "details": {}
     },
     {
       "type": "motion_event",
-      "ts": 1765795574.1338131,
+      "ts": 1765801183.991346,
       "confidence": 0.6,
       "source": "sense_tick",
       "details": {}
     },
     {
       "type": "vision_detection",
-      "ts": 1765795799.1129923,
+      "ts": 1765801185.2265525,
       "confidence": 0.7,
       "source": "sense_tick",
       "details": {}
     },
     {
       "type": "motion_event",
-      "ts": 1765795799.1129923,
+      "ts": 1765801185.2265525,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765801186.6462991,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765801186.6462991,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912099.520585,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912099.520585,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912131.673744,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912131.673744,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912142.8765206,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912142.8765206,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912145.1709158,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912145.1709158,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912147.3793468,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912147.3793468,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765912878.3814006,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765912878.3814006,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1765913343.3822525,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1765913343.3822525,
       "confidence": 0.6,
       "source": "sense_tick",
       "details": {}

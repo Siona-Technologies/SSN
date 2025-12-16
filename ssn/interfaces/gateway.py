@@ -9,6 +9,7 @@ from ssn.interfaces.handlers import HANDLERS
 
 from ssn.interfaces.handlers_world import handle_world
 from ssn.interfaces.handlers_sense_tick import handle_sense_tick
+from ssn.interfaces.handlers_tools import handle_run_tool
 
 
 class InterfaceGateway:
@@ -19,6 +20,7 @@ class InterfaceGateway:
       - "think" must be allowed to run for both OWNER and GUEST so the SSN core can respond
         (with internal restrictions if needed).
       - "world" and "sense_tick" are OWNER-verified inside their handlers (bounded, internal-only).
+      - "run_tool" is OWNER-verified inside its handler (Phase 6.5A).
     """
 
     ALLOWED_ACTIONS = {
@@ -29,6 +31,7 @@ class InterfaceGateway:
         "tool",
         "world",
         "sense_tick",
+        "run_tool",
     }
 
     def __init__(
@@ -61,6 +64,7 @@ class InterfaceGateway:
         # Ensure handlers are registered
         HANDLERS.setdefault("world", handle_world)
         HANDLERS.setdefault("sense_tick", handle_sense_tick)
+        HANDLERS.setdefault("run_tool", handle_run_tool)
 
     def _policy_allows(self, req: InterfaceRequest) -> bool:
         """
@@ -69,11 +73,12 @@ class InterfaceGateway:
           - Core/orchestrator can still return "blocked"/restricted outputs internally.
 
         "world" and "sense_tick" are owner-only but enforced inside their handlers.
+        "run_tool" is owner-only but enforced inside its handler.
         """
         if req.action in ("think", "explain_state"):
             return True
 
-        if req.action in ("world", "sense_tick"):
+        if req.action in ("world", "sense_tick", "run_tool"):
             return True
 
         pe = self.deps.get("policy_engine")

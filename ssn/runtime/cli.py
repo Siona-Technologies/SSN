@@ -87,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
     p_tick.add_argument("--events", default="[]", help="JSON list of event dicts. If empty, a small synthetic batch is used.")
     p_tick.add_argument("--max_events", type=int, default=25)
 
+    # Phase 6.5A — Tool runner
+    p_tool = sub.add_parser("run-tool", help="Run a registered tool (OWNER-only).")
+    p_tool.add_argument("--role", default="OWNER", choices=["OWNER", "GUEST"])
+    p_tool.add_argument("--name", required=True, help="Tool name, e.g., tools.list, world.read")
+    p_tool.add_argument("--args", default="{}", help='JSON dict of tool args, e.g. \'{"max_events":2}\'')
+
     args = parser.parse_args(remaining)
 
     rt = SSNRuntimeBuilder.build_default(default_role="GUEST")
@@ -181,6 +187,16 @@ def main(argv: list[str] | None = None) -> int:
 
         resp = rt.shell.handle_event(
             {"type": "sense_tick", "role": args.role, "text": "", "context": ctx, "meta": mk_meta(role=args.role)}
+        )
+        _print_json(resp.__dict__)
+        return 0
+
+    if args.cmd == "run-tool":
+        tool_args = _parse_json_dict(args.args)
+        ctx = mk_context({"tool_name": args.name, "args": tool_args}, role=args.role)
+
+        resp = rt.shell.handle_event(
+            {"type": "run_tool", "role": args.role, "text": "", "context": ctx, "meta": mk_meta(role=args.role)}
         )
         _print_json(resp.__dict__)
         return 0

@@ -64,6 +64,67 @@ def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return clean
 
 
+def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
+    """
+    Phase 6.5C — Build bounded identity context from persisted identity profile.
+    Owner verification is handled outside; this is purely a loader/normalizer.
+
+    Output is safe for cognition context.
+    """
+    try:
+        from ssn.identity.identity_profile import IdentityProfileStore, verify_profile  # type: ignore
+    except Exception:
+        return {"available": False, "reason": "identity_profile_module_missing"}
+
+    store = IdentityProfileStore()
+    view = store.view()
+    if not isinstance(view, dict) or not view.get("available"):
+        return {"available": False, "reason": "no_identity_profile"}
+
+    prof = view.get("profile", {})
+    if not isinstance(prof, dict):
+        return {"available": False, "reason": "invalid_identity_profile"}
+
+    # bounded fields (keep it small + deterministic)
+    owner_name = str(prof.get("owner_name", "unknown"))
+    creator_name = str(prof.get("creator_name", "unknown"))
+    system_name = str(prof.get("system_name", "SSN"))
+    mission = str(prof.get("mission", ""))
+
+    laws_raw = prof.get("laws", [])
+    laws: list[str] = []
+    if isinstance(laws_raw, list):
+        for x in laws_raw[:8]:  # hard bound
+            s = str(x)
+            laws.append(s[:240])  # bound each line
+
+    sig_ok = False
+    try:
+        sig_ok = bool(verify_profile(prof, master_key))
+    except Exception:
+        sig_ok = False
+
+    ident = {
+        "available": True,
+        "system_name": system_name,
+        "owner_name": owner_name,
+        "creator_name": creator_name,
+        "mission": mission[:500],
+        "laws": laws,
+        "signature_valid": sig_ok,
+        "version": str(prof.get("version", "")),
+    }
+
+    # Deterministic short summary
+    laws_part = "; ".join(laws[:3]) if laws else "none"
+    summary = f"Identity: system={system_name} | owner={owner_name} | creator={creator_name} | laws={laws_part}"
+    if len(summary) > 600:
+        summary = summary[:599] + "…"
+
+    ident["summary"] = summary
+    return ident
+
+
 def _inject_world_context_if_owner_verified(
     *,
     req: InterfaceRequest,
@@ -77,6 +138,10 @@ def _inject_world_context_if_owner_verified(
     Writes both modern keys and legacy keys for compatibility:
       ctx["world"] / ctx["world_summary"]
       ctx["_world"] / ctx["_world_summary"]
+
+    Phase 6.5C addition:
+      ctx["identity"] / ctx["identity_summary"]
+      ctx["_identity"] / ctx["_identity_summary"]
     """
     base = dict(ctx or {})
 
@@ -88,10 +153,24 @@ def _inject_world_context_if_owner_verified(
     if not is_samson_verified(scores):
         return base
 
-    # Resolve world_model:
-    # 1) deps["world_model"]
-    # 2) orchestrator.world_model
-    # 3) load persisted WorldModel() from disk
+    # ---------
+    # Identity injection (6.5C)
+    # ---------
+    try:
+        ident = _build_identity_context(master_key=master_key)
+        base["identity"] = {
+            k: v for k, v in ident.items() if k != "summary"
+        }  # structured payload
+        base["identity_summary"] = str(ident.get("summary", "Identity: unavailable."))
+        base["_identity"] = base["identity"]
+        base["_identity_summary"] = base["identity_summary"]
+    except Exception:
+        # never break cognition due to identity injection
+        pass
+
+    # ---------
+    # World injection (existing)
+    # ---------
     world_model = deps.get("world_model")
     orch = deps.get("orchestrator")
 
@@ -252,7 +331,7 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
     """
     Internal cognition. Prefers Orchestrator; falls back to BrainRouter.
 
-    Inject bounded world context for VERIFIED OWNER (by master key).
+    Inject bounded world context (and identity context) for VERIFIED OWNER (by master key).
     """
     orchestrator = deps.get("orchestrator")
     router = deps.get("brain_router")

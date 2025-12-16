@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 
 def _safe_str(x: Any) -> str:
     try:
-        s = str(x)
+        return str(x)
     except Exception:
-        s = ""
-    return s
+        return ""
 
 
 def _clip01(x: Any) -> float:
@@ -39,6 +38,10 @@ def normalize_world_context(
     """
     Produce a bounded, low-noise world context payload suitable for LLM context injection.
 
+    Phase 6.4 hardening:
+      - Treat input snapshot as the source of truth (never expand).
+      - Apply only a final display-cap and keep stats consistent with that cap.
+
     Returns:
       {
         "attached": bool,
@@ -49,47 +52,57 @@ def normalize_world_context(
         "stats": {...}
       }
     """
+    now = time.time()
+
     if not isinstance(world_snapshot, dict):
         return {
             "attached": False,
-            "ts": time.time(),
+            "ts": now,
             "summary": "World: unavailable (invalid_snapshot).",
             "top_entities": [],
             "recent_events": [],
             "stats": {"entity_count": None, "events_count": None},
         }
 
-    # Your handler currently wraps as: {"available": True, "ts":..., "entity_count":..., "entities":[...], "events":[...]}
-    available = bool(world_snapshot.get("available", True))
-    ents = world_snapshot.get("entities", [])
-    evs = world_snapshot.get("events", [])
-
-    if not available:
+    available = world_snapshot.get("available", True)
+    if available is False:
         reason = _safe_str(world_snapshot.get("reason", "unavailable"))
         return {
             "attached": False,
-            "ts": float(world_snapshot.get("ts", time.time()) or time.time()),
+            "ts": float(world_snapshot.get("ts", now) or now),
             "summary": f"World: unavailable ({reason}).",
             "top_entities": [],
             "recent_events": [],
             "stats": {"entity_count": None, "events_count": None},
         }
 
+    ents = world_snapshot.get("entities", [])
+    evs = world_snapshot.get("events", [])
+
     if not isinstance(ents, list):
         ents = []
     if not isinstance(evs, list):
         evs = []
 
-    max_entities = int(max_entities or 0)
-    max_events = int(max_events or 0)
-    if max_entities < 0:
-        max_entities = 0
-    if max_events < 0:
-        max_events = 0
+    # Normalize caps
+    me = int(max_entities or 0)
+    mv = int(max_events or 0)
+    mc = int(max_chars or 0)
+
+    if me < 0:
+        me = 0
+    if mv < 0:
+        mv = 0
+    if mc < 40:
+        mc = 40
+
+    # Final bounded view (never expands; only caps what is already present)
+    ents_view = ents[:me] if me > 0 else []
+    evs_view = evs[-mv:] if mv > 0 else []
 
     # Build entity briefs
     top_entities: List[str] = []
-    for e in ents[:max_entities]:
+    for e in ents_view:
         if not isinstance(e, dict):
             continue
         eid = _safe_str(_pick(e, ["id", "eid"], "entity:?"))
@@ -103,7 +116,7 @@ def normalize_world_context(
 
     # Build event briefs
     recent_events: List[str] = []
-    for ev in evs[-max_events:]:
+    for ev in evs_view:
         if not isinstance(ev, dict):
             continue
         t = _safe_str(_pick(ev, ["type"], "event"))
@@ -115,6 +128,7 @@ def normalize_world_context(
         c = _clip01(_pick(ev, ["confidence", "conf"], 0.5))
         recent_events.append(f"{t}@{tsf:.2f}(c={c:.2f})")
 
+    # entity_count is intended to describe the full model count (already supplied by snapshot/provider)
     entity_count = world_snapshot.get("entity_count", None)
     if not isinstance(entity_count, int):
         try:
@@ -122,22 +136,22 @@ def normalize_world_context(
         except Exception:
             entity_count = len(ents)
 
+    # stats must be consistent with what we actually present
     stats = {
         "entity_count": entity_count,
-        "events_count": len(evs),
+        "events_count": len(evs_view),
     }
 
     ent_part = ", ".join(top_entities) if top_entities else "none"
     ev_part = ", ".join(recent_events) if recent_events else "none"
     summary = f"World: entities={entity_count} | Top: {ent_part} | Events: {ev_part}"
 
-    # Hard cap the final summary
-    if len(summary) > max_chars:
-        summary = summary[: max_chars - 3] + "..."
+    if len(summary) > mc:
+        summary = summary[: mc - 3] + "..."
 
     return {
         "attached": True,
-        "ts": float(world_snapshot.get("ts", time.time()) or time.time()),
+        "ts": float(world_snapshot.get("ts", now) or now),
         "summary": summary,
         "top_entities": top_entities,
         "recent_events": recent_events,

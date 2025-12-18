@@ -106,18 +106,22 @@ def main(argv: list[str] | None = None) -> int:
         return out
 
     def mk_context(base: dict | None = None, *, role: str = "GUEST") -> dict:
+        """
+        Hard safety: never carry master_key in context (even OWNER).
+        All handlers should rely on meta["master_key"] for verification.
+        """
         ctx = dict(base or {})
-        if mk and role == "OWNER":
-            # Handlers_world / sense_tick use context["master_key"] for verification.
-            ctx["master_key"] = mk
-        else:
-            # Hard safety: never carry master_key in guest context.
-            ctx.pop("master_key", None)
-            auth = ctx.get("auth")
-            if isinstance(auth, dict):
-                auth2 = dict(auth)
-                auth2.pop("master_key", None)
-                ctx["auth"] = auth2
+
+        # remove top-level master_key
+        ctx.pop("master_key", None)
+
+        # remove nested auth.master_key
+        auth = ctx.get("auth")
+        if isinstance(auth, dict):
+            auth2 = dict(auth)
+            auth2.pop("master_key", None)
+            ctx["auth"] = auth2
+
         return ctx
 
     if args.cmd == "chat":
@@ -176,7 +180,13 @@ def main(argv: list[str] | None = None) -> int:
         ctx = mk_context(ctx_in, role=args.role)
 
         resp = rt.shell.handle_event(
-            {"type": "world", "role": args.role, "text": "", "context": ctx, "meta": mk_meta(role=args.role)}
+            {
+                "type": "world",
+                "role": args.role,
+                "text": "",
+                "context": ctx,
+                "meta": mk_meta(role=args.role),
+            }
         )
         _print_json(resp.__dict__)
         return 0
@@ -186,7 +196,13 @@ def main(argv: list[str] | None = None) -> int:
         ctx = mk_context({"events": evs, "max_events": int(args.max_events)}, role=args.role)
 
         resp = rt.shell.handle_event(
-            {"type": "sense_tick", "role": args.role, "text": "", "context": ctx, "meta": mk_meta(role=args.role)}
+            {
+                "type": "sense_tick",
+                "role": args.role,
+                "text": "",
+                "context": ctx,
+                "meta": mk_meta(role=args.role),
+            }
         )
         _print_json(resp.__dict__)
         return 0
@@ -196,7 +212,13 @@ def main(argv: list[str] | None = None) -> int:
         ctx = mk_context({"tool_name": args.name, "args": tool_args}, role=args.role)
 
         resp = rt.shell.handle_event(
-            {"type": "run_tool", "role": args.role, "text": "", "context": ctx, "meta": mk_meta(role=args.role)}
+            {
+                "type": "run_tool",
+                "role": args.role,
+                "text": "",
+                "context": ctx,
+                "meta": mk_meta(role=args.role),
+            }
         )
         _print_json(resp.__dict__)
         return 0

@@ -64,6 +64,126 @@ def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return clean
 
 
+# =====================================================================
+# Phase 6.6 — Chat Command Router helpers (OWNER-verified tools via chat)
+# =====================================================================
+
+def _scrub_secrets(x: Any) -> Any:
+    """
+    Defensive redaction: remove any accidental master_key fields from tool results.
+    """
+    if isinstance(x, dict):
+        out = {}
+        for k, v in x.items():
+            if str(k).lower() == "master_key":
+                continue
+            out[k] = _scrub_secrets(v)
+        return out
+    if isinstance(x, list):
+        return [_scrub_secrets(v) for v in x]
+    return x
+
+
+def _get_tool_registry(deps: Dict[str, Any]):
+    """
+    ToolRegistry is created lazily and cached in deps as 'tool_registry'.
+    Uses ssn.tools.builtin_tools.register_builtin_tools (same tool layer as run-tool).
+    """
+    try:
+        from ssn.tools.registry import ToolRegistry  # type: ignore
+        from ssn.tools.builtin_tools import register_builtin_tools  # type: ignore
+    except Exception:
+        return None
+
+    reg = deps.get("tool_registry")
+    if isinstance(reg, ToolRegistry):
+        return reg
+
+    reg = ToolRegistry()
+    register_builtin_tools(reg)
+    deps["tool_registry"] = reg
+    return reg
+
+
+def _maybe_run_tool_plan(
+    *,
+    text: str,
+    ctx: Dict[str, Any],
+    deps: Dict[str, Any],
+    master_key: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """
+    If chat text looks like a command, run tool(s) and return a structured payload.
+    Otherwise return None.
+
+    Security:
+      - Verifies OWNER by master_key (does NOT trust claimed role).
+      - Runs tools through ToolRegistry (which has per-tool role constraints).
+    """
+    if not master_key or not isinstance(master_key, str) or not master_key.strip():
+        return None
+
+    scores = verify_owner(master_key)
+    if not is_samson_verified(scores):
+        return None
+
+    try:
+        from ssn.tools.tool_command_router import build_tool_plan  # type: ignore
+    except Exception:
+        return None
+
+    plan = build_tool_plan(text, ctx)
+    if not plan:
+        return None
+
+    reg = _get_tool_registry(deps)
+    if reg is None:
+        return {
+            "tool_command": True,
+            "ok": False,
+            "reason": "tool_registry_missing",
+            "scores": scores,
+            "plan": [{"tool": c.name, "args": _scrub_secrets(c.args)} for c in plan],
+            "results": [],
+            "final_message": "Tools unavailable (tool_registry_missing).",
+        }
+
+    results = []
+    for call in plan:
+        args = dict(call.args or {})
+        # Pass master_key down internally so wrappers (world/identity) can verify.
+        # We still scrub it from outputs.
+        args["master_key"] = master_key
+
+        r = reg.run(name=call.name, role="OWNER", deps=deps, args=args)
+        results.append(
+            {
+                "tool": call.name,
+                "ok": bool(getattr(r, "ok", False)),
+                "data": _scrub_secrets(getattr(r, "data", None)),
+                "error": _scrub_secrets(getattr(r, "error", None)),
+            }
+        )
+
+    ok_count = sum(1 for x in results if x.get("ok"))
+    msg = f"Executed {len(results)} tool(s). ok={ok_count}/{len(results)}."
+
+    return {
+        "tool_command": True,
+        "identity_verified": True,
+        "role": "OWNER",
+        "allowed": True,
+        "scores": scores,
+        "plan": [{"tool": c.name, "args": _scrub_secrets(c.args)} for c in plan],
+        "results": results,
+        "final_message": msg,
+    }
+
+
+# =====================================================================
+# Phase 6.5C — Identity context injection
+# =====================================================================
+
 def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
     """
     Phase 6.5C — Build bounded identity context from persisted identity profile.
@@ -158,9 +278,7 @@ def _inject_world_context_if_owner_verified(
     # ---------
     try:
         ident = _build_identity_context(master_key=master_key)
-        base["identity"] = {
-            k: v for k, v in ident.items() if k != "summary"
-        }  # structured payload
+        base["identity"] = {k: v for k, v in ident.items() if k != "summary"}  # structured payload
         base["identity_summary"] = str(ident.get("summary", "Identity: unavailable."))
         base["_identity"] = base["identity"]
         base["_identity_summary"] = base["identity_summary"]
@@ -332,6 +450,10 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
     Internal cognition. Prefers Orchestrator; falls back to BrainRouter.
 
     Inject bounded world context (and identity context) for VERIFIED OWNER (by master key).
+
+    Phase 6.6:
+      - If chat looks like a command, run the tool plan (OWNER-verified) and return
+        a structured tool result payload (without touching orchestrator/router).
     """
     orchestrator = deps.get("orchestrator")
     router = deps.get("brain_router")
@@ -342,6 +464,15 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
     try:
         ctx = _inject_world_context_if_owner_verified(req=req, deps=deps, ctx=ctx, master_key=mk)
     except Exception:
+        pass
+
+    # Phase 6.6 — Chat Command Router (OWNER-verified tool execution)
+    try:
+        routed = _maybe_run_tool_plan(text=str(req.user_input or ""), ctx=ctx, deps=deps, master_key=mk)
+        if isinstance(routed, dict):
+            return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(routed))
+    except Exception:
+        # never brick chat due to tool routing failures
         pass
 
     if orchestrator is not None:

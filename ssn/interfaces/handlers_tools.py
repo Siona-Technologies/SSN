@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, Optional
 
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse
 from ssn.tools.registry import ToolRegistry
-from ssn.tools.builtin_tools import register_builtin_tools
 
 
 def _get_master_key(req: InterfaceRequest) -> Optional[str]:
@@ -26,10 +26,106 @@ def _get_registry(deps: Dict[str, Any]) -> ToolRegistry:
     reg = deps.get("tool_registry")
     if isinstance(reg, ToolRegistry):
         return reg
+
+    # Local import avoids circular-import risk
+    from ssn.tools.builtin_tools import register_builtin_tools
+
     reg = ToolRegistry()
     register_builtin_tools(reg)
     deps["tool_registry"] = reg
     return reg
+
+
+def _get_memory_hub(deps: Dict[str, Any]):
+    mh = deps.get("memory_hub")
+    if mh is not None:
+        return mh
+    orch = deps.get("orchestrator")
+    if orch is not None:
+        return getattr(orch, "memory_hub", None) or getattr(orch, "memory", None)
+    return None
+
+
+def _redact_args(args: Any) -> Dict[str, Any]:
+    """
+    Bounded, safe args capture for trace.
+    - Removes master_key
+    - Limits sizes
+    """
+    if not isinstance(args, dict):
+        return {}
+
+    out: Dict[str, Any] = {}
+    for k, v in args.items():
+        ks = str(k)
+
+        if ks.lower() in {"master_key", "ssn_master_key"}:
+            continue
+
+        if isinstance(v, (str, int, float, bool)) or v is None:
+            s = v
+        elif isinstance(v, dict):
+            sub: Dict[str, Any] = {}
+            for i, (sk, sv) in enumerate(v.items()):
+                if i >= 20:
+                    break
+                if str(sk).lower() in {"master_key", "ssn_master_key"}:
+                    continue
+                sub[str(sk)[:80]] = (str(sv)[:240] if not isinstance(sv, (int, float, bool)) else sv)
+            s = sub
+        elif isinstance(v, list):
+            s = [str(x)[:200] for x in v[:20]]
+        else:
+            s = str(v)[:300]
+
+        out[ks[:80]] = s
+
+    return out
+
+
+def _write_tool_trace(*, deps: Dict[str, Any], tool_name: str, args: Dict[str, Any], ok: bool, err: Any) -> None:
+    """
+    Writes a bounded tool execution trace into trace memory (OWNER-only path).
+    Never raises.
+    """
+    mh = _get_memory_hub(deps)
+    if mh is None:
+        return
+
+    add = getattr(mh, "add_trace", None) or getattr(mh, "write_trace", None) or getattr(mh, "log_trace", None)
+    if not callable(add):
+        return
+
+    err_code = None
+    err_msg = None
+    if isinstance(err, dict):
+        err_code = err.get("code")
+        err_msg = err.get("message")
+    else:
+        try:
+            err_code = getattr(err, "code", None)
+            err_msg = getattr(err, "message", None)
+        except Exception:
+            err_code = None
+            err_msg = None
+
+    payload = {
+        "type": "tool_call",
+        "ts": time.time(),
+        "tool": tool_name,
+        "ok": bool(ok),
+        "args": _redact_args(args),
+        "error": {
+            "code": str(err_code)[:120] if err_code else None,
+            "message": str(err_msg)[:240] if err_msg else None,
+        },
+        "source": "run_tool",
+    }
+
+    try:
+        add(payload)
+    except Exception:
+        return
 
 
 def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
@@ -78,13 +174,25 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
     if not isinstance(args, dict):
         args = {}
 
-    # Ensure tools that wrap existing handlers can pass master_key down internally without leaking it elsewhere
+    # Ensure wrappers can pass master_key down internally when needed
     args = dict(args)
     if mk:
         args["master_key"] = mk
 
     reg = _get_registry(depsd)
     result = reg.run(name=tool_name.strip(), role="OWNER", deps=depsd, args=args)
+
+    # Trace tool executions (bounded)
+    try:
+        _write_tool_trace(
+            deps=depsd,
+            tool_name=tool_name.strip(),
+            args=args,
+            ok=bool(result.ok),
+            err=(result.error if not result.ok else None),
+        )
+    except Exception:
+        pass
 
     return InterfaceResponse(
         ok=bool(result.ok),

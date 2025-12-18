@@ -1,6 +1,11 @@
 # ssn/interfaces/__init__.py
 
-from .contracts import InterfaceRequest, InterfaceResponse
-from .gateway import InterfaceGateway
+"""
+SSN interfaces package.
 
-__all__ = ["InterfaceRequest", "InterfaceResponse", "InterfaceGateway"]
+Important:
+- Do NOT import gateway/handlers here.
+- Keep __init__ side-effect free to prevent circular imports.
+"""
+
+__all__ = []

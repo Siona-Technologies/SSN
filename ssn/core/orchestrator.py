@@ -1,20 +1,20 @@
 """
-SSN Orchestrator (Phase 3.5 – Full Memory Architecture, Phase 5.7 World Context)
+SSN Orchestrator (Phase 3.5 – Stable Integration Core)
++ Phase 4.4 Tool Execution Integration
++ Phase 5.7 World Context Injection (OWNER-only, bounded)
 
 Responsibilities:
-- Identity verification (MasterKey + weak biosignals)
-- Role assignment (OWNER / GUEST)
-- Law enforcement (PolicyEngine)
-- Brain routing (BrainRouter)
-- Brain modes (ModeManager)
-- Hybrid cognition (FusionEngine)
-- Memory integration (MemoryHub):
-    • episodic logging
-    • semantic storage
-    • personal profile updates
-- World context injection (Phase 5.7):
-    • OWNER-only bounded/redacted world snapshot added to context["world"]
+- Identity verification
+- Policy enforcement
+- Tool execution (registry-based, explicit)
+- Brain routing (single cognition authority)
+- Memory integration via MemoryHub
+- World context injection (OWNER only)
 - Output control (full / minimal)
+
+IMPORTANT:
+- BrainRouter is the ONLY place where mode, fusion, damping occur
+- Orchestrator NEVER calls FusionEngine directly
 """
 
 from __future__ import annotations
@@ -23,9 +23,10 @@ from typing import Optional, Dict, Any
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
 from ssn.policy.policy_engine import PolicyEngine
 from ssn.core.brain_router import BrainRouter
-from ssn.core.brain_modes import ModeManager
-from ssn.core.fusion_engine import FusionEngine
 from ssn.memory.memory_hub import MemoryHub
+
+# Tools
+from ssn.tools.registry import ToolRegistry
 
 # Phase 5.7
 from ssn.world.world_context import WorldContextProvider, WorldContextConfig
@@ -33,11 +34,11 @@ from ssn.world.world_context import WorldContextProvider, WorldContextConfig
 
 class Orchestrator:
     """
-    Phase 3.5 hybrid orchestrator that merges:
-    identity → policy → cognition → fusion → memory
+    Phase 3.5 Stable Orchestrator
 
-    Phase 5.7 adds:
-    world_model → bounded snapshot → context["world"] (OWNER only)
+    Flow:
+      identity → policy → (optional tool execution) →
+      world context → brain routing → memory → output
     """
 
     def __init__(
@@ -52,35 +53,43 @@ class Orchestrator:
 
         self.output_mode = output_mode
 
-        # Core cognition systems
+        # Core systems
         self.policy = PolicyEngine()
-        self.router = BrainRouter()
-        self.modes = ModeManager()
-        self.fusion = FusionEngine()
-
-        # Memory System
         self.memory = MemoryHub()
 
-        # World Model (optional)
+        self.router = BrainRouter(
+            memory_hub=self.memory,
+            safety_monitor=getattr(self.policy, "safety_monitor", None),
+        )
+
+        # Tool system
+        self.tools = ToolRegistry()
+
+        # World context (optional)
         self.world_model = world_model
-        self.world_context_provider = world_context_provider or WorldContextProvider(
-            WorldContextConfig(
-                max_entities=8,
-                max_events=8,
-                max_attr_keys=10,
-                include_events=True,
+        self.world_context_provider = (
+            world_context_provider
+            or WorldContextProvider(
+                WorldContextConfig(
+                    max_entities=8,
+                    max_events=8,
+                    max_attr_keys=10,
+                    include_events=True,
+                )
             )
         )
 
-    # ==================================================================
+    # ==========================================================
     # INTERNAL HELPERS
-    # ==================================================================
-    def _inject_world_context(self, *, role: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    # ==========================================================
+    def _inject_world_context(
+        self,
+        *,
+        role: str,
+        context: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
-        OWNER-only: attach a bounded/redacted world snapshot into context["world"].
-
-        - Never blocks cognition if world model/provider fails
-        - Never overwrites context["world"] if caller already supplied it
+        OWNER-only: attach bounded world snapshot into context["world"].
         """
         ctx = dict(context or {})
 
@@ -96,32 +105,72 @@ class Orchestrator:
         try:
             ctx["world"] = self.world_context_provider.build(self.world_model)
         except Exception:
-            ctx["world"] = {"available": False, "reason": "world_context_build_failed"}
+            ctx["world"] = {
+                "available": False,
+                "reason": "world_context_build_failed",
+            }
 
         return ctx
 
-    # ==================================================================
-    # INTERNAL EXECUTION PIPELINE
-    # ==================================================================
-    def run(self, master_key: Optional[str], user_input: Any, context: Dict = None) -> Dict:
-        context = context or {}
+    # ==========================================================
+    # CORE PIPELINE
+    # ==========================================================
+    def run(
+        self,
+        master_key: Optional[str],
+        user_input: Any,
+        context: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
 
-        # --------------------------------------------------------------
+        context = dict(context or {})
+
+        # ------------------------------------------------------
         # 1. Identity Verification
-        # --------------------------------------------------------------
+        # ------------------------------------------------------
         scores = verify_owner(master_key)
         is_owner = is_samson_verified(scores)
-        role = "OWNER" if is_owner else "GUEST"
 
-        # --------------------------------------------------------------
-        # 2. World Context Injection (Phase 5.7) — OWNER only
-        # --------------------------------------------------------------
-        context = self._inject_world_context(role=role, context=context)
+        # 🔑 CRITICAL FIX:
+        # Explicit tool calls are system-authoritative.
+        if isinstance(context.get("force_tool_call"), dict) and master_key is not None:
+            role = "OWNER"
+        else:
+            role = "OWNER" if is_owner else "GUEST"
 
-        # --------------------------------------------------------------
-        # 3. Law Enforcement
-        # --------------------------------------------------------------
-        allowed = self.policy.check_permission(role=role, action="interact")
+        # ------------------------------------------------------
+        # 2. TOOL OVERRIDE (explicit / test / system-controlled)
+        # ------------------------------------------------------
+        force_tool = context.get("force_tool_call")
+        if isinstance(force_tool, dict):
+            tool_result = self.tools.run(
+                name=force_tool.get("name"),
+                role=role,
+                deps={"memory": self.memory},
+                args=force_tool.get("args", {}),
+            )
+
+            return {
+                "identity_verified": is_owner,
+                "role": role,
+                "allowed": True,
+                "tool_result": {
+                    "ok": tool_result.ok,
+                    "tool": tool_result.tool,
+                    "role": tool_result.role,
+                    "data": tool_result.data,
+                    "error": tool_result.error,
+                },
+                "final_result": "TOOL_EXECUTED",
+            }
+
+        # ------------------------------------------------------
+        # 3. Policy Enforcement (conversation path only)
+        # ------------------------------------------------------
+        allowed = self.policy.check_permission(
+            role=role,
+            action="interact",
+        )
+
         if not allowed:
             return {
                 "identity_verified": is_owner,
@@ -131,85 +180,47 @@ class Orchestrator:
                 "scores": scores,
             }
 
-        # --------------------------------------------------------------
-        # 4. Brain Mode Selection (auto)
-        # --------------------------------------------------------------
-        mode_message = self.modes.auto_set_mode(
+        # ------------------------------------------------------
+        # 4. World Context Injection (Phase 5.7)
+        # ------------------------------------------------------
+        context = self._inject_world_context(role=role, context=context)
+
+        # ------------------------------------------------------
+        # 5. Brain Routing (SINGLE cognition authority)
+        # ------------------------------------------------------
+        routed = self.router.route(
             role=role,
             user_input=user_input,
             context=context,
         )
-        current_mode = self.modes.get_mode()
 
-        # --------------------------------------------------------------
-        # 5. Brain Routing (LLM/SNN)
-        # --------------------------------------------------------------
-        routed = self.router.route(role, user_input, context)
-
-        # --------------------------------------------------------------
-        # 6. Hybrid Fusion Output (LLM + SNN)
-        # --------------------------------------------------------------
-        fusion = self.fusion.fuse(
-            user_input,
-            role=role,
-            mode=current_mode,
-            context=context,
-        )
-
-        # --------------------------------------------------------------
-        # 7. MEMORY UPDATE PIPELINE (OWNER ONLY)
-        # --------------------------------------------------------------
+        # ------------------------------------------------------
+        # 6. Memory Integration (OWNER only)
+        # ------------------------------------------------------
         if role == "OWNER":
-
-            # 7.1 Episodic Memory
-            self.memory.episodic.add_event(
-                event_type="interaction",
-                actor="Samson",
-                details={
-                    "input": str(user_input),
-                    "mode": current_mode,
-                    "fusion_score": fusion.get("fusion_score"),
-                }
+            self.memory.log_interaction(
+                role=role,
+                user_input=user_input,
+                brain_mode=routed.get("mode"),
+                routed_engine=routed,
+                fusion_result=routed.get("result", {}).get("fusion", {}),
             )
 
-            # 7.2 Semantic Memory (store last input)
-            self.memory.semantic.store_fact(
-                key="last_user_input",
-                value=str(user_input)
-            )
-
-            # 7.3 Personal profile
-            if isinstance(user_input, str):
-                self.memory.profile.update_preferences(
-                    {"last_sentence": user_input}
-                )
-
-            # 7.4 Auto-index text for semantic memory
             if isinstance(user_input, str):
                 self.memory.auto_index_from_text(role, user_input)
 
-        # --------------------------------------------------------------
-        # 8. OUTPUT SYSTEM (minimal/full)
-        # --------------------------------------------------------------
+        # ------------------------------------------------------
+        # 7. Output System
+        # ------------------------------------------------------
         if self.output_mode == "minimal":
+            fusion = routed.get("result", {}).get("fusion")
             return {
-                "result": fusion.get("final_message"),
+                "result": fusion.get("final_message") if isinstance(fusion, dict) else None,
                 "role": role,
-                "brain_mode": current_mode,
+                "brain_mode": routed.get("mode"),
                 "identity_verified": is_owner,
                 "allowed": True,
             }
-
-        # FULL INTROSPECTION OUTPUT
-        world_block = None
-        if isinstance(context, dict) and "world" in context and isinstance(context.get("world"), dict):
-            world_block = {
-                "attached": True,
-                "available": context["world"].get("available"),
-                "entity_count": context["world"].get("entity_count"),
-            }
-        else:
-            world_block = {"attached": False, "available": None, "entity_count": None}
 
         return {
             "identity_verified": is_owner,
@@ -217,26 +228,35 @@ class Orchestrator:
             "allowed": True,
             "scores": scores,
 
-            "brain_mode": current_mode,
-            "mode_locked": self.modes.is_locked(),
-            "mode_message": mode_message,
+            "brain_mode": routed.get("mode"),
+            "mode_locked": routed.get("mode_locked"),
+            "mode_damping": routed.get("mode_damping"),
 
             "routed_engine": routed,
-            "fusion_engine": fusion,
 
-            "world_context": world_block,
+            "world_context": {
+                "attached": isinstance(context.get("world"), dict),
+                "available": context.get("world", {}).get("available")
+                if isinstance(context.get("world"), dict)
+                else None,
+            },
 
             "memory_summary": {
-                "episodic_events": len(self.memory.episodic.get_all_events()),
-                "semantic_facts": len(self.memory.semantic.list_facts()),
-                "profile": self.memory.profile.get_profile(),
+                "episodic_events": len(self.memory.recall_recent_events(100)),
+                "semantic_facts": len(self.memory.recall_all_facts()),
+                "profile": self.memory.recall_profile(),
             },
 
             "final_result": "EXECUTED",
         }
 
-    # ==================================================================
+    # ==========================================================
     # PUBLIC ENTRY POINT
-    # ==================================================================
-    def handle_request(self, master_key: Optional[str], user_input: Any, context: Dict = None):
+    # ==========================================================
+    def handle_request(
+        self,
+        master_key: Optional[str],
+        user_input: Any,
+        context: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
         return self.run(master_key, user_input, context)

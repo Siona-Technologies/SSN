@@ -1,5 +1,3 @@
-# ssn/core/consistency_monitor.py
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,37 +17,37 @@ class ConsistencyMonitor:
     """
     Phase 3.7 — Consistency & Drift Tracking (internal-only)
 
-    Reads recent traces (and optionally reflection summaries) and computes:
+    Computes:
       - mode oscillation
       - reasoning depth variance (if present)
-      - law/safety friction frequency (if present)
+      - law/safety friction frequency
 
-    Produces a bounded DriftReport and writes it once to trace memory.
+    Produces a DriftReport and writes a bounded drift_report trace.
     """
 
     def __init__(self, memory_hub: Any, safety_monitor: Any):
         self.memory_hub = memory_hub
         self.safety_monitor = safety_monitor
 
+    # --------------------------------------------------
+    # Safety gate
+    # --------------------------------------------------
     def _allow(self) -> bool:
-        # Prefer explicit safety gates if present; default allow for internal-only computation.
-        gate = getattr(self.safety_monitor, "allow_internal_reflection", None) or \
-               getattr(self.safety_monitor, "allow_internal_analysis", None)
-        if callable(gate):
-            return bool(gate())
-        return True
+        gate = (
+            getattr(self.safety_monitor, "allow_internal_reflection", None)
+            or getattr(self.safety_monitor, "allow_internal_analysis", None)
+        )
+        return bool(gate()) if callable(gate) else True
 
+    # --------------------------------------------------
+    # Helpers
+    # --------------------------------------------------
     @staticmethod
     def _clip01(x: float) -> float:
-        if x < 0.0:
-            return 0.0
-        if x > 1.0:
-            return 1.0
-        return x
+        return max(0.0, min(1.0, x))
 
     @staticmethod
     def _extract_payload(trace_item: Any) -> Dict[str, Any]:
-        # supports dict traces or objects with .payload
         if isinstance(trace_item, dict):
             return trace_item.get("payload", trace_item)
         payload = getattr(trace_item, "payload", None)
@@ -57,7 +55,6 @@ class ConsistencyMonitor:
 
     @staticmethod
     def _get_mode(payload: Dict[str, Any]) -> Optional[str]:
-        # common keys across systems
         return (
             payload.get("brain_mode")
             or payload.get("mode")
@@ -75,25 +72,27 @@ class ConsistencyMonitor:
 
     @staticmethod
     def _is_friction(payload: Dict[str, Any]) -> bool:
-        # law/safety friction signals (non-exhaustive, safe defaults)
         if payload.get("law_violation") is True:
             return True
         if payload.get("safety_flag") is True:
             return True
         tags = payload.get("tags")
-        if isinstance(tags, list) and any(t in {"law_friction", "policy_block", "safety_abort"} for t in tags):
+        if isinstance(tags, list) and any(
+            t in {"law_friction", "policy_block", "safety_abort"} for t in tags
+        ):
             return True
         return False
 
+    # --------------------------------------------------
+    # Main evaluation
+    # --------------------------------------------------
     def evaluate_recent(
         self,
         *,
         trace_limit: int = 30,
         write_trace: bool = True,
     ) -> Dict[str, Any]:
-        """
-        Returns a dict for easy integration; includes DriftReport fields + status.
-        """
+
         if not self._allow():
             return {"status": "aborted", "reason": "safety_denied"}
 
@@ -102,21 +101,28 @@ class ConsistencyMonitor:
 
         payloads = [self._extract_payload(t) for t in (traces or [])]
 
-        # 1) Mode oscillation: count transitions / (n-1)
+        # --------------------------------------------------
+        # 1) Mode oscillation
+        # --------------------------------------------------
         modes: List[str] = []
         for p in payloads:
             m = self._get_mode(p)
             if isinstance(m, str) and m.strip():
                 modes.append(m.strip())
 
-        transitions = 0
-        for i in range(1, len(modes)):
-            if modes[i] != modes[i - 1]:
-                transitions += 1
+        transitions = sum(
+            1 for i in range(1, len(modes)) if modes[i] != modes[i - 1]
+        )
 
-        osc_rate = (transitions / max(1, len(modes) - 1)) if len(modes) >= 2 else 0.0
+        osc_rate = (
+            transitions / max(1, len(modes) - 1)
+            if len(modes) >= 2
+            else 0.0
+        )
 
-        # 2) Reasoning depth variance proxy: normalized spread if depth exists
+        # --------------------------------------------------
+        # 2) Reasoning depth variance
+        # --------------------------------------------------
         depths: List[float] = []
         for p in payloads:
             d = self._get_reasoning_depth(p)
@@ -126,33 +132,35 @@ class ConsistencyMonitor:
         depth_spread = 0.0
         if len(depths) >= 2:
             dmin, dmax = min(depths), max(depths)
-            # normalize by max to avoid scale dominance
             denom = max(1.0, abs(dmax))
             depth_spread = abs(dmax - dmin) / denom
 
+        # --------------------------------------------------
         # 3) Friction rate
+        # --------------------------------------------------
         friction_count = sum(1 for p in payloads if self._is_friction(p))
-        friction_rate = (friction_count / max(1, len(payloads))) if payloads else 0.0
+        friction_rate = friction_count / max(1, len(payloads)) if payloads else 0.0
 
-        # Drift score: weighted, bounded
-        # (weights chosen to prioritize stability of mode + safety; can be tuned later)
+        # --------------------------------------------------
+        # Drift score
+        # --------------------------------------------------
         drift_score = self._clip01(
             0.45 * osc_rate +
             0.25 * depth_spread +
             0.30 * friction_rate
         )
 
-        tags: List[str] = []
+        drift_tags: List[str] = []
         if osc_rate >= 0.35:
-            tags.append("mode_oscillation")
+            drift_tags.append("mode_oscillation")
         if depth_spread >= 0.40:
-            tags.append("reasoning_variance")
+            drift_tags.append("reasoning_variance")
         if friction_rate >= 0.10:
-            tags.append("law_or_safety_friction")
+            drift_tags.append("law_or_safety_friction")
 
         report = DriftReport(
             drift_score=drift_score,
-            drift_tags=tags,
+            drift_tags=drift_tags,
             metrics={
                 "trace_items": len(payloads),
                 "modes_observed": len(modes),
@@ -166,19 +174,21 @@ class ConsistencyMonitor:
             timestamp=time.time(),
         )
 
+        # --------------------------------------------------
+        # Write drift trace (correct payload shape)
+        # --------------------------------------------------
         if write_trace:
             write_fn = getattr(self.memory_hub, "write_trace", None)
             if callable(write_fn):
                 write_fn(
-                    source="consistency_monitor",
-                    payload={
+                    {
                         "type": "drift_report",
+                        "source": "consistency_monitor",
                         "drift_score": report.drift_score,
                         "drift_tags": report.drift_tags,
                         "metrics": report.metrics,
                         "timestamp": report.timestamp,
-                    },
-                    bounded=True,
+                    }
                 )
 
         return {

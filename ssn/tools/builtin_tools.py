@@ -1,5 +1,3 @@
-# ssn/tools/builtin_tools.py
-
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -8,6 +6,7 @@ from ssn.tools.contracts import ToolSpec
 from ssn.tools.registry import ToolRegistry
 from ssn.tools.net_tools import register_net_tools  # ✅ NEW
 from ssn.tools.media_tools import register_media_tools
+from ssn.tools.speech_tools import register_speech_tools  # ✅ ADDED
 
 
 
@@ -475,7 +474,13 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     # Phase 7.2 — Network research tools (read-only, bounded)
     # =========================================================
     register_net_tools(reg)
+
     # =========================================================
     # Phase 7.3 — Media generation tools (read-only)
     # =========================================================
     register_media_tools(reg)
+
+    # =========================================================
+    # Phase 7.4 — Speech interface tools (approval-gated)
+    # =========================================================
+    register_speech_tools(reg)  # ✅ ADDED

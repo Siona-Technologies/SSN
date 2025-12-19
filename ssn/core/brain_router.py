@@ -1,24 +1,14 @@
-"""
-SSN Brain Router (Phase 3.4 – Hybrid Fusion Brain)
-+ Phase 3.9 Mode Damping (internal-only, advisory)
-
-Responsibilities:
-- Integrates BrainModes (fast / deep / hybrid / sensory / language)
-- Routes OWNER through full fusion brain
-- Restricts GUEST to safe LLM-only mode
-- Applies automatic mode switching
-- Phase 3.9: damp mode switching using drift_report (reduces oscillation)
-"""
-
 from __future__ import annotations
+
 from typing import Any, Dict, Optional
+import time
 
 from ssn.core.language_engine import LanguageEngine
 from ssn.core.snn_engine import SNNEngine
 from ssn.core.brain_modes import BrainModes
 from ssn.core.fusion_engine import FusionEngine
 
-# Phase 3.9 (safe import, never break router if missing)
+# Phase 3.9 (safe import)
 try:
     from ssn.core.mode_damper import ModeDamper
 except Exception:
@@ -27,57 +17,77 @@ except Exception:
 
 class BrainRouter:
     """
-    Phase 3.4 Hybrid Router:
-    - OWNER → full intelligence (LLM / SNN / Fusion)
-    - GUEST → restricted LLM only
-    - Mode-aware routing (fast, deep, hybrid, sensory, language)
-    - Phase 3.9: mode damping to reduce oscillations under drift
+    Phase 3.4 Hybrid Router
+    + Phase 3.9 Mode Damping (advisory, internal-only)
     """
 
     def __init__(self, memory_hub: Any = None, safety_monitor: Any = None):
         self.llm = LanguageEngine()
         self.snn = SNNEngine()
 
-        # Pass memory_hub + safety_monitor into FusionEngine (Phase 3.8 stabilization reads these)
         self.memory_hub = memory_hub
         self.safety_monitor = safety_monitor
-        self.fusion = FusionEngine(memory_hub=memory_hub, safety_monitor=safety_monitor)
 
-        self.modes = BrainModes()  # full mode manager
+        self.fusion = FusionEngine(
+            memory_hub=memory_hub,
+            safety_monitor=safety_monitor,
+        )
 
-    # ----------------------------------------------------------------------
+        self.modes = BrainModes()
+
+    # ------------------------------------------------------------
+    # INTERNAL TRACE WRITER (NEW)
+    # ------------------------------------------------------------
+    def _write_trace(self, payload: Dict[str, Any]) -> None:
+        """
+        Writes a router-level trace for drift & stabilization analysis.
+        """
+        write_fn = getattr(self.memory_hub, "write_trace", None)
+        if callable(write_fn):
+            try:
+                write_fn(
+                    {
+                        "type": "router_decision",
+                        "timestamp": time.time(),
+                        **payload,
+                    }
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------
     # MAIN ROUTER ENTRY
-    # ----------------------------------------------------------------------
+    # ------------------------------------------------------------
     def route(
         self,
         role: str,
         user_input: Any,
-        context: Optional[Dict] = None
-    ) -> Dict:
+        context: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
 
-        # Normalize context
-        if context is None:
-            context = {}
+        ctx = dict(context) if isinstance(context, dict) else {}
 
-        # 1) Auto mode decision (updates internal state unless locked)
+        # 1) Automatic mode selection
         auto_note = self.modes.auto_set_mode(
             role=role,
             user_input=user_input,
-            context=context
+            context=ctx,
         )
 
         current_mode = self.modes.get_mode()
+        mode_locked = self.modes.is_locked()
         mode_damping_info: Optional[Dict[str, Any]] = None
 
-        # 1.5) Phase 3.9 — Mode damping (OWNER only, and do not override locked mode)
-        if role == "OWNER" and (not self.modes.is_locked()) and ModeDamper is not None:
+        # 1.5) Phase 3.9 — Mode damping (OWNER only)
+        if role == "OWNER" and not mode_locked and ModeDamper is not None:
             try:
                 damper = ModeDamper(
-                    memory_hub=getattr(self, "memory_hub", None),
-                    safety_monitor=getattr(self, "safety_monitor", None),
+                    memory_hub=self.memory_hub,
+                    safety_monitor=self.safety_monitor,
                 )
                 decision = damper.damp_mode(current_mode)
                 current_mode = decision.selected_mode
+
                 mode_damping_info = {
                     "original_mode": decision.original_mode,
                     "selected_mode": decision.selected_mode,
@@ -85,95 +95,106 @@ class BrainRouter:
                     "reason": decision.reason,
                     "drift_score": decision.drift_score,
                     "drift_tags": decision.drift_tags,
-                    "timestamp": decision.timestamp,
                 }
             except Exception:
-                # never break routing if damping fails
-                mode_damping_info = {"status": "skipped"}
+                mode_damping_info = {
+                    "status": "skipped",
+                    "reason": "exception_during_damping",
+                }
 
-        # 2) OWNER routing (full access)
+        # --------------------------------------------------------
+        # OWNER routing
+        # --------------------------------------------------------
         if role == "OWNER":
+            result = self._route_owner(
+                user_input=user_input,
+                context=ctx,
+                mode=current_mode,
+            )
+
+            # 🔹 TRACE WRITE (CRITICAL)
+            self._write_trace(
+                {
+                    "role": "OWNER",
+                    "mode": current_mode,
+                    "mode_locked": mode_locked,
+                    "mode_damping": mode_damping_info,
+                    "engine": result.get("engine"),
+                }
+            )
+
             return {
+                "role": "OWNER",
                 "mode": current_mode,
-                "mode_locked": self.modes.is_locked(),
+                "mode_locked": mode_locked,
                 "auto_message": auto_note,
-                "mode_damping": mode_damping_info,  # traceability (may be None)
-                "result": self._route_owner(user_input, context, current_mode)
+                "mode_damping": mode_damping_info,
+                "result": result,
             }
 
-        # 3) Guest routing (restricted)
+        # --------------------------------------------------------
+        # GUEST routing
+        # --------------------------------------------------------
         return {
-            "mode": "hybrid (restricted for GUEST)",
+            "role": "GUEST",
+            "mode": "hybrid (restricted)",
             "mode_locked": False,
             "auto_message": auto_note,
             "mode_damping": None,
-            "result": self._route_guest(user_input)
+            "result": self._route_guest(user_input),
         }
 
-    # ----------------------------------------------------------------------
-    # OWNER ROUTER (FULL POWER)
-    # ----------------------------------------------------------------------
+    # ------------------------------------------------------------
+    # OWNER ROUTING
+    # ------------------------------------------------------------
     def _route_owner(
         self,
         user_input: Any,
-        context: Optional[Dict],
-        mode: str
-    ) -> Dict:
+        context: Dict[str, Any],
+        mode: str,
+    ) -> Dict[str, Any]:
 
-        # FAST MODE → SNN dominates
         if mode == "fast":
-            snn_out = self.snn.process(user_input)
             return {
                 "engine": "snn-fast",
-                "snn": snn_out,
-                "note": "Fast Reaction Mode: SNN dominates for rapid processing."
+                "snn": self.snn.process(user_input),
+                "note": "Fast Reaction Mode: SNN dominates.",
             }
 
-        # DEEP MODE → LLM dominates
         if mode == "deep":
-            llm_out = self.llm.process(
-                str(user_input),
-                context=context,
-                role="OWNER"
-            )
             return {
                 "engine": "llm-deep",
-                "llm": llm_out,
-                "note": "Deep Reasoning Mode: LLM dominates for structured logic."
+                "llm": self.llm.process(
+                    str(user_input),
+                    context=context,
+                    role="OWNER",
+                ),
+                "note": "Deep Reasoning Mode: LLM dominates.",
             }
 
-        # HYBRID / SENSORY / LANGUAGE / DEFAULT → Fusion Brain (mode-aware)
         fusion_out = self.fusion.fuse(
             user_input=user_input,
             role="OWNER",
             context=context,
-            mode=mode,  # important: honor BrainModes if it returns sensory/language/hybrid
+            mode=mode,
         )
+
         return {
             "engine": "fusion",
             "fusion": fusion_out,
-            "note": "Hybrid Intuition Mode: LLM + SNN fused (mode-aware)."
+            "note": "Hybrid cognition: LLM + SNN (mode-aware).",
         }
 
-    # ----------------------------------------------------------------------
-    # GUEST ROUTER (LIMITED)
-    # ----------------------------------------------------------------------
-    def _route_guest(self, user_input: Any) -> Dict:
-        """
-        Guests:
-        - No SNN access
-        - No Fusion Engine
-        - LLM only, simplified
-        """
-
-        llm_out = self.llm.process(
-            str(user_input),
-            role="GUEST",
-            context=None
-        )
-
+    # ------------------------------------------------------------
+    # GUEST ROUTING
+    # ------------------------------------------------------------
+    def _route_guest(self, user_input: Any) -> Dict[str, Any]:
         return {
             "engine": "llm-only",
-            "llm": llm_out,
-            "note": "Guest mode: LLM only, fusion and SNN restricted."
+            "llm": self.llm.process(
+                str(user_input),
+                role="GUEST",
+                context=None,
+            ),
+            "note": "Guest mode: restricted LLM only.",
         }

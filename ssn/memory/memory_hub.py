@@ -6,16 +6,12 @@ Unifies:
 - Episodic memory (events timeline)
 - Personal profile (preferences + behaviors)
 - Trace memory (cognitive snapshots + internal traces)
+- Research ingestion (internal knowledge growth)
 - Backups (optional)
 
-Compatibility updates:
-- Keeps your existing public API surface (remember_fact, log_event, store_trace, etc.)
-- Adds Phase 6.x adapters used by newer runtime modules:
-    - add_trace(payload) / write_trace(payload) / log_trace(payload)
-    - get_recent_traces(limit)
-- Provides both attributes:
-    - self.trace (legacy)
-    - self.trace_memory (newer modules expect this)
+Compatibility:
+- Preserves existing public APIs
+- Adds Phase 6.x adapters
 """
 
 from __future__ import annotations
@@ -26,6 +22,7 @@ from ssn.memory.semantic_store import SemanticStore
 from ssn.memory.episodic_memory import EpisodicMemory
 from ssn.memory.personal_profile import PersonalProfile
 from ssn.memory.trace_memory import TraceMemory
+from ssn.memory.research_ingest import ResearchIngestor
 
 try:
     from ssn.memory.backups import BackupManager
@@ -39,16 +36,27 @@ class MemoryHub:
     """
 
     def __init__(self):
+        # --------------------------------------------------
         # Core memory stores
+        # --------------------------------------------------
         self.semantic = SemanticStore()
         self.episodic = EpisodicMemory()
         self.profile = PersonalProfile()
 
-        # Trace memory (legacy name + compatibility alias)
+        # --------------------------------------------------
+        # Trace memory (legacy + compatibility alias)
+        # --------------------------------------------------
         self.trace = TraceMemory()
         self.trace_memory = self.trace
 
+        # --------------------------------------------------
+        # Research ingestion (internal-only)
+        # --------------------------------------------------
+        self.research = ResearchIngestor(self)
+
+        # --------------------------------------------------
         # Optional backups
+        # --------------------------------------------------
         self.backups = BackupManager() if BackupManager else None
 
     # ------------------------------------------------------------------
@@ -69,8 +77,12 @@ class MemoryHub:
     # SEMANTIC MEMORY
     # ------------------------------------------------------------------
     def remember_fact(self, key: str, value: Any) -> None:
-        # support both SemanticStore APIs: set_fact/store_fact/remember_fact
-        self._try_call_first(self.semantic, ["set_fact", "store_fact", "remember_fact"], key, value)
+        self._try_call_first(
+            self.semantic,
+            ["set_fact", "store_fact", "remember_fact"],
+            key,
+            value,
+        )
 
     def recall_fact(self, key: str) -> Any:
         return self._try_call_first(self.semantic, ["get_fact", "recall_fact"], key)
@@ -80,7 +92,11 @@ class MemoryHub:
         return out if isinstance(out, dict) else {}
 
     def forget_fact(self, key: str) -> None:
-        self._try_call_first(self.semantic, ["delete_fact", "forget_fact", "remove_fact"], key)
+        self._try_call_first(
+            self.semantic,
+            ["delete_fact", "forget_fact", "remove_fact"],
+            key,
+        )
 
     # ------------------------------------------------------------------
     # PERSONAL PROFILE MEMORY
@@ -98,11 +114,20 @@ class MemoryHub:
     # EPISODIC MEMORY
     # ------------------------------------------------------------------
     def log_event(self, event_type: str, actor: str, details: Dict[str, Any]) -> None:
-        # support episodic APIs: record_event/add_event/log_event
-        self._try_call_first(self.episodic, ["record_event", "add_event", "log_event"], event_type, actor, details)
+        self._try_call_first(
+            self.episodic,
+            ["record_event", "add_event", "log_event"],
+            event_type,
+            actor,
+            details,
+        )
 
     def recall_recent_events(self, limit: int = 10) -> List[Dict[str, Any]]:
-        out = self._try_call_first(self.episodic, ["get_recent_events", "recent_events"], limit)
+        out = self._try_call_first(
+            self.episodic,
+            ["get_recent_events", "recent_events"],
+            limit,
+        )
         return out if isinstance(out, list) else []
 
     def search_events(self, query: str) -> List[Dict[str, Any]]:
@@ -121,32 +146,32 @@ class MemoryHub:
         routed_engine: Dict[str, Any],
         fusion_result: Dict[str, Any],
     ) -> None:
-        """
-        Saves a HIGH-LEVEL COGNITIVE SNAPSHOT of the thinking process.
-        """
         snapshot = {
             "label": label,
             "role": role,
             "input_preview": str(user_input)[:200],
             "brain_mode": brain_mode,
-            "routed_engine": routed_engine.get("engine") if isinstance(routed_engine, dict) else None,
-            "fusion_score": fusion_result.get("fusion_score") if isinstance(fusion_result, dict) else None,
-            "fusion_mode": fusion_result.get("mode") if isinstance(fusion_result, dict) else None,
+            "routed_engine": routed_engine.get("engine")
+            if isinstance(routed_engine, dict)
+            else None,
+            "fusion_score": fusion_result.get("fusion_score")
+            if isinstance(fusion_result, dict)
+            else None,
+            "fusion_mode": fusion_result.get("mode")
+            if isinstance(fusion_result, dict)
+            else None,
         }
         self._try_call_first(self.trace, ["store_cognitive_snapshot"], snapshot)
 
     def recall_traces(self) -> List[Dict[str, Any]]:
-        # prefer explicit methods if present
         out = self._try_call_first(self.trace, ["all", "list_traces"])
         if isinstance(out, list):
             return out
-
-        # fallback to internal list if present
         snaps = getattr(self.trace, "snapshots", None)
         return snaps if isinstance(snaps, list) else []
 
     # ------------------------------------------------------------------
-    # TRACE MEMORY (Phase 6.x adapters)
+    # TRACE MEMORY (Phase 6.x adapters — FIXED)
     # ------------------------------------------------------------------
     def add_trace(self, payload: Dict[str, Any]) -> Any:
         return self._try_call_first(self.trace, ["add_trace", "write_trace", "log"], payload)
@@ -158,8 +183,27 @@ class MemoryHub:
         return self.add_trace(payload)
 
     def get_recent_traces(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Adapter-safe trace retrieval.
+        Ensures research_ingest and tool traces are always visible.
+        """
+
+        # 1. Preferred API
         out = self._try_call_first(self.trace, ["get_recent_traces"], limit)
-        return out if isinstance(out, list) else []
+        if isinstance(out, list):
+            return out[:limit]
+
+        # 2. Alternative APIs
+        out = self._try_call_first(self.trace, ["recent", "all", "list_traces"])
+        if isinstance(out, list):
+            return out[-limit:]
+
+        # 3. Raw attribute fallback
+        snaps = getattr(self.trace, "snapshots", None)
+        if isinstance(snaps, list):
+            return snaps[-limit:]
+
+        return []
 
     # ------------------------------------------------------------------
     # HIGH-LEVEL INTERACTION LOGGING
@@ -175,16 +219,24 @@ class MemoryHub:
         actor = "Samson" if role == "OWNER" else "Guest"
 
         routed_name = None
-        if isinstance(routed_engine, dict) and isinstance(routed_engine.get("result"), dict):
-            routed_name = routed_engine["result"].get("engine")
+        if isinstance(routed_engine, dict):
+            routed_name = routed_engine.get("engine") or (
+                routed_engine.get("result", {}).get("engine")
+                if isinstance(routed_engine.get("result"), dict)
+                else None
+            )
 
         details = {
             "role": role,
             "preview": str(user_input)[:200],
             "brain_mode": brain_mode,
             "routed_engine": routed_name,
-            "fusion_mode": fusion_result.get("mode") if isinstance(fusion_result, dict) else None,
-            "fusion_score": fusion_result.get("fusion_score") if isinstance(fusion_result, dict) else None,
+            "fusion_mode": fusion_result.get("mode")
+            if isinstance(fusion_result, dict)
+            else None,
+            "fusion_score": fusion_result.get("fusion_score")
+            if isinstance(fusion_result, dict)
+            else None,
         }
 
         self.log_event("interaction", actor, details)

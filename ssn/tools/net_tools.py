@@ -1,136 +1,126 @@
-# ssn/tools/net_tools.py
+"""
+Network tools — Phase 7.2.1
+
+READ-ONLY
+SAFE
+OFFLINE-COMPATIBLE
+
+Live HTTP fetching will be added in Phase 7.2.2
+after sanitization + citation pipeline exists.
+"""
 
 from __future__ import annotations
-
+import time
 from typing import Any, Dict, List
 
 from ssn.tools.contracts import ToolSpec
 
 
-# -----------------------------
-# Helper bounds
-# -----------------------------
+# ---------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------
 
-_MAX_QUERY_LEN = 200
-_MAX_URL_LEN = 500
-_MAX_RESULTS = 5
-_MAX_BYTES = 100_000
-
-
-def _clamp_int(v: Any, *, default: int, lo: int, hi: int) -> int:
+def _safe_int(value: Any, default: int) -> int:
     try:
-        iv = int(v)
+        return int(value)
     except Exception:
-        iv = default
-    return max(lo, min(iv, hi))
+        return default
 
 
-def _safe_str(v: Any, *, max_len: int) -> str:
-    if not isinstance(v, str):
+def _sanitize_text(text: str, *, max_len: int = 500) -> str:
+    if not isinstance(text, str):
         return ""
-    return v.strip()[:max_len]
+    text = text.replace("\n", " ").strip()
+    return text[:max_len]
 
 
-# -----------------------------
-# Tool handlers (placeholders)
-# -----------------------------
+# ---------------------------------------------------------
+# net.search handler (MOCK / SAFE)
+# ---------------------------------------------------------
 
-def _net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+def net_search_handler(
+    deps: Dict[str, Any],
+    args: Dict[str, Any],
+) -> Dict[str, Any]:
     """
-    Placeholder for web search.
-    No real network access yet.
+    READ-ONLY network search (simulated).
+
+    ✔ OWNER only
+    ✔ Bounded
+    ✔ Deterministic
+    ✔ Offline-safe
     """
-    query = _safe_str(args.get("query"), max_len=_MAX_QUERY_LEN)
-    if not query:
+
+    query = args.get("query")
+    if not isinstance(query, str) or not query.strip():
         return {
-            "ok": False,
-            "error": {"code": "BAD_REQUEST", "message": "query is required"},
+            "error": {
+                "code": "INVALID_QUERY",
+                "message": "Missing or invalid 'query' string",
+            }
         }
 
-    limit = _clamp_int(args.get("limit"), default=3, lo=1, hi=_MAX_RESULTS)
+    top_k = _safe_int(args.get("top_k"), 5)
+    top_k = max(1, min(top_k, 10))
+
+    # -------------------------------------------------
+    # Simulated results (placeholder for live search)
+    # -------------------------------------------------
+    results: List[Dict[str, Any]] = []
+
+    for i in range(top_k):
+        results.append(
+            {
+                "title": _sanitize_text(
+                    f"Simulated search result {i + 1} for '{query}'",
+                    max_len=120,
+                ),
+                "url": f"https://example.com/search/{query.replace(' ', '_')}/{i + 1}",
+                "snippet": _sanitize_text(
+                    "This is a simulated search result used for safe pipeline testing.",
+                    max_len=300,
+                ),
+                "source": "mock-search",
+                "retrieved_at": time.time(),
+            }
+        )
 
     return {
-        "ok": True,
         "query": query,
-        "limit": limit,
-        "results": [],
-        "note": "net.search is a placeholder; backend not wired yet",
+        "result_count": len(results),
+        "results": results,
+        "note": "Simulated net.search (offline-safe, Phase 7.2.1)",
     }
 
 
-def _net_fetch_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Placeholder for bounded URL fetch.
-    No real network access yet.
-    """
-    url = _safe_str(args.get("url"), max_len=_MAX_URL_LEN)
-    if not url:
-        return {
-            "ok": False,
-            "error": {"code": "BAD_REQUEST", "message": "url is required"},
-        }
+# ---------------------------------------------------------
+# ToolSpec registration
+# ---------------------------------------------------------
 
-    max_bytes = _clamp_int(
-        args.get("max_bytes"),
-        default=_MAX_BYTES,
-        lo=1_000,
-        hi=_MAX_BYTES,
-    )
+NET_SEARCH_T = ToolSpec(
+    name="net.search",
+    description="Read-only network search (safe, bounded, offline-compatible).",
+    required_role="OWNER",
+    allowed_roles=("OWNER",),
+    state_changing=False,
+    external_effect=True,   # network knowledge
+    public=False,
 
-    if not (url.startswith("http://") or url.startswith("https://")):
-        return {
-            "ok": False,
-            "error": {"code": "INVALID_URL", "message": "Only http/https URLs allowed"},
-        }
+    # OWNER-friendly but bounded
+    max_calls_per_minute=60,
 
-    return {
-        "ok": True,
-        "url": url,
-        "max_bytes": max_bytes,
-        "content": None,
-        "note": "net.fetch is a placeholder; fetching disabled",
-    }
+    input_schema={
+        "query": {
+            "type": "string",
+            "required": True,
+            "description": "Search query",
+        },
+        "top_k": {
+            "type": "integer",
+            "required": False,
+            "description": "Number of results (1–10)",
+        },
+    },
 
-
-# -----------------------------
-# Registration
-# -----------------------------
-
-def register_net_tools(registry) -> None:
-    """
-    Register read-only, bounded network tools.
-    """
-
-    registry.register(
-        ToolSpec(
-            name="net.search",
-            description="Search the web (read-only, bounded).",
-            allowed_roles=("OWNER",),
-            public=False,
-            state_changing=False,
-            external_effect=False,
-            max_calls_per_minute=10,
-            input_schema={
-                "query": {"type": "string", "required": True, "max_length": _MAX_QUERY_LEN},
-                "limit": {"type": "integer", "default": 3, "min": 1, "max": _MAX_RESULTS},
-            },
-            handler=_net_search_handler,
-        )
-    )
-
-    registry.register(
-        ToolSpec(
-            name="net.fetch",
-            description="Fetch a URL (read-only, bounded).",
-            allowed_roles=("OWNER",),
-            public=False,
-            state_changing=False,
-            external_effect=False,
-            max_calls_per_minute=5,
-            input_schema={
-                "url": {"type": "string", "required": True, "max_length": _MAX_URL_LEN},
-                "max_bytes": {"type": "integer", "default": _MAX_BYTES, "min": 1000, "max": _MAX_BYTES},
-            },
-            handler=_net_fetch_handler,
-        )
-    )
+    handler=net_search_handler,
+)

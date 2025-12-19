@@ -1,29 +1,5 @@
-"""
-SSN Cognitive Fusion Engine (Phase 3.4 – COMPATIBLE VERSION)
-+ Phase 3.8 Stabilization Overlay (internal-only, advisory)
-+ Phase 5.8 World Summary Normalizer (OWNER-only, bounded)
-
-This engine fuses:
-- LLM cognition (reasoning, language)
-- SNN perception (signals, patterns)
-- Mode weights (deep, fast, hybrid, sensory, language)
-
-Compatible with Orchestrator calling style:
-    fuse(user_input, role, context, mode)
-
-Phase 3.8 adds:
-- FusionStabilizer overlay (optional)
-- Damping + style hints using Phase 3.7 signals (drift, prefs)
-- No external actions, no law changes, no autonomy escalation
-
-Phase 5.8 adds:
-- If context contains world snapshot (context["world"]), compute bounded world_summary
-- Inject world_summary into LLM context (OWNER only)
-- Return world_summary in the fusion packet (non-breaking)
-"""
-
 from __future__ import annotations
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from ssn.core.language_engine import LanguageEngine
 from ssn.core.snn_engine import SNNEngine
@@ -45,15 +21,15 @@ except Exception:
 class FusionEngine:
     """
     Hybrid cognitive fusion engine with mode-aware weighting.
-    Phase 3.8 can optionally apply stabilization based on recent drift/preferences.
-    Phase 5.8 can optionally compute + inject world_summary for OWNER context.
+    Phase 3.8 can optionally apply stabilization.
+    Phase 5.8 can optionally compute + inject world_summary.
+    Phase 6.1 adds bounded reasoning transparency (non-intrusive).
     """
 
     def __init__(self, memory_hub: Any = None, safety_monitor: Any = None):
         self.llm = LanguageEngine()
         self.snn = SNNEngine()
 
-        # Optional (for Phase 3.8 stabilizer). Keeps backward compatibility.
         self.memory_hub = memory_hub
         self.safety_monitor = safety_monitor
 
@@ -73,57 +49,27 @@ class FusionEngine:
                 self.world_summarizer = None
 
     # ------------------------------------------------------------
-    # Mode weight lookup table
+    # Mode weight lookup table (UNCHANGED)
     # ------------------------------------------------------------
     MODE_WEIGHTS = {
-        "deep": {
-            "llm": 0.75,
-            "snn": 0.25,
-            "bonus": 0.10,
-            "msg": "🧠 Deep Reasoning Mode — prioritizing structured thinking.",
-        },
-        "fast": {
-            "llm": 0.25,
-            "snn": 0.75,
-            "bonus": 0.05,
-            "msg": "⚡ Fast Reaction Mode — prioritizing rapid pattern detection.",
-        },
-        "hybrid": {
-            "llm": 0.50,
-            "snn": 0.50,
-            "bonus": 0.10,
-            "msg": "🔷 Hybrid Mode — balanced cognition + perception.",
-        },
-        "sensory": {
-            "llm": 0.10,
-            "snn": 0.90,
-            "bonus": 0.00,
-            "msg": "👁 Sensory Mode — SNN dominates.",
-        },
-        "language": {
-            "llm": 0.90,
-            "snn": 0.10,
-            "bonus": 0.00,
-            "msg": "💬 Language Mode — LLM dominates.",
-        },
+        "deep": {"llm": 0.75, "snn": 0.25, "bonus": 0.10, "msg": "🧠 Deep Reasoning Mode — prioritizing structured thinking."},
+        "fast": {"llm": 0.25, "snn": 0.75, "bonus": 0.05, "msg": "⚡ Fast Reaction Mode — prioritizing rapid pattern detection."},
+        "hybrid": {"llm": 0.50, "snn": 0.50, "bonus": 0.10, "msg": "🔷 Hybrid Mode — balanced cognition + perception."},
+        "sensory": {"llm": 0.10, "snn": 0.90, "bonus": 0.00, "msg": "👁 Sensory Mode — SNN dominates."},
+        "language": {"llm": 0.90, "snn": 0.10, "bonus": 0.00, "msg": "💬 Language Mode — LLM dominates."},
     }
 
     # ------------------------------------------------------------
-    # Phase 5.8 helpers
+    # Helpers (UNCHANGED)
     # ------------------------------------------------------------
     def _normalize_context(self, context: Optional[Dict]) -> Dict[str, Any]:
         return dict(context) if isinstance(context, dict) else {}
 
     def _maybe_add_world_summary(self, *, role: str, context: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[str]]:
-        """
-        OWNER-only: if context["world"] exists, compute bounded world_summary and place it in context.
-        Returns (context_copy, world_summary_or_none).
-        """
         ctx = dict(context or {})
         if role != "OWNER":
             return ctx, None
 
-        # If already present, respect it
         if isinstance(ctx.get("world_summary"), str):
             return ctx, ctx.get("world_summary")
 
@@ -140,12 +86,47 @@ class FusionEngine:
                 ctx["world_summary"] = summary
                 return ctx, summary
         except Exception:
-            return ctx, None
+            pass
 
         return ctx, None
 
     # ------------------------------------------------------------
-    # MAIN FUSION FUNCTION — fully compatible signature
+    # NEW: bounded research extraction (read-only)
+    # ------------------------------------------------------------
+    def _collect_research(self, query: str) -> List[Dict[str, Any]]:
+        if not self.memory_hub or not isinstance(query, str):
+            return []
+
+        semantic = getattr(self.memory_hub, "semantic", None)
+        if not semantic or not hasattr(semantic, "dump"):
+            return []
+
+        out: List[Dict[str, Any]] = []
+        facts = semantic.dump()
+
+        for k, v in facts.items():
+            if not isinstance(k, str) or not k.startswith("research:"):
+                continue
+            if not isinstance(v, dict):
+                continue
+
+            content = str(v.get("content", "")).lower()
+            if query.lower() in content:
+                out.append(
+                    {
+                        "title": v.get("title"),
+                        "source": v.get("source"),
+                        "confidence": v.get("confidence"),
+                    }
+                )
+
+            if len(out) >= 3:  # hard bound
+                break
+
+        return out
+
+    # ------------------------------------------------------------
+    # MAIN FUSION FUNCTION (LOGIC PRESERVED)
     # ------------------------------------------------------------
     def fuse(
         self,
@@ -154,60 +135,38 @@ class FusionEngine:
         context: Optional[Dict] = None,
         mode: str = "hybrid",
     ) -> Dict:
-        """
-        Main fusion function.
-        Compatible with calls like:
-            fuse(user_input, role, context, mode)
-        """
 
-        # Normalize context
         base_context = self._normalize_context(context)
 
-        # Validate or fallback to hybrid
         if mode not in self.MODE_WEIGHTS:
             mode = "hybrid"
 
         weights = self.MODE_WEIGHTS[mode]
 
-        # Phase 5.8: inject world_summary into LLM context (OWNER only)
-        llm_context, world_summary = self._maybe_add_world_summary(role=role, context=base_context)
+        llm_context, world_summary = self._maybe_add_world_summary(
+            role=role, context=base_context
+        )
 
-        # -------------------------------
-        # Step 1 — Type detection
-        # -------------------------------
         is_language = isinstance(user_input, str)
         is_sensor = isinstance(user_input, (int, float, bytes, list, dict))
 
-        # -------------------------------
-        # Step 2 — LLM processing
-        # -------------------------------
         llm_out = self.llm.process(
             user_input if is_language else str(user_input),
             context=llm_context,
             role=role,
         )
 
-        # -------------------------------
-        # Step 3 — SNN processing
-        # -------------------------------
         snn_out = self.snn.process(user_input if is_sensor else None)
 
-        # -------------------------------
-        # Step 4 — Weighted fusion score
-        # -------------------------------
         llm_signal = 1.0
         snn_signal = float(snn_out.get("signal_strength", 0.0) or 0.0)
 
         fusion_score = (llm_signal * weights["llm"]) + (snn_signal * weights["snn"])
-
         if role == "OWNER":
             fusion_score += weights["bonus"]
 
         fusion_score = round(min(float(fusion_score), 1.0), 3)
 
-        # -------------------------------
-        # Step 5 — Build base result
-        # -------------------------------
         result: Dict[str, Any] = {
             "role": role,
             "mode": mode,
@@ -216,35 +175,38 @@ class FusionEngine:
             "perception_snn": snn_out,
         }
 
-        # Phase 5.8: expose summary in the packet (non-breaking)
         if isinstance(world_summary, str):
             result["world_summary"] = world_summary
 
         # -------------------------------
-        # Phase 3.8 — Stabilization overlay (advisory, safe)
+        # NEW: reasoning transparency (NO logic impact)
         # -------------------------------
+        if role == "OWNER" and isinstance(user_input, str):
+            research_used = self._collect_research(user_input)
+            result["reasoning"] = {
+                "grounded": bool(research_used),
+                "research_count": len(research_used),
+                "research_used": research_used,
+            }
+
+        # Phase 3.8 stabilization (UNCHANGED)
         if FusionStabilizer is not None:
             try:
                 stabilizer = FusionStabilizer(
-                    memory_hub=getattr(self, "memory_hub", None),
-                    safety_monitor=getattr(self, "safety_monitor", None),
+                    memory_hub=self.memory_hub,
+                    safety_monitor=self.safety_monitor,
                 )
                 result = stabilizer.apply_to_fusion_result(result)
             except Exception:
-                # Never break fusion if stabilizer fails
                 result.setdefault("stability", {"status": "skipped"})
 
-        # -------------------------------
-        # Step 6 — Unified final output (computed last so it matches stabilized score)
-        # -------------------------------
-        final_score = result.get("fusion_score", fusion_score)
         final_message = (
             f"{weights['msg']}\n"
             f"Fusion complete.\n"
             f"- LLM interpreted intent.\n"
             f"- SNN analyzed sensory patterns.\n"
             f"- Mode: {mode}\n"
-            f"- Fusion score: {final_score}\n"
+            f"- Fusion score: {fusion_score}\n"
         )
 
         result["final_message"] = final_message

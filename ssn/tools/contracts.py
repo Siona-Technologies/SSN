@@ -26,6 +26,10 @@ class ToolSpec:
     Backward compatibility:
       - required_role is still supported and used as the default source of truth.
       - allowed_roles, if provided, overrides required_role logic.
+
+    Approval semantics:
+      - Tools that are both state_changing AND external_effect
+        automatically require explicit OWNER approval.
     """
 
     name: str
@@ -39,9 +43,14 @@ class ToolSpec:
 
     # Tool properties
     state_changing: bool = False
+
+    # NEW: indicates real-world or external side effects
+    # (calls, payments, device actions, speech output, code writes, etc.)
+    external_effect: bool = False
+
     public: bool = False  # if True, appears in a "public tools list" for GUEST
 
-    # Optional metadata (enforce later in registry/handlers)
+    # Optional metadata (enforced elsewhere)
     max_calls_per_minute: Optional[int] = None
 
     input_schema: Dict[str, Any] = field(default_factory=dict)
@@ -52,10 +61,23 @@ class ToolSpec:
     )
 
     def roles_allowed(self) -> Tuple[Role, ...]:
-        return self.allowed_roles if self.allowed_roles is not None else _default_allowed_roles(self.required_role)
+        return (
+            self.allowed_roles
+            if self.allowed_roles is not None
+            else _default_allowed_roles(self.required_role)
+        )
 
     def is_role_allowed(self, role: Role) -> bool:
         return role in self.roles_allowed()
+
+    @property
+    def requires_approval(self) -> bool:
+        """
+        A tool requires explicit OWNER approval if it:
+          - changes state, AND
+          - causes an external side effect.
+        """
+        return bool(self.state_changing and self.external_effect)
 
 
 @dataclass

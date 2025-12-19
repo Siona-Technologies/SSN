@@ -19,12 +19,6 @@ def _get_memory_hub(deps: Dict[str, Any]):
 
 
 def _extract_payload_type(item: Any) -> str:
-    """
-    Traces may look like:
-      {"payload": {"type": "world_update", ...}, ...}
-    or:
-      {"type": "world_update", ...}
-    """
     if isinstance(item, dict):
         p = item.get("payload")
         if isinstance(p, dict):
@@ -44,12 +38,27 @@ def _stringify_for_search(item: Any) -> str:
         return ""
 
 
+def _extract_approval_flags(item: Any) -> Optional[Dict[str, bool]]:
+    """
+    Safely extract approval metadata if present.
+    Returns None if not applicable.
+    """
+    if not isinstance(item, dict):
+        return None
+
+    approved = item.get("approved")
+    approval_required = item.get("approval_required")
+
+    if isinstance(approved, bool) or isinstance(approval_required, bool):
+        return {
+            "approval_required": bool(approval_required),
+            "approved": bool(approved),
+        }
+
+    return None
+
+
 def memory_trace_recent_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Tool: memory.trace.recent (OWNER-only)
-    Args:
-      - limit: int (default 50, bounded 1..200)
-    """
     hub = _get_memory_hub(deps)
     if hub is None:
         return {"ok": False, "error": {"code": "NO_MEMORY_HUB", "message": "MemoryHub not available."}}
@@ -59,7 +68,6 @@ def memory_trace_recent_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict
 
     fn = getattr(hub, "get_recent_traces", None)
     if not callable(fn):
-        # fallback: hub.trace may have get_recent_traces
         tm = getattr(hub, "trace", None) or getattr(hub, "trace_memory", None)
         fn2 = getattr(tm, "get_recent_traces", None)
         if callable(fn2):
@@ -72,27 +80,33 @@ def memory_trace_recent_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict
     traces = traces if isinstance(traces, list) else []
     traces = traces[:limit]
 
-    # small stats
-    hist: Dict[str, int] = {}
+    type_hist: Dict[str, int] = {}
+    approval_hist = {"approval_required": 0, "approved": 0, "blocked": 0}
+
     for it in traces:
         t = _extract_payload_type(it)
-        hist[t] = hist.get(t, 0) + 1
+        type_hist[t] = type_hist.get(t, 0) + 1
+
+        flags = _extract_approval_flags(it)
+        if flags:
+            if flags["approval_required"]:
+                approval_hist["approval_required"] += 1
+                if flags["approved"]:
+                    approval_hist["approved"] += 1
+                else:
+                    approval_hist["blocked"] += 1
 
     return {
         "ok": True,
         "returned": len(traces),
         "limit": limit,
-        "trace_type_histogram": hist,
+        "trace_type_histogram": type_hist,
+        "approval_histogram": approval_hist,
         "traces": traces,
     }
 
 
 def memory_trace_types_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Tool: memory.trace.types (OWNER-only)
-    Args:
-      - limit: int (default 200, bounded 1..500)
-    """
     hub = _get_memory_hub(deps)
     if hub is None:
         return {"ok": False, "error": {"code": "NO_MEMORY_HUB", "message": "MemoryHub not available."}}
@@ -109,6 +123,7 @@ def memory_trace_types_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         traces = fn2(limit) if callable(fn2) else []
 
     traces = traces if isinstance(traces, list) else []
+
     hist: Dict[str, int] = {}
     for it in traces:
         t = _extract_payload_type(it)
@@ -118,13 +133,6 @@ def memory_trace_types_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
 
 def memory_trace_search_tool(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Tool: memory.trace.search (OWNER-only)
-    Args:
-      - query: str (required)
-      - limit: int (default 25, bounded 1..100)
-      - scan_limit: int (default 200, bounded 1..500)  # how far back to scan
-    """
     hub = _get_memory_hub(deps)
     if hub is None:
         return {"ok": False, "error": {"code": "NO_MEMORY_HUB", "message": "MemoryHub not available."}}

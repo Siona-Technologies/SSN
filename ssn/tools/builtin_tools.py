@@ -6,6 +6,9 @@ from typing import Any, Dict
 
 from ssn.tools.contracts import ToolSpec
 from ssn.tools.registry import ToolRegistry
+from ssn.tools.net_tools import register_net_tools  # ✅ NEW
+from ssn.tools.media_tools import register_media_tools
+
 
 
 def _safe_dict(x: Any) -> Dict[str, Any]:
@@ -35,7 +38,7 @@ def _get_memory_hub(deps: Dict[str, Any]):
 
 def register_builtin_tools(reg: ToolRegistry) -> None:
     # =========================================================
-    # Core tool: list tools (OWNER-only)
+    # Core tools
     # =========================================================
     reg.register(
         ToolSpec(
@@ -45,17 +48,30 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             allowed_roles=("OWNER",),
             public=False,
             state_changing=False,
-            max_calls_per_minute=60,  # safe, but prevents accidental loops
+            max_calls_per_minute=60,
             input_schema={},
             handler=lambda deps, args: {"tools": reg.list()},
         )
     )
 
+    reg.register(
+        ToolSpec(
+            name="tools.public_list",
+            description="List guest-safe public tools (GUEST-allowed).",
+            required_role="GUEST",
+            allowed_roles=("OWNER", "GUEST"),
+            public=True,
+            state_changing=False,
+            max_calls_per_minute=120,
+            input_schema={},
+            handler=lambda deps, args: {"tools": reg.list_public(role="GUEST")},
+        )
+    )
+
     # =========================================================
-    # World tools (wrap existing handlers)
+    # World tools
     # =========================================================
     def world_read(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-        # Local import to avoid circular imports
         from ssn.interfaces.contracts import InterfaceRequest
         from ssn.interfaces.handlers_world import handle_world
 
@@ -65,7 +81,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             "include_events": bool(args.get("include_events", True)),
         }
 
-        mk = args.get("master_key")  # passed by run_tool
+        mk = args.get("master_key")
         req = InterfaceRequest(
             action="world",
             role="OWNER",
@@ -84,14 +100,13 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             allowed_roles=("OWNER",),
             public=False,
             state_changing=False,
-            max_calls_per_minute=120,  # reads can be higher
+            max_calls_per_minute=120,
             input_schema={"max_entities": "int", "max_events": "int", "include_events": "bool"},
             handler=world_read,
         )
     )
 
     def world_sense_tick(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-        # Local import to avoid circular imports
         from ssn.interfaces.contracts import InterfaceRequest
         from ssn.interfaces.handlers_sense_tick import handle_sense_tick
 
@@ -100,6 +115,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             "events": args.get("events", []),
             "max_events": int(args.get("max_events", 25) or 25),
         }
+
         req = InterfaceRequest(
             action="sense_tick",
             role="OWNER",
@@ -118,7 +134,6 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             allowed_roles=("OWNER",),
             public=False,
             state_changing=True,
-            # IMPORTANT: this is now enforced by your updated ToolRegistry
             max_calls_per_minute=3,
             input_schema={"events": "list", "max_events": "int"},
             handler=world_sense_tick,
@@ -126,10 +141,9 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Memory summary tool (wrap existing handler)
+    # Memory summary
     # =========================================================
     def memory_summary(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-        # Local import to avoid circular imports
         from ssn.interfaces.contracts import InterfaceRequest
         from ssn.interfaces.handlers import handle_summarize_memory
 
@@ -161,7 +175,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Phase 6.8 — Semantic fact tools
+    # Semantic facts
     # =========================================================
     def memory_fact_set(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
         mh = _get_memory_hub(deps)
@@ -176,8 +190,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
         if k.lower() in {"master_key", "ssn_master_key"}:
             return {"ok": False, "reason": "refuse_store_secret_key"}
 
-        value = args.get("value", None)
-        mh.remember_fact(k, value)
+        mh.remember_fact(k, args.get("value"))
         return {"ok": True, "status": "stored", "key": k}
 
     reg.register(
@@ -205,7 +218,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
 
         k = key.strip()
         val = mh.recall_fact(k)
-        return {"ok": True, "key": k, "found": (val is not None), "value": val}
+        return {"ok": True, "key": k, "found": val is not None, "value": val}
 
     reg.register(
         ToolSpec(
@@ -226,15 +239,10 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
         if mh is None:
             return {"ok": False, "reason": "no_memory_hub"}
 
-        facts = mh.recall_all_facts()
-        facts = facts if isinstance(facts, dict) else {}
-
-        limit = int(args.get("limit", 200) or 200)
-        limit = max(0, min(limit, 1000))
-
-        keys = sorted([str(k) for k in facts.keys()])[:limit]
-        out = {k: facts.get(k) for k in keys}
-        return {"ok": True, "count": len(facts), "returned": len(out), "facts": out}
+        facts = mh.recall_all_facts() or {}
+        limit = max(0, min(int(args.get("limit", 200) or 200), 1000))
+        keys = sorted(map(str, facts.keys()))[:limit]
+        return {"ok": True, "count": len(facts), "returned": len(keys), "facts": {k: facts[k] for k in keys}}
 
     reg.register(
         ToolSpec(
@@ -259,9 +267,8 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
         if not isinstance(key, str) or not key.strip():
             return {"ok": False, "reason": "key_required"}
 
-        k = key.strip()
-        mh.forget_fact(k)
-        return {"ok": True, "status": "deleted", "key": k}
+        mh.forget_fact(key.strip())
+        return {"ok": True, "status": "deleted", "key": key.strip()}
 
     reg.register(
         ToolSpec(
@@ -278,17 +285,14 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Safety + Policy tools
+    # Safety & Policy
     # =========================================================
     def safety_status(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
         mon = deps.get("safety_monitor")
         if mon is None:
-            return {"available": False, "reason": "no_safety_monitor"}
+            return {"available": False}
         snap = getattr(mon, "snapshot", None)
-        if callable(snap):
-            out = snap()
-            return out if isinstance(out, dict) else {"snapshot": out}
-        return {"available": True, "methods": [m for m in dir(mon) if m.startswith("allow_")]}
+        return snap() if callable(snap) else {"available": True}
 
     reg.register(
         ToolSpec(
@@ -307,12 +311,9 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     def policy_snapshot(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
         pe = deps.get("policy_engine")
         if pe is None:
-            return {"available": False, "reason": "no_policy_engine"}
+            return {"available": False}
         snap = getattr(pe, "snapshot", None)
-        if callable(snap):
-            out = snap()
-            return out if isinstance(out, dict) else {"snapshot": out}
-        return {"available": True, "has_engine": True}
+        return snap() if callable(snap) else {"available": True}
 
     reg.register(
         ToolSpec(
@@ -329,7 +330,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Phase 6.5B — Identity tools
+    # Identity
     # =========================================================
     from ssn.tools.identity_tools import identity_view_tool, identity_enroll_tool
 
@@ -355,7 +356,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             allowed_roles=("OWNER",),
             public=False,
             state_changing=True,
-            max_calls_per_minute=5,  # enrollment should be rare
+            max_calls_per_minute=5,
             input_schema={
                 "owner_name": "str",
                 "creator_name": "str",
@@ -369,7 +370,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Phase 6.9 — Episodic event tools
+    # Episodic events
     # =========================================================
     from ssn.tools.memory_event_tools import (
         memory_event_add_tool,
@@ -420,7 +421,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # Phase 7.0 — Trace inspection tools
+    # Trace inspection
     # =========================================================
     from ssn.tools.trace_tools import (
         memory_trace_recent_tool,
@@ -469,3 +470,12 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
             handler=memory_trace_search_tool,
         )
     )
+
+    # =========================================================
+    # Phase 7.2 — Network research tools (read-only, bounded)
+    # =========================================================
+    register_net_tools(reg)
+    # =========================================================
+    # Phase 7.3 — Media generation tools (read-only)
+    # =========================================================
+    register_media_tools(reg)

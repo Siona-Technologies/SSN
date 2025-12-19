@@ -1,11 +1,11 @@
 {
-  "ts": 1766053939.8983192,
+  "ts": 1766085318.907528,
   "entities": {
     "person:synthetic": {
       "entity": "person",
       "status": "present",
       "confidence": 0.7,
-      "last_seen_ts": 1766053939.8613179,
+      "last_seen_ts": 1766085318.7952585,
       "attributes": {
         "zone": "front"
       },
@@ -527,6 +527,90 @@
     {
       "type": "motion_event",
       "ts": 1766053939.8613088,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766084234.039281,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766084234.039281,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766084236.9187632,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766084236.9187632,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766084239.1167219,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766084239.1167219,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766085312.5236976,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766085312.5236976,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766085315.6206849,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766085315.6206849,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766085318.7952478,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766085318.7952478,
       "confidence": 0.6,
       "source": "sense_tick",
       "details": {}

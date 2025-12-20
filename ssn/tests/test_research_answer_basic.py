@@ -1,30 +1,32 @@
-# ssn/tests/test_research_ingest_basic.py
+# ssn/tests/test_research_answer_basic.py
 
 import os
 
 from ssn.bootstrap import create_siona
-from ssn.tools.research_ingest import RESEARCH_INGEST_T
+from ssn.tools.research_answer import RESEARCH_ANSWER_T
 
 
-def test_research_ingest_owner_allowed():
+def test_research_answer_owner_allowed():
+    # Force deterministic offline behavior for unit tests
     prev = os.environ.get("SSN_OFFLINE")
     os.environ["SSN_OFFLINE"] = "1"
     try:
         siona = create_siona()
-        siona.tools.register(RESEARCH_INGEST_T)
+        siona.tools.register(RESEARCH_ANSWER_T)
 
         response = siona.run(
             master_key="VALID_OWNER_KEY",
-            user_input="ingest",
+            user_input="answer this",
             context={
                 "force_tool_call": {
-                    "name": "research.ingest",
+                    "name": "research.answer",
                     "args": {
                         "query": "what is siona",
                         "top_k": 2,
                         "max_bytes": 2000,
+                        "max_quotes": 2,
+                        "quote_len": 120,
                         "max_answer_chars": 400,
-                        "live_search": False,
                     },
                 }
             },
@@ -34,17 +36,10 @@ def test_research_ingest_owner_allowed():
         assert response["role"] == "OWNER"
 
         tool = response["tool_result"]
-
-        # ✅ If it fails, show the underlying error payload in pytest output.
-        if tool["ok"] is not True:
-            raise AssertionError(f"research.ingest failed: {tool.get('error')}")
-
-        data = tool["data"]
-        assert data["query"] == "what is siona"
-        assert "answer" in data and isinstance(data["answer"], str) and len(data["answer"]) > 0
-        assert "selected_source" in data and isinstance(data["selected_source"], dict)
-        assert "fetch" in data and isinstance(data["fetch"], dict)
-        assert "cite" in data
+        assert tool["ok"] is True
+        assert "answer" in tool["data"]
+        assert isinstance(tool["data"]["answer"], str)
+        assert len(tool["data"]["answer"]) > 0
 
     finally:
         if prev is None:
@@ -53,16 +48,16 @@ def test_research_ingest_owner_allowed():
             os.environ["SSN_OFFLINE"] = prev
 
 
-def test_research_ingest_guest_blocked():
+def test_research_answer_guest_blocked():
     siona = create_siona()
-    siona.tools.register(RESEARCH_INGEST_T)
+    siona.tools.register(RESEARCH_ANSWER_T)
 
     response = siona.run(
         master_key="INVALID_GUEST_KEY",
-        user_input="ingest",
+        user_input="answer this",
         context={
             "force_tool_call": {
-                "name": "research.ingest",
+                "name": "research.answer",
                 "args": {"query": "what is siona"},
             }
         },

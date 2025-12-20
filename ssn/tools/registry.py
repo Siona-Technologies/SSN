@@ -14,6 +14,7 @@ class _FileRateLimiter:
     """
     File-backed fixed-window rate limiter.
     """
+
     def __init__(self, path: str) -> None:
         self.path = path
 
@@ -219,8 +220,23 @@ class ToolRegistry:
 
         try:
             out = spec.handler(deps, args or {})
+
+            # Normalize non-dict outputs
             if not isinstance(out, dict):
                 out = {"result": out}
+
+            # ✅ CRITICAL: handler-level error normalization
+            # If the handler returns {"error": {...}}, treat it as ok=False.
+            if isinstance(out, dict) and out.get("error"):
+                return ToolResult(
+                    ok=False,
+                    tool=name,
+                    role=role,
+                    data=None,
+                    error=out.get("error"),
+                )
+
             return ToolResult(ok=True, tool=name, role=role, data=out)
+
         except Exception as e:
             return ToolResult(ok=False, tool=name, role=role, error={"code": "TOOL_ERROR", "message": str(e)})

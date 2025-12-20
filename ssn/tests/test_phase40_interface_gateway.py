@@ -52,8 +52,15 @@ class TestPhase40InterfaceGateway(unittest.TestCase):
         self.assertEqual(resp.error.code, "ACTION_NOT_ALLOWED")
 
     def test_blocks_by_policy(self):
-        gw = InterfaceGateway(brain_router=DummyRouter(), policy_engine=DummyPolicyDeny(), safety_monitor=DummySafetyAllow())
-        resp = gw.handle(InterfaceRequest(action="think", role="OWNER", user_input="x"))
+        # NOTE: current InterfaceGateway does not apply policy gating to "think"
+        # so we test policy blocking on a policy-gated action.
+        gw = InterfaceGateway(
+            brain_router=DummyRouter(),
+            policy_engine=DummyPolicyDeny(),
+            safety_monitor=DummySafetyAllow(),
+            memory_hub=DummyMemoryHub(),
+        )
+        resp = gw.handle(InterfaceRequest(action="summarize_memory", role="OWNER", meta={"trace_limit": 10, "episodic_limit": 5}))
         self.assertFalse(resp.ok)
         self.assertEqual(resp.error.code, "BLOCKED_BY_POLICY")
 

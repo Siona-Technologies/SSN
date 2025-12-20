@@ -15,9 +15,11 @@ Responsibilities:
 IMPORTANT:
 - BrainRouter is the ONLY place where mode, fusion, damping occur
 - Orchestrator NEVER calls FusionEngine directly
+- Tools must use deps and MUST NOT create their own MemoryHub
 """
 
 from __future__ import annotations
+
 from typing import Optional, Dict, Any
 
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
@@ -121,38 +123,55 @@ class Orchestrator:
         user_input: Any,
         context: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-
         context = dict(context or {})
 
         # ------------------------------------------------------
-        # 1. Identity Verification
+        # 1. Identity Verification (PRODUCTION-SAFE)
         # ------------------------------------------------------
         scores = verify_owner(master_key)
         is_owner = is_samson_verified(scores)
-
-        # 🔑 CRITICAL FIX:
-        # Explicit tool calls are system-authoritative.
-        if isinstance(context.get("force_tool_call"), dict) and master_key is not None:
-            role = "OWNER"
-        else:
-            role = "OWNER" if is_owner else "GUEST"
+        role = "OWNER" if is_owner else "GUEST"
 
         # ------------------------------------------------------
         # 2. TOOL OVERRIDE (explicit / test / system-controlled)
         # ------------------------------------------------------
         force_tool = context.get("force_tool_call")
         if isinstance(force_tool, dict):
+            tool_deps = {
+                "memory": self.memory,  # single memory authority
+                "tools": self.tools,    # enables composed tools (research.answer)
+                "role": role,           # optional convenience for composed tools
+            }
+
             tool_result = self.tools.run(
                 name=force_tool.get("name"),
                 role=role,
-                deps={"memory": self.memory},
-                args=force_tool.get("args", {}),
+                deps=tool_deps,
+                args=force_tool.get("args", {}) or {},
             )
+
+            # allowed means "permitted to call the tool", not "tool succeeded".
+            err = getattr(tool_result, "error", None) or {}
+            code = err.get("code") if isinstance(err, dict) else None
+
+            permission_denied_codes = {
+                "TOOL_NOT_FOUND",
+                "TOOL_FORBIDDEN",
+                "TOOL_STATE_CHANGE_FORBIDDEN",
+                "RATE_LIMITED",
+            }
+
+            allowed = code not in permission_denied_codes
+
+            if tool_result.ok:
+                final_result = "TOOL_EXECUTED"
+            else:
+                final_result = "TOOL_BLOCKED" if not allowed else "TOOL_FAILED"
 
             return {
                 "identity_verified": is_owner,
                 "role": role,
-                "allowed": True,
+                "allowed": allowed,
                 "tool_result": {
                     "ok": tool_result.ok,
                     "tool": tool_result.tool,
@@ -160,7 +179,7 @@ class Orchestrator:
                     "data": tool_result.data,
                     "error": tool_result.error,
                 },
-                "final_result": "TOOL_EXECUTED",
+                "final_result": final_result,
             }
 
         # ------------------------------------------------------
@@ -227,26 +246,21 @@ class Orchestrator:
             "role": role,
             "allowed": True,
             "scores": scores,
-
             "brain_mode": routed.get("mode"),
             "mode_locked": routed.get("mode_locked"),
             "mode_damping": routed.get("mode_damping"),
-
             "routed_engine": routed,
-
             "world_context": {
                 "attached": isinstance(context.get("world"), dict),
                 "available": context.get("world", {}).get("available")
                 if isinstance(context.get("world"), dict)
                 else None,
             },
-
             "memory_summary": {
                 "episodic_events": len(self.memory.recall_recent_events(100)),
                 "semantic_facts": len(self.memory.recall_all_facts()),
                 "profile": self.memory.recall_profile(),
             },
-
             "final_result": "EXECUTED",
         }
 

@@ -1,5 +1,5 @@
 """
-Network tools — Phase 7.2.1+ (Production-resilient)
+Network tools — Phase 7.3 (Hardening)
 
 READ-ONLY
 SAFE
@@ -9,10 +9,17 @@ Behavior:
 - Default: offline-safe deterministic mock (keeps tests stable)
 - Live mode (optional): multi-provider search with bounded HTTP and fallback:
     0) Brave Search API (reliable; requires SSN_BRAVE_API_KEY)
-    1) DuckDuckGo HTML (scrape)
-    2) DuckDuckGo Lite (scrape)
+    1) DuckDuckGo HTML (scrape; often blocked)
+    2) DuckDuckGo Lite (scrape; often blocked)
     3) Wikipedia OpenSearch API (reliable, no key)
-    4) Mock fallback (unless strict live is enabled)
+    4) Mock fallback (ONLY if strict_live is False)
+
+Hardening additions (Phase 7.3):
+- args: preferred_provider (optional), min_results (optional)
+- always include provider_debug when debug=True (even if provider succeeds)
+- Brave: bounded retry/backoff for transient HTTP (429/5xx), deadline-capped
+- DDG: improved block detection, graceful skip with reason="blocked"
+- Deterministic ranking/merge across providers (no LLM)
 
 Enable live search:
 - args {"live": True} OR env SSN_LIVE_SEARCH=1
@@ -20,16 +27,17 @@ Enable live search:
 Force offline:
 - env SSN_OFFLINE=1  (always mock)
 
-Strict live (no fallback to mock):
+Strict live:
 - args {"strict": True} OR env SSN_LIVE_STRICT=1
+- Meaning: NO mock fallback (but Wikipedia fallback is still allowed)
 
 Brave Search API:
 - env SSN_BRAVE_API_KEY=<token>
 - optional: SSN_BRAVE_COUNTRY=KE / US / GB ...
 - optional: SSN_BRAVE_LANG=en / en-US / sw ...
 
-IMPORTANT:
-- If args explicitly set live/strict, args override env.
+Debug:
+- args {"debug": True} -> includes provider_debug with failure reasons
 """
 
 from __future__ import annotations
@@ -39,10 +47,10 @@ import json
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
 
 from ssn.tools.contracts import ToolSpec
 
@@ -50,6 +58,27 @@ from ssn.tools.contracts import ToolSpec
 # ---------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------
+
+_MAX_QUERY_LEN = 240
+_MAX_HTTP_BYTES = 220_000
+
+_RE_TAGS = re.compile(r"<[^>]+>", re.IGNORECASE)
+_RE_WS = re.compile(r"\s+")
+
+_TRANSIENT_HTTP = {429, 500, 502, 503, 504}
+
+_PROVIDER_WEIGHT = {
+    "brave-search": 3.0,
+    "wikipedia-opensearch": 2.0,
+    "duckduckgo-html": 1.0,
+    "duckduckgo-lite": 0.8,
+    "mock-search": 0.0,
+}
+
+
+class ProviderBlocked(Exception):
+    """Provider returned a bot wall/captcha/blocked page."""
+
 
 def _safe_int(value: Any, default: int) -> int:
     try:
@@ -70,19 +99,41 @@ def _safe_bool(value: Any, default: bool = False) -> bool:
     return default
 
 
+def _env_str(name: str) -> Optional[str]:
+    v = os.getenv(name)
+    if isinstance(v, str):
+        v = v.strip()
+        if v:
+            return v
+    return None
+
+
+def _clip_query(q: str, max_len: int = _MAX_QUERY_LEN) -> str:
+    q = (q or "").strip()
+    q = _RE_WS.sub(" ", q)
+    return q[:max_len]
+
+
 def _sanitize_text(text: str, *, max_len: int = 500) -> str:
     if not isinstance(text, str):
         return ""
     text = text.replace("\n", " ").replace("\r", " ").strip()
-    text = re.sub(r"\s+", " ", text)
+    text = _RE_WS.sub(" ", text)
     return text[:max_len]
 
 
-_RE_TAGS = re.compile(r"<[^>]+>", re.IGNORECASE)
-
-
 def _strip_tags(s: str) -> str:
+    if not isinstance(s, str):
+        return ""
     return _RE_TAGS.sub(" ", s)
+
+
+def _is_http_url(u: str) -> bool:
+    try:
+        p = urlparse(u)
+        return p.scheme in ("http", "https") and bool(p.netloc)
+    except Exception:
+        return False
 
 
 def _decode_ddg_redirect(url: str) -> str:
@@ -102,11 +153,9 @@ def _decode_ddg_redirect(url: str) -> str:
 
 
 def _looks_like_block_page(html_text: str) -> bool:
-    """
-    Heuristic block/captcha detection (for scraped providers).
-    """
-    if not isinstance(html_text, str) or not html_text:
+    if not isinstance(html_text, str) or not html_text.strip():
         return True
+
     lowered = html_text.lower()
     needles = (
         "captcha",
@@ -117,11 +166,26 @@ def _looks_like_block_page(html_text: str) -> bool:
         "robot",
         "blocked",
         "too many requests",
+        "rate limit",
+        "cloudflare",
+        "/cdn-cgi/",
+        "cf-chl",
+        "attention required",
+        "checking your browser",
+        "please enable cookies",
+        "press and hold",
     )
     return any(n in lowered for n in needles)
 
 
-def _http_get_text(url: str, *, timeout_s: float, max_bytes: int, headers: Dict[str, str]) -> str:
+def _http_get_text(
+    url: str,
+    *,
+    timeout_s: float,
+    max_bytes: int,
+    headers: Dict[str, str],
+) -> str:
+    # Keep headers minimal; avoid Accept-Encoding to prevent gzip surprises in urllib.
     req = Request(url, headers=headers, method="GET")
     with urlopen(req, timeout=timeout_s) as resp:
         data = resp.read(max_bytes + 1)
@@ -129,34 +193,76 @@ def _http_get_text(url: str, *, timeout_s: float, max_bytes: int, headers: Dict[
         return data.decode("utf-8", errors="replace")
 
 
-def _clip_query(q: str, max_len: int = 240) -> str:
-    q = (q or "").strip()
-    q = re.sub(r"\s+", " ", q)
-    return q[:max_len]
+def _normalize_result(title: str, url: str, snippet: str, source: str) -> Optional[Dict[str, Any]]:
+    url = (url or "").strip()
+    if not url or not _is_http_url(url):
+        return None
+    return {
+        "title": _sanitize_text(title or "", max_len=140),
+        "url": url,
+        "snippet": _sanitize_text(snippet or "", max_len=300),
+        "source": source,
+        "retrieved_at": time.time(),
+    }
 
 
-def _wiki_normalize_query(q: str) -> str:
-    """
-    Wikipedia OpenSearch is not a full boolean search engine.
-    Remove quotes and '-' excludes; keep it short and simple.
-    """
-    q = (q or "").strip()
-    # remove minus terms like -word or -"two words"
-    q = re.sub(r'-"[^"]+"', " ", q)
-    q = re.sub(r"-\S+", " ", q)
-    # remove quotes
-    q = q.replace('"', " ")
-    q = re.sub(r"\s+", " ", q).strip()
-    return _clip_query(q, 120)
+def _norm_url_for_dedupe(u: str) -> str:
+    try:
+        p = urlparse((u or "").strip())
+        if p.scheme not in ("http", "https"):
+            return ""
+        host = (p.netloc or "").lower()
+        path = p.path or "/"
+        # drop fragment, keep query (some sites encode identity in query)
+        return f"{p.scheme.lower()}://{host}{path}?{p.query}"
+    except Exception:
+        return ""
 
 
-def _env_str(name: str) -> Optional[str]:
-    v = os.getenv(name)
-    if isinstance(v, str):
-        v = v.strip()
-        if v:
-            return v
-    return None
+def _tokenize(s: str) -> List[str]:
+    s = (s or "").lower()
+    toks = re.split(r"[^a-z0-9]+", s)
+    return [t for t in toks if len(t) >= 3]
+
+
+def _score_result(query: str, r: Dict[str, Any], rank_in_provider: int) -> float:
+    qtok = _tokenize(query)
+    hay = f"{r.get('title','')} {r.get('snippet','')}".lower()
+    overlap = sum(1 for t in qtok if t in hay)
+
+    snippet_len = len(r.get("snippet") or "")
+    snippet_quality = 1.0 if 80 <= snippet_len <= 300 else 0.0
+
+    source = str(r.get("source") or "")
+    w = float(_PROVIDER_WEIGHT.get(source, 0.5))
+
+    # deterministic penalties
+    rank_penalty = 0.10 * float(rank_in_provider)
+    return w + 0.15 * float(overlap) + 0.10 * float(snippet_quality) - rank_penalty
+
+
+def _merge_rank_results(
+    query: str,
+    provider_batches: List[List[Dict[str, Any]]],
+    max_out: int,
+) -> List[Dict[str, Any]]:
+    seen: set[str] = set()
+    scored: List[Tuple[float, str, Dict[str, Any]]] = []
+
+    for batch in provider_batches:
+        for idx, r in enumerate(batch):
+            if not isinstance(r, dict):
+                continue
+            u = str(r.get("url", "") or "")
+            key = _norm_url_for_dedupe(u)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            s = _score_result(query, r, idx)
+            scored.append((s, key, r))
+
+    scored.sort(key=lambda x: (-x[0], x[1]))  # deterministic tie-breaker by URL key
+    return [r for _, _, r in scored[:max_out]]
 
 
 # ---------------------------------------------------------
@@ -164,22 +270,14 @@ def _env_str(name: str) -> Optional[str]:
 # ---------------------------------------------------------
 
 def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str, Any]]:
-    """
-    Brave Search API:
-      GET https://api.search.brave.com/res/v1/web/search?q=...
-
-    Requires:
-      SSN_BRAVE_API_KEY
-
-    Optional:
-      SSN_BRAVE_COUNTRY (e.g., "KE", "US")
-      SSN_BRAVE_LANG (e.g., "en", "en-US", "sw")
-    """
     key = _env_str("SSN_BRAVE_API_KEY")
     if not key:
         return []
 
-    q = quote_plus(_clip_query(query, 240))
+    # Cap Brave provider time to keep overall tool bounded even with retries
+    provider_deadline = time.time() + min(4.0, float(timeout_s))
+
+    q = quote_plus(_clip_query(query, _MAX_QUERY_LEN))
     country = _env_str("SSN_BRAVE_COUNTRY")
     lang = _env_str("SSN_BRAVE_LANG")
 
@@ -189,48 +287,56 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str,
     if lang:
         url += f"&search_lang={quote_plus(lang)}"
 
-    text = _http_get_text(
-        url,
-        timeout_s=timeout_s,
-        max_bytes=220_000,
-        headers={
-            "User-Agent": "SIONA/1.0 (SSN research; safe search)",
-            "Accept": "application/json",
-            "X-Subscription-Token": key,
-        },
-    )
+    backoffs = (0.25, 0.75)  # deterministic, bounded (total attempts = 3)
 
-    try:
-        data = json.loads(text)
-    except Exception:
-        return []
+    for attempt in range(1 + len(backoffs)):
+        remaining = provider_deadline - time.time()
+        if remaining <= 0:
+            break
 
-    web = data.get("web") if isinstance(data, dict) else None
-    results = (web.get("results") if isinstance(web, dict) else None) or []
-    if not isinstance(results, list) or not results:
-        return []
+        try:
+            text = _http_get_text(
+                url,
+                timeout_s=max(0.5, remaining),
+                max_bytes=_MAX_HTTP_BYTES,
+                headers={
+                    "User-Agent": "SSN/1.0",
+                    "Accept": "application/json",
+                    "X-Subscription-Token": key,
+                },
+            )
+            data = json.loads(text)
 
-    out: List[Dict[str, Any]] = []
-    for r in results[:top_k]:
-        if not isinstance(r, dict):
-            continue
-        title = _sanitize_text(str(r.get("title", "") or ""), max_len=140)
-        urlv = str(r.get("url", "") or "").strip()
-        desc = r.get("description") or r.get("snippet") or r.get("meta_description") or ""
-        snippet = _sanitize_text(str(desc or ""), max_len=300)
-        if not urlv:
-            continue
-        out.append(
-            {
-                "title": title,
-                "url": urlv,
-                "snippet": snippet,
-                "source": "brave-search",
-                "retrieved_at": time.time(),
-            }
-        )
+            web = data.get("web") if isinstance(data, dict) else None
+            results = (web.get("results") if isinstance(web, dict) else None) or []
+            if not isinstance(results, list) or not results:
+                return []
 
-    return out
+            out: List[Dict[str, Any]] = []
+            for r in results[:top_k]:
+                if not isinstance(r, dict):
+                    continue
+                title = str(r.get("title", "") or "")
+                urlv = str(r.get("url", "") or "")
+                desc = r.get("description") or r.get("snippet") or r.get("meta_description") or ""
+                snippet = str(desc or "")
+                nr = _normalize_result(title, urlv, snippet, "brave-search")
+                if nr:
+                    out.append(nr)
+            return out
+
+        except HTTPError as e:
+            code = getattr(e, "code", None)
+            if isinstance(code, int) and code in _TRANSIENT_HTTP and attempt < len(backoffs):
+                time.sleep(backoffs[attempt])
+                continue
+            return []
+        except (URLError, json.JSONDecodeError):
+            return []
+        except Exception:
+            return []
+
+    return []
 
 
 # ---------------------------------------------------------
@@ -248,21 +354,21 @@ _RE_SNIPPET = re.compile(
 
 
 def _ddg_html_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str, Any]]:
-    q = quote_plus(_clip_query(query, 240))
+    q = quote_plus(_clip_query(query, _MAX_QUERY_LEN))
     url = f"https://duckduckgo.com/html/?q={q}"
 
     html_text = _http_get_text(
         url,
         timeout_s=timeout_s,
-        max_bytes=220_000,
+        max_bytes=_MAX_HTTP_BYTES,
         headers={
-            "User-Agent": "SIONA/1.0 (SSN research; safe search)",
+            "User-Agent": "SSN/1.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
     )
 
     if _looks_like_block_page(html_text):
-        return []
+        raise ProviderBlocked("ddg_html_blocked")
 
     anchors = _RE_RESULT_A.findall(html_text)
     if not anchors:
@@ -272,24 +378,17 @@ def _ddg_html_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
     snippets: List[str] = []
     for a, b in snippet_matches:
         raw = a or b or ""
-        raw = _strip_tags(raw)
-        raw = _html.unescape(raw)
+        raw = _html.unescape(_strip_tags(raw))
         snippets.append(_sanitize_text(raw, max_len=300))
 
     out: List[Dict[str, Any]] = []
     for i, (href, title_html) in enumerate(anchors[:top_k]):
-        title = _sanitize_text(_html.unescape(_strip_tags(title_html)), max_len=140)
-        u = _decode_ddg_redirect(_html.unescape(href.strip()))
+        title = _html.unescape(_strip_tags(title_html))
+        u = _decode_ddg_redirect(_html.unescape((href or "").strip()))
         snippet = snippets[i] if i < len(snippets) else ""
-        out.append(
-            {
-                "title": title,
-                "url": u,
-                "snippet": snippet,
-                "source": "duckduckgo-html",
-                "retrieved_at": time.time(),
-            }
-        )
+        nr = _normalize_result(title, u, snippet, "duckduckgo-html")
+        if nr:
+            out.append(nr)
     return out
 
 
@@ -308,21 +407,21 @@ _RE_LITE_SNIPPET = re.compile(
 
 
 def _ddg_lite_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str, Any]]:
-    q = quote_plus(_clip_query(query, 240))
+    q = quote_plus(_clip_query(query, _MAX_QUERY_LEN))
     url = f"https://lite.duckduckgo.com/lite/?q={q}"
 
     html_text = _http_get_text(
         url,
         timeout_s=timeout_s,
-        max_bytes=220_000,
+        max_bytes=_MAX_HTTP_BYTES,
         headers={
-            "User-Agent": "SIONA/1.0 (SSN research; safe search)",
+            "User-Agent": "SSN/1.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
     )
 
     if _looks_like_block_page(html_text):
-        return []
+        raise ProviderBlocked("ddg_lite_blocked")
 
     links = _RE_LITE_LINK.findall(html_text)
     if not links:
@@ -335,24 +434,27 @@ def _ddg_lite_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 
     out: List[Dict[str, Any]] = []
     for i, (href, title_html) in enumerate(links[:top_k]):
-        title = _sanitize_text(_html.unescape(_strip_tags(title_html)), max_len=140)
-        u = _decode_ddg_redirect(_html.unescape(href.strip()))
+        title = _html.unescape(_strip_tags(title_html))
+        u = _decode_ddg_redirect(_html.unescape((href or "").strip()))
         snippet = snippets[i] if i < len(snippets) else ""
-        out.append(
-            {
-                "title": title,
-                "url": u,
-                "snippet": snippet,
-                "source": "duckduckgo-lite",
-                "retrieved_at": time.time(),
-            }
-        )
+        nr = _normalize_result(title, u, snippet, "duckduckgo-lite")
+        if nr:
+            out.append(nr)
     return out
 
 
 # ---------------------------------------------------------
 # Provider 3: Wikipedia OpenSearch (reliable, no key)
 # ---------------------------------------------------------
+
+def _wiki_normalize_query(q: str) -> str:
+    q = (q or "").strip()
+    q = re.sub(r'-"[^"]+"', " ", q)
+    q = re.sub(r"-\S+", " ", q)
+    q = q.replace('"', " ")
+    q = _RE_WS.sub(" ", q).strip()
+    return _clip_query(q, 120)
+
 
 def _wiki_opensearch(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str, Any]]:
     qn = _wiki_normalize_query(query)
@@ -367,7 +469,7 @@ def _wiki_opensearch(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
         timeout_s=timeout_s,
         max_bytes=200_000,
         headers={
-            "User-Agent": "SIONA/1.0 (SSN research; safe search)",
+            "User-Agent": "SSN/1.0",
             "Accept": "application/json,text/plain;q=0.9,*/*;q=0.8",
         },
     )
@@ -382,17 +484,12 @@ def _wiki_opensearch(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 
     out: List[Dict[str, Any]] = []
     for i in range(min(top_k, len(titles), len(urls))):
-        title = _sanitize_text(str(titles[i]), max_len=140)
-        snippet = _sanitize_text(str(descs[i]) if i < len(descs) else "", max_len=300)
-        out.append(
-            {
-                "title": title,
-                "url": str(urls[i]),
-                "snippet": snippet,
-                "source": "wikipedia-opensearch",
-                "retrieved_at": time.time(),
-            }
-        )
+        title = str(titles[i])
+        snippet = str(descs[i]) if i < len(descs) else ""
+        urlv = str(urls[i])
+        nr = _normalize_result(title, urlv, snippet, "wikipedia-opensearch")
+        if nr:
+            out.append(nr)
     return out
 
 
@@ -429,10 +526,17 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
         return {"error": {"code": "INVALID_QUERY", "message": "Missing or invalid 'query' string"}}
     query = query.strip()
 
-    top_k = _safe_int(args.get("top_k"), 5)
-    top_k = max(1, min(top_k, 10))
+    top_k = max(1, min(_safe_int(args.get("top_k"), 5), 10))
+
+    # Phase 7.3 hardening args
+    preferred = args.get("preferred_provider")
+    preferred_provider = str(preferred).strip().lower() if isinstance(preferred, str) and preferred.strip() else None
+
+    min_results = _safe_int(args.get("min_results"), min(5, top_k))
+    min_results = max(1, min(min_results, top_k))
 
     forced_offline = os.getenv("SSN_OFFLINE") == "1"
+    debug = _safe_bool(args.get("debug"), default=False)
 
     # live: args overrides env if explicitly provided
     env_live = os.getenv("SSN_LIVE_SEARCH") == "1"
@@ -453,86 +557,136 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
     if not live:
         results = _mock_results(query, top_k=top_k)
-        return {
+        out = {
             "query": query,
             "provider": "mock-search",
             "providers_tried": ["mock-search"],
             "result_count": len(results),
             "results": results,
+            "degraded": True,
             "note": "Simulated net.search (offline-safe; set live=True or SSN_LIVE_SEARCH=1 for real search)",
         }
+        # Debug in offline mode can still be helpful/consistent
+        if debug:
+            out["provider_debug"] = [{"provider": "mock-search", "ok": True, "reason": None, "result_count": len(results)}]
+        return out
 
     providers_tried: List[str] = []
+    provider_debug: List[Dict[str, Any]] = []
 
     def _try(fn, name: str) -> List[Dict[str, Any]]:
         providers_tried.append(name)
+        t0 = time.time()
         try:
-            return fn(query, top_k=top_k, timeout_s=timeout_s)
-        except HTTPError:
+            res = fn(query, top_k=top_k, timeout_s=timeout_s)
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": bool(res),
+                    "reason": None if res else "empty",
+                    "result_count": len(res) if res else 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
+            return res
+        except ProviderBlocked:
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": "blocked",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
+            return []
+        except HTTPError as e:
+            code = getattr(e, "code", None)
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": f"http_{code}" if code is not None else "http_error",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
             return []
         except URLError:
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": "url_error",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
             return []
         except Exception:
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": "exception",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
             return []
 
-    # Provider 0: Brave Search API (only works if SSN_BRAVE_API_KEY is set)
-    if _env_str("SSN_BRAVE_API_KEY"):
-        results = _try(_brave_search, "brave-search")
-        if results:
-            return {
-                "query": query,
-                "provider": "brave-search",
-                "providers_tried": providers_tried,
-                "result_count": len(results),
-                "results": results,
-                "note": "Live net.search (Brave Search API, bounded)",
-            }
-    else:
-        providers_tried.append("brave-search (missing SSN_BRAVE_API_KEY)")
+    providers: List[Tuple[str, Any]] = [
+        ("brave-search", _brave_search),
+        ("duckduckgo-html", _ddg_html_search),
+        ("duckduckgo-lite", _ddg_lite_search),
+        ("wikipedia-opensearch", _wiki_opensearch),
+    ]
 
-    results = _try(_ddg_html_search, "duckduckgo-html")
-    if results:
-        return {
+    if preferred_provider:
+        providers = sorted(providers, key=lambda x: (0 if x[0] == preferred_provider else 1))
+
+    batches: List[List[Dict[str, Any]]] = []
+
+    for name, fn in providers:
+        if name == "brave-search" and not _env_str("SSN_BRAVE_API_KEY"):
+            providers_tried.append("brave-search (missing SSN_BRAVE_API_KEY)")
+            provider_debug.append({"provider": "brave-search", "ok": False, "reason": "missing_api_key", "result_count": 0})
+            continue
+
+        res = _try(fn, name)
+        if res:
+            batches.append(res)
+            if sum(len(b) for b in batches) >= min_results:
+                break
+
+    if batches:
+        ranked = _merge_rank_results(query, batches, max_out=top_k)
+        out = {
             "query": query,
-            "provider": "duckduckgo-html",
+            "provider": "ranked-aggregate",
             "providers_tried": providers_tried,
-            "result_count": len(results),
-            "results": results,
-            "note": "Live net.search (DuckDuckGo HTML, bounded)",
+            "result_count": len(ranked),
+            "results": ranked,
+            "degraded": False,
+            "note": "Live net.search (ranked aggregate, bounded)",
         }
+        if debug:
+            out["provider_debug"] = provider_debug
+        return out
 
-    results = _try(_ddg_lite_search, "duckduckgo-lite")
-    if results:
-        return {
-            "query": query,
-            "provider": "duckduckgo-lite",
-            "providers_tried": providers_tried,
-            "result_count": len(results),
-            "results": results,
-            "note": "Live net.search (DuckDuckGo LITE fallback, bounded)",
-        }
-
-    results = _try(_wiki_opensearch, "wikipedia-opensearch")
-    if results:
-        return {
-            "query": query,
-            "provider": "wikipedia-opensearch",
-            "providers_tried": providers_tried,
-            "result_count": len(results),
-            "results": results,
-            "note": "Live net.search (Wikipedia OpenSearch fallback, bounded)",
-        }
-
+    # STRICT means: do NOT fall back to mock
     if strict_live:
-        return {
-            "error": {
-                "code": "SEARCH_NO_RESULTS",
-                "message": f"No results parsed from providers. tried={providers_tried}",
-            }
+        err = {
+            "code": "SEARCH_NO_RESULTS",
+            "message": f"No results parsed from providers. tried={providers_tried}",
+            "providers_tried": providers_tried,
         }
+        if debug:
+            err["provider_debug"] = provider_debug
+        return {"error": err}
 
     mock = _mock_results(query, top_k=top_k)
-    return {
+    out = {
         "query": query,
         "provider": "mock-search",
         "providers_tried": providers_tried + ["mock-search"],
@@ -541,6 +695,9 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
         "degraded": True,
         "note": f"Live net.search unavailable (providers blocked/empty). FELL BACK to mock. tried={providers_tried}",
     }
+    if debug:
+        out["provider_debug"] = provider_debug + [{"provider": "mock-search", "ok": True, "reason": None, "result_count": len(mock)}]
+    return out
 
 
 # ---------------------------------------------------------
@@ -559,18 +716,16 @@ NET_SEARCH_T = ToolSpec(
     input_schema={
         "query": {"type": "string", "required": True, "description": "Search query"},
         "top_k": {"type": "integer", "required": False, "description": "Number of results (1–10)"},
+        "min_results": {"type": "integer", "required": False, "description": "Try providers until at least this many raw results are collected (1–top_k)"},
+        "preferred_provider": {"type": "string", "required": False, "description": "Optional preferred provider: brave-search | duckduckgo-html | duckduckgo-lite | wikipedia-opensearch"},
         "live": {"type": "boolean", "required": False, "description": "Enable live search (default env or False)"},
         "timeout_s": {"type": "integer", "required": False, "description": "Timeout seconds (2–20)"},
-        "strict": {"type": "boolean", "required": False, "description": "Strict live: fail if live providers blocked/empty"},
+        "strict": {"type": "boolean", "required": False, "description": "Strict live: no mock fallback"},
+        "debug": {"type": "boolean", "required": False, "description": "Include provider_debug diagnostics"},
     },
     handler=net_search_handler,
 )
 
 
 def register_net_tools(registry: Any) -> None:
-    """
-    builtin_tools.py expects this symbol.
-
-    Register all network tools into the given ToolRegistry.
-    """
     registry.register(NET_SEARCH_T)

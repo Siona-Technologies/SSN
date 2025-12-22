@@ -28,6 +28,9 @@ from ssn.tools.research_propose import RESEARCH_PROPOSE_T
 from ssn.tools.memory_propose import MEMORY_PROPOSE_T
 from ssn.tools.memory_commit import MEMORY_COMMIT_T
 
+# ✅ NEW: pending proposal inspection tools (disk-canonical, read-only)
+from ssn.tools.memory_pending_tools import MEMORY_PENDING_LIST_T, MEMORY_PENDING_GET_T
+
 
 def create_siona(
     *,
@@ -55,6 +58,10 @@ def create_siona(
         RESEARCH_PROPOSE_T,
         MEMORY_PROPOSE_T,
         MEMORY_COMMIT_T,
+
+        # ✅ NEW
+        MEMORY_PENDING_LIST_T,
+        MEMORY_PENDING_GET_T,
     ):
         orch.tools.register(tool)
 

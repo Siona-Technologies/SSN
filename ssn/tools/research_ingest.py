@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import time
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from ssn.tools.contracts import ToolSpec
 
@@ -49,6 +50,14 @@ def _tool_fail(step: str, tool_err: Any, fallback_code: str) -> Dict[str, Any]:
     return {"error": {"step": step, "code": fallback_code, "message": f"{step} failed"}}
 
 
+def _is_http_url(u: str) -> bool:
+    try:
+        p = urlparse((u or "").strip())
+        return p.scheme in ("http", "https") and bool(p.netloc)
+    except Exception:
+        return False
+
+
 def _compute_degraded(
     *,
     forced_offline: bool,
@@ -63,12 +72,14 @@ def _compute_degraded(
     if forced_offline:
         return True
 
+    # net.search explicitly marked degraded
     try:
         if isinstance(search_data, dict) and bool(search_data.get("degraded", False)):
             return True
     except Exception:
         pass
 
+    # provider indicates mock
     try:
         provider = str((search_data or {}).get("provider", "") or "").strip().lower()
         if provider == "mock-search":
@@ -76,6 +87,7 @@ def _compute_degraded(
     except Exception:
         pass
 
+    # chosen result source indicates mock
     try:
         src = str((chosen or {}).get("source", "") or "").strip().lower()
         if src == "mock-search":
@@ -83,9 +95,16 @@ def _compute_degraded(
     except Exception:
         pass
 
+    # IMPORTANT:
+    # Do NOT treat example.com as degraded by itself.
+    # Only treat it as degraded when we are already in a degraded/mock/offline context.
     try:
-        if "example.com" in (url or "").lower():
-            return True
+        u = (url or "").lower()
+        if "example.com" in u:
+            provider = str((search_data or {}).get("provider", "") or "").strip().lower()
+            src = str((chosen or {}).get("source", "") or "").strip().lower()
+            if provider == "mock-search" or src == "mock-search" or bool((search_data or {}).get("degraded", False)):
+                return True
     except Exception:
         pass
 
@@ -180,19 +199,16 @@ def _score_result(r: Dict[str, Any], query: str, *, project_disambiguation: bool
 
     score = 0.0
 
-    # Generic scoring (always)
     if url.startswith("https://"):
         score += 0.4
     if snippet.strip():
         score += 0.2
 
-    # Token overlap with query (always)
     q_tokens = [tok for tok in query.lower().split() if len(tok) >= 4]
     for tok in q_tokens[:12]:
         if tok in blob:
             score += 0.25
 
-    # SSN/SIONA disambiguation scoring (ONLY when disambiguating)
     if project_disambiguation:
         for t in _BAD_TERMS:
             if t in blob:
@@ -210,7 +226,8 @@ def _choose_best_result(results: List[Dict[str, Any]], query: str, *, project_di
     for r in results:
         if not isinstance(r, dict):
             continue
-        if not isinstance(r.get("url"), str):
+        u = r.get("url")
+        if not isinstance(u, str) or not _is_http_url(u):
             continue
         s = _score_result(r, query, project_disambiguation=project_disambiguation)
         if s > best_score:
@@ -243,19 +260,6 @@ def _extract_relevant_window(clean_text: str, *, max_chars: int = 20_000) -> str
 # ---------------------------------------------------------
 
 def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    research.ingest (Phase 7.2)
-
-    Pipeline:
-      net.search -> net.fetch -> net.sanitize -> net.cite
-
-    Returns:
-      A bounded ingest bundle (NO memory writes).
-
-    NOTE (important):
-    - We DO NOT force live search by default.
-      net.search owns default behavior (offline-safe mock unless env/args enable live).
-    """
     tools = deps.get("tools")
     if tools is None:
         return {"error": {"code": "MISSING_DEPS", "message": "deps['tools'] is required"}}
@@ -276,26 +280,36 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     max_answer_chars = _safe_int(args.get("max_answer_chars"), 600)
     max_answer_chars = max(100, min(max_answer_chars, 2000))
 
-    # Network controls
     timeout_s = float(_safe_int(args.get("timeout_s"), 10))
     timeout_s = max(2.0, min(timeout_s, 20.0))
 
     forced_offline = os.getenv("SSN_OFFLINE") == "1"
 
-    # Disambiguation (only changes effective_query, not returned query)
+    preferred_provider = args.get("preferred_provider")
+    min_results = args.get("min_results")
+    debug = _safe_bool(args.get("debug"), default=False)
+
     disambiguate_default = _looks_like_siona_project_query(original_query)
     disambiguate = _safe_bool(args.get("disambiguate"), default=disambiguate_default)
     effective_query = _build_siona_disambiguated_query(original_query) if disambiguate else original_query
 
-    # Decide whether to override net.search live/strict:
-    # - If user provided live_search/live, we pass it through.
-    # - Else, we OMIT live so net.search can use its env-driven default.
-    # - If SSN_OFFLINE=1, we force live=False and strict=False.
     search_args: Dict[str, Any] = {
         "query": effective_query,
         "top_k": top_k,
         "timeout_s": int(timeout_s),
     }
+
+    if isinstance(preferred_provider, str) and preferred_provider.strip():
+        search_args["preferred_provider"] = preferred_provider.strip()
+
+    if min_results is not None:
+        try:
+            search_args["min_results"] = int(min_results)
+        except Exception:
+            pass
+
+    if debug:
+        search_args["debug"] = True
 
     if forced_offline:
         search_args["live"] = False
@@ -308,9 +322,7 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
             strict_val = _safe_bool(args.get("strict_live", args.get("strict")), default=False)
             search_args["strict"] = strict_val
 
-    # --------------------------
     # 1) net.search
-    # --------------------------
     sr = tools.run(
         name="net.search",
         role=role,
@@ -329,8 +341,8 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         results[0] if isinstance(results[0], dict) else {}
     )
     url = chosen.get("url")
-    if not isinstance(url, str) or not url.strip():
-        return {"error": {"step": "net.search", "code": "NO_URL", "message": "Selected result missing url"}}
+    if not isinstance(url, str) or not url.strip() or not _is_http_url(url):
+        return {"error": {"step": "net.search", "code": "NO_URL", "message": "Selected result missing valid http(s) url"}}
     url = url.strip()
 
     degraded = _compute_degraded(
@@ -340,9 +352,7 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         url=url,
     )
 
-    # --------------------------
     # 2) net.fetch
-    # --------------------------
     fr = tools.run(
         name="net.fetch",
         role=role,
@@ -360,9 +370,7 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     fetched_content = fetch_data.get("content", "")
     fetched_ct = fetch_data.get("content_type", "application/octet-stream")
 
-    # --------------------------
     # 3) net.sanitize
-    # --------------------------
     san = tools.run(
         name="net.sanitize",
         role=role,
@@ -388,9 +396,7 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
             }
         }
 
-    # --------------------------
     # 4) net.cite
-    # --------------------------
     clean_for_cite = _extract_relevant_window(clean_text, max_chars=20_000) or clean_text[:20_000]
 
     cite = tools.run(
@@ -411,14 +417,11 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
     cite_data = cite.data or {}
 
-    # --------------------------
-    # Bounded answer (extractive, deterministic)
-    # --------------------------
     answer = _truncate_text(_extract_relevant_window(clean_text, max_chars=max_answer_chars), max_answer_chars).strip()
     if not answer:
         answer = _truncate_text(clean_text, max_answer_chars).strip()
 
-    return {
+    out = {
         "query": original_query,
         "effective_query": effective_query,
         "disambiguated": bool(disambiguate),
@@ -461,10 +464,11 @@ def research_ingest_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         "degraded": bool(degraded),
     }
 
+    if debug and isinstance(search_data, dict) and "provider_debug" in search_data:
+        out["search"]["provider_debug"] = search_data.get("provider_debug")
 
-# ---------------------------------------------------------
-# ToolSpec registration
-# ---------------------------------------------------------
+    return out
+
 
 RESEARCH_INGEST_T = ToolSpec(
     name="research.ingest",
@@ -480,13 +484,15 @@ RESEARCH_INGEST_T = ToolSpec(
         "top_k": {"type": "integer", "required": False, "description": "Results to consider (1–5)"},
         "max_bytes": {"type": "integer", "required": False, "description": "Fetch cap (hard capped)"},
         "max_answer_chars": {"type": "integer", "required": False, "description": "Answer cap (100–2000)"},
-        # compatibility: user can pass either live_search/strict_live OR live/strict
         "live_search": {"type": "boolean", "required": False, "description": "Override: request live search (otherwise net.search uses env/default)"},
         "strict_live": {"type": "boolean", "required": False, "description": "Override: strict live (otherwise net.search uses env/default)"},
         "live": {"type": "boolean", "required": False, "description": "Alias for live_search"},
         "strict": {"type": "boolean", "required": False, "description": "Alias for strict_live"},
         "timeout_s": {"type": "integer", "required": False, "description": "Network timeout seconds (2–20)"},
         "disambiguate": {"type": "boolean", "required": False, "description": "Disambiguate SIONA/SSN project vs Social Security (default auto)"},
+        "preferred_provider": {"type": "string", "required": False, "description": "Optional preferred net.search provider"},
+        "min_results": {"type": "integer", "required": False, "description": "Try providers until at least this many raw results are collected"},
+        "debug": {"type": "boolean", "required": False, "description": "Include provider_debug from net.search"},
     },
     handler=research_ingest_handler,
 )

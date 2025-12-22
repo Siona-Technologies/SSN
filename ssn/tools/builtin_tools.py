@@ -1,13 +1,16 @@
+# ssn/tools/builtin_tools.py
+
 from __future__ import annotations
 
 from typing import Any, Dict
 
 from ssn.tools.contracts import ToolSpec
 from ssn.tools.registry import ToolRegistry
-from ssn.tools.net_tools import register_net_tools  # ✅ NEW
-from ssn.tools.media_tools import register_media_tools
-from ssn.tools.speech_tools import register_speech_tools  # ✅ ADDED
 
+from ssn.tools.net_tools import register_net_tools
+from ssn.tools.media_tools import register_media_tools
+from ssn.tools.speech_tools import register_speech_tools
+from ssn.tools.memory_pending_tools import register_memory_pending_tools
 
 
 def _safe_dict(x: Any) -> Dict[str, Any]:
@@ -471,6 +474,11 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
+    # Pending memory proposals (disk-canonical)
+    # =========================================================
+    register_memory_pending_tools(reg)
+
+    # =========================================================
     # Phase 7.2 — Network research tools (read-only, bounded)
     # =========================================================
     register_net_tools(reg)
@@ -483,4 +491,4 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     # =========================================================
     # Phase 7.4 — Speech interface tools (approval-gated)
     # =========================================================
-    register_speech_tools(reg)  # ✅ ADDED
+    register_speech_tools(reg)

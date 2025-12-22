@@ -73,3 +73,21 @@ logs/
 build/
 dist/
 *.egg-info/
+# ============================
+# LOCAL STATE (DO NOT COMMIT)
+# ============================
+.ssn_state/
+.ssn_state/**
+
+# ============================
+# TEST / TOOLING ARTIFACTS
+# ============================
+.pytest_cache/
+.pytest_cache/**
+.dist/
+.dist/**
+.coverage
+coverage/
+.mypy_cache/
+.ruff_cache/
+

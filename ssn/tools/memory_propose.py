@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ssn.tools.contracts import ToolSpec
 
+# Canonical persistent store (disk is source of truth)
+from ssn.memory import proposal_store
+
 
 # ---------------------------------------------------------
 # Helpers
@@ -35,7 +38,8 @@ def _truncate_str(v: Any, n: int) -> str:
 
 def _get_pending_store(memory: Any) -> Dict[str, Any]:
     """
-    Store pending proposals on the MemoryHub instance without modifying MemoryHub code.
+    In-memory store on MemoryHub instance (fast path cache).
+    Disk is canonical; memory is a cache.
     """
     if not hasattr(memory, "_pending_memory_proposals"):
         setattr(memory, "_pending_memory_proposals", {})
@@ -46,18 +50,30 @@ def _get_pending_store(memory: Any) -> Dict[str, Any]:
     return store
 
 
-def _prune_store(store: Dict[str, Any], *, ttl_s: int, max_pending: int) -> None:
+def _get_history_store(memory: Any) -> Dict[str, Any]:
     """
-    Prevent unbounded growth:
-    - Remove proposals older than ttl_s
-    - Keep only most recent max_pending
+    Optional in-memory audit store (cache).
+    """
+    if not hasattr(memory, "_memory_proposal_history"):
+        setattr(memory, "_memory_proposal_history", {})
+    store = getattr(memory, "_memory_proposal_history")
+    if not isinstance(store, dict):
+        store = {}
+        setattr(memory, "_memory_proposal_history", store)
+    return store
+
+
+def _prune_store(store: Dict[str, Any], *, ttl_s: int, max_items: int) -> None:
+    """
+    Prevent unbounded growth in the in-memory cache.
+    Disk pruning is handled by proposal_store, but we keep cache tidy too.
     """
     if not isinstance(store, dict) or not store:
         return
 
     now = time.time()
 
-    # 1) TTL prune
+    # TTL prune
     to_delete: List[str] = []
     for pid, rec in list(store.items()):
         try:
@@ -67,11 +83,12 @@ def _prune_store(store: Dict[str, Any], *, ttl_s: int, max_pending: int) -> None
                 to_delete.append(pid)
         except Exception:
             to_delete.append(pid)
+
     for pid in to_delete:
         store.pop(pid, None)
 
-    # 2) Max pending prune (keep most recent)
-    if len(store) <= max_pending:
+    # Size prune (keep newest)
+    if len(store) <= max_items:
         return
 
     sortable: List[Tuple[float, str]] = []
@@ -80,8 +97,8 @@ def _prune_store(store: Dict[str, Any], *, ttl_s: int, max_pending: int) -> None
         created_f = float(created) if isinstance(created, (int, float)) else 0.0
         sortable.append((created_f, pid))
 
-    sortable.sort(reverse=True)  # newest first
-    keep = set(pid for _, pid in sortable[:max_pending])
+    sortable.sort(reverse=True)
+    keep = set(pid for _, pid in sortable[:max_items])
     for pid in list(store.keys()):
         if pid not in keep:
             store.pop(pid, None)
@@ -154,12 +171,7 @@ def _pick_text_facts(args: Dict[str, Any]) -> Optional[List[str]]:
 def _coerce_text_facts_to_kv(text_facts: List[str], *, max_facts: int) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for i, t in enumerate(text_facts[:max_facts]):
-        out.append(
-            {
-                "key": f"fact_{i+1}",
-                "value": t[:2000],
-            }
-        )
+        out.append({"key": f"fact_{i+1}", "value": t[:2000]})
     return out
 
 
@@ -171,7 +183,6 @@ def _sanitize_source(source: Any) -> Dict[str, Any]:
         return {}
     out: Dict[str, Any] = {}
 
-    # common fields from research.propose
     for k, limit in (
         ("type", 50),
         ("query", 500),
@@ -184,13 +195,38 @@ def _sanitize_source(source: Any) -> Dict[str, Any]:
         if isinstance(v, str) and v.strip():
             out[k] = v.strip()[:limit]
 
-    # booleans
     for k in ("degraded", "offline"):
         v = source.get(k)
         if isinstance(v, bool):
             out[k] = v
 
     return out
+
+
+def _hydrate_caches_from_disk(memory: Any, *, ttl_s: int, max_pending: int) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Load pending+history from disk into in-memory caches (disk is canonical).
+    Also prune caches.
+    """
+    pending_disk = proposal_store.load_pending()
+    history_disk = proposal_store.load_history()
+
+    pending_mem = _get_pending_store(memory)
+    history_mem = _get_history_store(memory)
+
+    # Disk overwrites memory (source-of-truth for restarts)
+    for k, v in (pending_disk or {}).items():
+        if isinstance(k, str) and isinstance(v, dict):
+            pending_mem[k] = v
+    for k, v in (history_disk or {}).items():
+        if isinstance(k, str) and isinstance(v, dict):
+            history_mem[k] = v
+
+    _prune_store(pending_mem, ttl_s=ttl_s, max_items=max_pending)
+    # history cache is bounded separately in commit tool; keep generous here
+    _prune_store(history_mem, ttl_s=30 * 24 * 3600, max_items=2000)
+
+    return pending_mem, history_mem
 
 
 # ---------------------------------------------------------
@@ -208,15 +244,18 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
     # retention controls (safe defaults)
     ttl_s = _safe_int(args.get("ttl_s"), 7 * 24 * 3600)  # 7 days
     ttl_s = max(3600, min(ttl_s, 30 * 24 * 3600))       # 1 hour .. 30 days
+
     max_pending = _safe_int(args.get("max_pending"), 200)
     max_pending = max(10, min(max_pending, 2000))
+
+    # Load persisted stores into cache first (ensures cross-process approvals work)
+    pending_cache, _history_cache = _hydrate_caches_from_disk(memory, ttl_s=ttl_s, max_pending=max_pending)
 
     summary = _truncate_str(args.get("summary"), 500)
     origin = _truncate_str(args.get("origin"), 120)
 
     created_at_arg = args.get("created_at")
     created_at = _safe_float(created_at_arg, time.time())
-    # prevent insane values
     if created_at <= 0:
         created_at = time.time()
     if created_at > time.time() + 60:
@@ -224,10 +263,7 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
 
     source = _sanitize_source(args.get("source"))
 
-    # 1) Structured facts (preferred)
     facts_list = _pick_facts_list(args)
-
-    # 2) Text-only facts (fallback)
     text_facts = _pick_text_facts(args)
 
     if facts_list is None and text_facts is None:
@@ -241,7 +277,6 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
             }
         }
 
-    # If text-only provided, convert to KV first
     coerced: List[Any] = (
         facts_list
         if facts_list is not None
@@ -259,12 +294,7 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
 
     proposal_id = f"prop_{int(time.time())}_{secrets.token_hex(6)}"
 
-    store = _get_pending_store(memory)
-
-    # Prune before insert (TTL + bounds)
-    _prune_store(store, ttl_s=ttl_s, max_pending=max_pending)
-
-    store[proposal_id] = {
+    record: Dict[str, Any] = {
         "proposal_id": proposal_id,
         "created_at": created_at,
         "status": "PENDING",
@@ -274,8 +304,12 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
         "facts": cleaned,
     }
 
-    # IMPORTANT: prune again after insert so store never exceeds max_pending
-    _prune_store(store, ttl_s=ttl_s, max_pending=max_pending)
+    # Update cache
+    pending_cache[proposal_id] = record
+    _prune_store(pending_cache, ttl_s=ttl_s, max_items=max_pending)
+
+    # Persist via canonical store (atomic + bounded)
+    proposal_store.upsert_pending(proposal_id, record, ttl_s=ttl_s, max_pending=max_pending)
 
     preview_n = min(5, len(cleaned))
 
@@ -288,7 +322,13 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
         "summary": summary,
         "source": source,
         "origin": origin,
-        "note": "memory.propose (read-only proposal; requires explicit memory.commit approval)",
+
+        # observability (helps ops/CI)
+        "ttl_s": int(ttl_s),
+        "max_pending": int(max_pending),
+
+        "state_dir": proposal_store.get_state_dir(),
+        "note": "memory.propose (pending proposal persisted; requires explicit memory.commit approval)",
     }
 
 
@@ -298,11 +338,12 @@ def memory_propose_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[s
 
 MEMORY_PROPOSE_T = ToolSpec(
     name="memory.propose",
-    description="Propose memory facts for approval (read-only). Stores a PENDING proposal requiring explicit memory.commit.",
+    description="Propose memory facts for approval (PENDING proposal persisted; requires explicit memory.commit).",
     required_role="OWNER",
     allowed_roles=("OWNER",),
-    state_changing=False,
-    external_effect=False,
+    # This tool writes persisted pending proposals (proposal_store) => mark correctly.
+    state_changing=True,
+    external_effect=True,
     public=False,
     max_calls_per_minute=60,
     input_schema={
@@ -318,7 +359,7 @@ MEMORY_PROPOSE_T = ToolSpec(
         "proposals": {"type": "array", "required": False, "description": "Alias for facts"},
         "candidate_facts": {"type": "array", "required": False, "description": "Alias for facts"},
         # text-only fallback
-        "facts_text": {"type": "array", "required": False, "description": "List of strings (will be coerced into key/value facts)"},
+        "facts_text": {"type": "array", "required": False, "description": "List of strings (coerced into key/value facts)"},
         "raw_facts": {"type": "array", "required": False, "description": "Alias for facts_text"},
         # metadata
         "summary": {"type": "string", "required": False, "description": "Short summary of proposal"},

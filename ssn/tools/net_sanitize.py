@@ -7,10 +7,14 @@ SAFE
 OFFLINE-COMPATIBLE
 
 Goals:
-- Truncation-safe removal of script/style/noscript + comments
-- HTML entity unescape
-- Prefer extracting "main-like" content when possible (still stdlib-only)
-- Boilerplate heuristics (cookie/nav/footer/auth/share) to improve citations
+- Truncation-tolerant HTML -> text extraction (stdlib-only, HTMLParser)
+- Entity unescape (HTMLParser convert_charrefs=True + html.unescape)
+- Prefer extracting "main-like" content:
+  - Wikipedia/MediaWiki: prefer .mw-parser-output, else #mw-content-text
+  - Else: prefer <main>, <article>, <body>
+- Boilerplate heuristics (cookie/nav/footer/auth/share)
+- Drop leaked Wikipedia language selector blocks
+- Drop MediaWiki client state/config blobs (RLSTATE/RLCONF etc.)
 - Bounded output (max_bytes hard-capped)
 
 Tool name: net.sanitize
@@ -22,55 +26,22 @@ from __future__ import annotations
 import html as _html
 import re
 import time
-from typing import Any, Dict, List, Tuple
+from html.parser import HTMLParser
+from typing import Any, Dict, List, Optional
 
 from ssn.tools.contracts import ToolSpec
-
 
 DEFAULT_MAX_BYTES = 80_000
 HARD_MAX_BYTES = 200_000
 
 DEFAULT_MAX_TEXT_CHARS = 200_000  # internal safety; output is bounded by max_bytes
 
-
-def _safe_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return default
-
-
-# ---------------------------------------------------------
-# Regex & heuristics
-# ---------------------------------------------------------
-
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
-_WS_RE = re.compile(r"\s+")
+_WS_RE = re.compile(r"[ \t]+")
+_NL_RE = re.compile(r"\n{3,}")
 
-# Remove blocks even if truncated (no closing tag)
-_BLOCK_RE = re.compile(r"(?is)<(script|style|noscript)\b[^>]*>.*?(</\1\s*>|$)")
-_COMMENT_RE = re.compile(r"(?is)<!--.*?-->")
-
-# Remove some head-ish noise
-_HEAD_RE = re.compile(r"(?is)<head\b[^>]*>.*?(</head\s*>|$)")
-
-# Remove obvious non-content containers (conservative)
-_DROP_BLOCKS_RE = re.compile(
-    r"(?is)<(nav|footer|aside|form)\b[^>]*>.*?(</\1\s*>|$)"
-)
-
-# Generic tag strip (applied late)
-_TAG_RE = re.compile(r"(?is)<[^>]+>")
-
-# HTML line-break-ish tags to preserve paragraph boundaries before stripping
-_BREAK_TAG_RE = re.compile(r"(?is)</(p|div|li|h1|h2|h3|h4|h5|h6|br|tr|section|article)\s*>")
-
-# Heuristics to drop CSS/boilerplate fragments that sometimes leak in truncated pages
-_CSS_RULE_RE = re.compile(r"(?i)\.[a-z0-9_-]{2,}\s*\{[^}]{0,800}\}")
-_CSS_KV_RE = re.compile(
-    r"(?i)\b(display|position|padding|margin|width|height|font|color|background|grid|flex)\s*:\s*[^;]{1,100};"
-)
-_JSONLD_HINT_RE = re.compile(r'(?i)"@context"\s*:\s*"https?://schema\.org"')
+_TAG_LIKE_RE = re.compile(r"(?is)<\s*([a-z]|/|!doctype)")
+_TAG_RE = re.compile(r"(?is)<[^>]+>")  # last-resort only
 
 # Boilerplate detection (text-level)
 _BOILERPLATE_NEEDLES = (
@@ -96,15 +67,51 @@ _BOILERPLATE_NEEDLES = (
     "advertisement",
     "skip to content",
     "jump to content",
+    # wikipedia maintenance leakage
+    "please help clean up",
+    "this article needs additional citations",
+    "citation needed",
+    "this article is in list format",
 )
+
+# Wikipedia language selector leakage patterns (text-level)
+_WIKI_LANG_HEADER_RE = re.compile(r"(?i)^\s*\d{1,4}\s+languages?\s*$")
+_WIKI_LANG_LINE_RE = re.compile(r"^[^\d][^:]{1,40}$")
+
+# High-signal “junk” patterns (post-extraction)
+_JS_LIKE_RE = re.compile(
+    r"(?i)\b(function\s*\(|var\s+[a-z_]{2,}\s*=|document\.|window\.|client-js|vector-feature|mw\.config)\b"
+)
+
+# MediaWiki client state/config blobs and loader noise
+# Example: RLSTATE={...}, RLCONF={...}
+_WIKI_STATE_RE = re.compile(r"(?i)^\s*(RLSTATE|RLCONF)\s*=\s*\{")
+# Example: mw.config.set(...), mw.loader...
+_WIKI_MWCFG_RE = re.compile(r"(?i)\bmw\.(config|loader)\b")
+# Example: {"ext.globalCssJs.user.styles":"ready", ...}
+_WIKI_JSON_READY_RE = re.compile(r'(?i)"(site\.styles|user\.styles|ext\.)[^"]*"\s*:\s*"(ready|loading)"')
+
+_BLOCK_TAGS = {
+    "p", "div", "li", "ul", "ol",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "br", "hr", "tr", "td", "th",
+    "section", "article", "main",
+    "header", "footer", "nav", "aside",
+    "table", "blockquote",
+}
+
+_SKIP_TAGS = {"script", "style", "noscript", "svg"}
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
 
 
 def _strip_control_chars(text: str) -> str:
-    return _CTRL_CHARS_RE.sub("", text)
-
-
-def _collapse_whitespace(text: str) -> str:
-    return _WS_RE.sub(" ", text).strip()
+    return _CTRL_CHARS_RE.sub("", text or "")
 
 
 def _normalize_preserve_paragraphs(text: str) -> str:
@@ -115,49 +122,93 @@ def _normalize_preserve_paragraphs(text: str) -> str:
         return ""
 
     t = text.replace("\r", "\n")
-    t = re.sub(r"\n{3,}", "\n\n", t)
-
     lines: List[str] = []
     for line in t.split("\n"):
-        line = _WS_RE.sub(" ", line).strip()
+        line = _WS_RE.sub(" ", (line or "")).strip()
         lines.append(line)
 
     t = "\n".join(lines)
-    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    t = _NL_RE.sub("\n\n", t).strip()
     return t
 
 
-def _strip_tags_keep_breaks(html: str) -> str:
-    """
-    Convert break-ish tags to newlines before stripping tags, to preserve structure.
-    """
-    html = _BREAK_TAG_RE.sub("\n", html)
-    html = _TAG_RE.sub(" ", html)
-    return html
+def _is_wikipedia_url(url: Optional[str]) -> bool:
+    if not isinstance(url, str) or not url.strip():
+        return False
+    u = url.strip().lower()
+    return ("wikipedia.org/" in u) or ("wikimedia.org/" in u)
 
 
-def _extract_main_like_html(html: str) -> str:
+def _drop_wikipedia_language_block(text: str) -> str:
     """
-    Best-effort extraction:
-    - Prefer <main>...</main> if present
-    - Else prefer <article>...</article>
-    - Else prefer <body>...</body>
-    - Else keep full html
-    Truncation-safe via regex that tolerates missing close tags.
+    Remove leaked Wikipedia language selector blocks (conservative).
     """
-    if not isinstance(html, str) or not html:
+    if not isinstance(text, str) or not text.strip():
         return ""
 
-    patterns = [
-        re.compile(r"(?is)<main\b[^>]*>.*?(</main\s*>|$)"),
-        re.compile(r"(?is)<article\b[^>]*>.*?(</article\s*>|$)"),
-        re.compile(r"(?is)<body\b[^>]*>.*?(</body\s*>|$)"),
-    ]
-    for rx in patterns:
-        m = rx.search(html)
-        if m:
-            return m.group(0)
-    return html
+    lines = text.split("\n")
+    if not lines:
+        return text
+
+    scan_limit = min(len(lines), 400)
+
+    start_idx = None
+    for i in range(scan_limit):
+        li = (lines[i] or "").strip()
+        if _WIKI_LANG_HEADER_RE.match(li):
+            start_idx = i
+            break
+        if li.lower() in ("languages", "language"):
+            start_idx = i
+            break
+
+    if start_idx is None:
+        return text
+
+    removed = 0
+    end_idx = start_idx
+
+    for j in range(start_idx, scan_limit):
+        line = (lines[j] or "").strip()
+        if not line:
+            if removed >= 6:
+                end_idx = j
+                break
+            continue
+
+        low = line.lower()
+
+        if j == start_idx:
+            removed += 1
+            end_idx = j
+            continue
+
+        if len(line) > 60 and any(ch in line for ch in (".", ":", ";", "—", "–")):
+            end_idx = j - 1
+            break
+        if len(line) > 80:
+            end_idx = j - 1
+            break
+        if low.startswith("contents") or low.startswith("from wikipedia") or low.startswith("edit"):
+            end_idx = j - 1
+            break
+
+        if _WIKI_LANG_LINE_RE.match(line):
+            removed += 1
+            end_idx = j
+            if removed >= 160:
+                break
+            continue
+
+        if removed >= 6:
+            end_idx = j - 1
+            break
+
+    if removed < 6:
+        return text
+
+    kept = lines[:start_idx] + lines[end_idx + 1 :]
+    return "\n".join(kept).strip()
 
 
 def _drop_boilerplate_lines(text: str) -> str:
@@ -170,96 +221,256 @@ def _drop_boilerplate_lines(text: str) -> str:
 
     out_lines: List[str] = []
     for raw in text.split("\n"):
-        line = raw.strip()
+        line = (raw or "").strip()
         if not line:
             continue
 
         low = line.lower()
 
-        # very short lines that contain boilerplate needles are usually junk
-        if len(line) <= 140 and any(n in low for n in _BOILERPLATE_NEEDLES):
+        if len(line) <= 180 and any(n in low for n in _BOILERPLATE_NEEDLES):
             continue
 
-        # button-like / menu-like fragments
-        if len(line) <= 50 and low in ("home", "about", "contact", "privacy", "terms", "login", "sign in", "menu"):
+        if len(line) <= 60 and low in ("home", "about", "contact", "privacy", "terms", "login", "sign in", "menu"):
             continue
 
         out_lines.append(line)
 
-    # rejoin, preserving paragraphs
     t = "\n".join(out_lines)
-    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    t = _NL_RE.sub("\n\n", t).strip()
     return t
 
 
-def _sanitize_html_to_text(html: str) -> str:
+def _looks_like_junk_line(line: str) -> bool:
     """
-    Conservative HTML-to-text that remains safe on truncated HTML.
+    Deterministically drop “JS/classname/config” garbage that can leak from modern HTML pages.
+    Includes MediaWiki RLSTATE/RLCONF and mw.config/mw.loader noise.
     """
-    html = html[:DEFAULT_MAX_TEXT_CHARS]
+    if not isinstance(line, str):
+        return True
+    s = line.strip()
+    if not s:
+        return True
 
-    # Best-effort select main content region first
-    html = _extract_main_like_html(html)
+    # MediaWiki state/config blobs
+    if _WIKI_STATE_RE.search(s):
+        return True
+    if _WIKI_MWCFG_RE.search(s):
+        return True
+    if _WIKI_JSON_READY_RE.search(s) and len(s) > 40:
+        return True
 
-    # Remove scripts/styles/noscript even if truncated mid-block
-    html = _BLOCK_RE.sub(" ", html)
+    # direct JS-like signals
+    if _JS_LIKE_RE.search(s):
+        return True
 
-    # Remove <head> (common huge noise)
-    html = _HEAD_RE.sub(" ", html)
+    # Very low alphabetic ratio (typical of class lists / minified fragments)
+    letters = sum(ch.isalpha() for ch in s)
+    if len(s) >= 80 and (letters / max(1, len(s)) < 0.22):
+        return True
 
-    # Remove comments
-    html = _COMMENT_RE.sub(" ", html)
+    # Extremely long single tokens (minified)
+    tokens = re.split(r"\s+", s)
+    if any(len(t) > 60 for t in tokens) and (letters / max(1, len(s)) < 0.35):
+        return True
 
-    # Drop some common non-content blocks
-    html = _DROP_BLOCKS_RE.sub(" ", html)
+    return False
 
-    # Convert break-ish tags to newlines, then strip tags
-    txt = _strip_tags_keep_breaks(html)
 
-    # Unescape entities
+def _drop_junk_lines(text: str, *, max_scan_lines: int = 1200) -> str:
+    """
+    Post-extraction filter applied before boilerplate removal.
+    Only drops lines that are strongly code-ish / classname-ish.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+
+    lines = text.split("\n")
+    out: List[str] = []
+
+    scan = min(len(lines), max_scan_lines)
+    for i in range(scan):
+        line = lines[i]
+        if _looks_like_junk_line(line):
+            continue
+        out.append(line)
+
+    if scan < len(lines):
+        out.extend(lines[scan:])
+
+    t = "\n".join(out)
+    t = _NL_RE.sub("\n\n", t).strip()
+    return t
+
+
+class _TextExtractor(HTMLParser):
+    """
+    Truncation-tolerant HTML -> text extractor.
+
+    Capturing strategy (priority-based):
+      3: MediaWiki .mw-parser-output
+      2: MediaWiki #mw-content-text
+      1: <main>/<article>/<body>
+      0: nothing
+
+    If a higher-priority container appears, we reset output and switch capture to it.
+    """
+    def __init__(self, *, treat_as_wiki: bool):
+        super().__init__(convert_charrefs=True)
+        self.treat_as_wiki = bool(treat_as_wiki)
+
+        self._skip_depth = 0
+        self._stack: List[str] = []
+
+        self._capture_active = False
+        self._capture_root_depth = 0
+        self._capture_priority = 0
+
+        self._out: List[str] = []
+        self._last_was_nl = False
+
+    def _attrs_dict(self, attrs) -> Dict[str, str]:
+        d: Dict[str, str] = {}
+        for k, v in (attrs or []):
+            if not k:
+                continue
+            d[k.lower()] = v or ""
+        return d
+
+    def _newline(self):
+        if not self._last_was_nl:
+            self._out.append("\n")
+            self._last_was_nl = True
+
+    def _push_text(self, s: str):
+        if not s:
+            return
+        self._out.append(s)
+        self._last_was_nl = s.endswith("\n")
+
+    def _start_capture(self, priority: int):
+        if priority <= self._capture_priority:
+            return
+        self._capture_priority = priority
+        self._capture_active = True
+        self._capture_root_depth = len(self._stack)
+        self._out = []
+        self._last_was_nl = False
+
+    def _is_capturing(self) -> bool:
+        if not self._capture_active:
+            return False
+        return len(self._stack) >= self._capture_root_depth
+
+    def handle_starttag(self, tag, attrs):
+        tag = (tag or "").lower()
+        self._stack.append(tag)
+
+        if tag in _SKIP_TAGS:
+            self._skip_depth += 1
+            return
+
+        if self._skip_depth > 0:
+            return
+
+        ad = self._attrs_dict(attrs)
+        _id = (ad.get("id") or "").strip().lower()
+        _cls = (ad.get("class") or "")
+
+        if self.treat_as_wiki:
+            if "mw-parser-output" in _cls:
+                self._start_capture(3)
+            elif _id == "mw-content-text":
+                self._start_capture(2)
+        else:
+            if tag in ("main", "article", "body"):
+                self._start_capture(1)
+
+        if tag in _BLOCK_TAGS and self._is_capturing():
+            self._newline()
+
+    def handle_endtag(self, tag):
+        tag = (tag or "").lower()
+
+        if tag in _SKIP_TAGS:
+            if self._skip_depth > 0:
+                self._skip_depth -= 1
+            if self._stack:
+                self._stack.pop()
+            return
+
+        if self._skip_depth > 0:
+            if self._stack:
+                self._stack.pop()
+            return
+
+        if tag in _BLOCK_TAGS and self._is_capturing():
+            self._newline()
+
+        if self._stack:
+            self._stack.pop()
+
+        if self._capture_active and len(self._stack) < self._capture_root_depth:
+            self._capture_active = False
+
+    def handle_data(self, data):
+        if self._skip_depth > 0:
+            return
+        if not self._is_capturing():
+            return
+        self._push_text(data)
+
+    def get_text(self) -> str:
+        return "".join(self._out)
+
+
+def _sanitize_html_to_text(html: str, *, url: Optional[str] = None) -> str:
+    raw = (html or "")[:DEFAULT_MAX_TEXT_CHARS]
+    wiki = _is_wikipedia_url(url) or ("mw-content-text" in raw) or ("mw-parser-output" in raw)
+
+    parser = _TextExtractor(treat_as_wiki=bool(wiki))
+    try:
+        parser.feed(raw)
+        parser.close()
+    except Exception:
+        pass
+
+    txt = parser.get_text()
+
     txt = _html.unescape(txt)
-
-    # Remove control chars
     txt = _strip_control_chars(txt)
-
-    # Remove CSS-ish leakage
-    txt = _CSS_RULE_RE.sub(" ", txt)
-    txt = _CSS_KV_RE.sub(" ", txt)
-
-    # Reduce schema.org JSON-LD fragments if they leak into text
-    if _JSONLD_HINT_RE.search(txt):
-        txt = re.sub(
-            r'(?is)\{[^{}]{0,2500}"@context"\s*:\s*"https?://schema\.org"[^{}]{0,2500}\}',
-            " ",
-            txt,
-        )
-
-    # Normalize whitespace but preserve paragraphs
     txt = _normalize_preserve_paragraphs(txt)
 
-    # Drop obvious boilerplate lines
+    # Drop junk/code-ish lines FIRST (fixes RLSTATE / mw.config / vector-feature / etc.)
+    txt = _drop_junk_lines(txt)
+
+    if wiki:
+        txt = _drop_wikipedia_language_block(txt)
+
     txt = _drop_boilerplate_lines(txt)
 
-    # Final compacting: collapse intra-line whitespace while keeping paragraph breaks
-    # (normalize_preserve_paragraphs already handles this)
+    if _TAG_LIKE_RE.search(txt):
+        txt = _TAG_RE.sub(" ", txt)
+        txt = _normalize_preserve_paragraphs(txt)
+        txt = _drop_junk_lines(txt)
+        if wiki:
+            txt = _drop_wikipedia_language_block(txt)
+        txt = _drop_boilerplate_lines(txt)
+
     return txt.strip()
 
 
 def _sanitize_plain_text(text: str) -> str:
-    text = (text or "")[:DEFAULT_MAX_TEXT_CHARS]
-    text = _strip_control_chars(text)
-    text = _html.unescape(text)
-    text = _normalize_preserve_paragraphs(text)
-    text = _drop_boilerplate_lines(text)
-    # For plain text, keep paragraphs; do not fully flatten
-    return text.strip()
+    t = (text or "")[:DEFAULT_MAX_TEXT_CHARS]
+    t = _strip_control_chars(t)
+    t = _html.unescape(t)
+    t = _normalize_preserve_paragraphs(t)
+    t = _drop_boilerplate_lines(t)
+    t = _drop_junk_lines(t)
+    return t.strip()
 
 
 def _truncate_to_bytes(text: str, max_bytes: int) -> Dict[str, Any]:
-    """
-    Byte-bound output while keeping valid UTF-8.
-    """
-    b = text.encode("utf-8", errors="replace")
+    b = (text or "").encode("utf-8", errors="replace")
     if len(b) <= max_bytes:
         return {"clean_text": text, "clean_bytes": len(b), "truncated": False}
 
@@ -270,15 +481,6 @@ def _truncate_to_bytes(text: str, max_bytes: int) -> Dict[str, Any]:
 
 
 def net_sanitize_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Sanitizes fetched content into bounded clean text.
-
-    Args:
-      - content (required, str)
-      - content_type (optional, str) e.g. "text/html", "text/plain"
-      - url (optional, str) passthrough metadata
-      - max_bytes (optional, int) output cap (hard-capped)
-    """
     content = args.get("content")
     if not isinstance(content, str) or not content.strip():
         return {"error": {"code": "INVALID_CONTENT", "message": "Missing or invalid 'content' string"}}
@@ -298,15 +500,28 @@ def net_sanitize_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str
 
     ct = content_type.lower()
     if "html" in ct:
-        cleaned = _sanitize_html_to_text(content)
+        cleaned = _sanitize_html_to_text(content, url=url)
     else:
         cleaned = _sanitize_plain_text(content)
 
-    # If sanitizer got too aggressive, fall back to a safer minimal collapse
+    # If sanitizer got too aggressive, fall back to a safe minimal path (never raw HTML)
     if not cleaned.strip():
-        cleaned = _collapse_whitespace(_strip_control_chars(_html.unescape(content)))
+        cleaned = _sanitize_plain_text(content)
+        if _TAG_LIKE_RE.search(cleaned):
+            cleaned = _TAG_RE.sub(" ", cleaned)
+            cleaned = _normalize_preserve_paragraphs(cleaned)
+            cleaned = _drop_boilerplate_lines(cleaned)
+            cleaned = _drop_junk_lines(cleaned)
 
     trunc = _truncate_to_bytes(cleaned, max_bytes)
+
+    # Final “tag-like” safety pass after truncation
+    if _TAG_LIKE_RE.search(trunc["clean_text"]):
+        fixed = _TAG_RE.sub(" ", trunc["clean_text"])
+        fixed = _normalize_preserve_paragraphs(fixed)
+        fixed = _drop_boilerplate_lines(fixed)
+        fixed = _drop_junk_lines(fixed)
+        trunc = _truncate_to_bytes(fixed, max_bytes)
 
     return {
         "url": url,
@@ -317,7 +532,7 @@ def net_sanitize_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str
         "clean_text": trunc["clean_text"],
         "truncated": trunc["truncated"],
         "sanitized_at": time.time(),
-        "note": "net.sanitize (Phase 7.2.2, read-only, bounded; main/article/body prefer; boilerplate reduced; entities decoded)",
+        "note": "net.sanitize (Phase 7.2.2, parser-based, read-only, bounded; priority capture; MW junk/boilerplate reduced; never returns raw HTML)",
     }
 
 

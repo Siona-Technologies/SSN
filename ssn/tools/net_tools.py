@@ -47,7 +47,7 @@ import json
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
@@ -78,6 +78,21 @@ _PROVIDER_WEIGHT = {
 
 class ProviderBlocked(Exception):
     """Provider returned a bot wall/captcha/blocked page."""
+
+
+class BraveHTTPError(Exception):
+    def __init__(self, *, url: str, status: int, body_preview: str):
+        super().__init__(f"Brave HTTP error {status}")
+        self.url = url
+        self.status = status
+        self.body_preview = body_preview
+
+
+class BraveParseError(Exception):
+    def __init__(self, *, url: str, body_preview: str):
+        super().__init__("Brave JSON parse error")
+        self.url = url
+        self.body_preview = body_preview
 
 
 def _safe_int(value: Any, default: int) -> int:
@@ -193,6 +208,35 @@ def _http_get_text(
         return data.decode("utf-8", errors="replace")
 
 
+def _http_get_text_with_status(
+    url: str,
+    *,
+    timeout_s: float,
+    max_bytes: int,
+    headers: Dict[str, str],
+) -> Tuple[int, str]:
+    """
+    Like _http_get_text but also returns HTTP status. For HTTPError, returns status + body.
+    """
+    req = Request(url, headers=headers, method="GET")
+    try:
+        with urlopen(req, timeout=timeout_s) as resp:
+            status = int(getattr(resp, "status", None) or resp.getcode() or 0)
+            data = resp.read(max_bytes + 1)
+            data = data[:max_bytes]
+            return status, data.decode("utf-8", errors="replace")
+    except HTTPError as e:
+        status = int(getattr(e, "code", None) or 0)
+        try:
+            body = e.read(max_bytes + 1)  # type: ignore[attr-defined]
+            body = body[:max_bytes]
+            text = body.decode("utf-8", errors="replace") if isinstance(body, (bytes, bytearray)) else str(body)
+        except Exception:
+            text = ""
+        # Raise a BraveHTTPError so caller can add rich debug info
+        raise BraveHTTPError(url=url, status=status, body_preview=_sanitize_text(text, max_len=400))
+
+
 def _normalize_result(title: str, url: str, snippet: str, source: str) -> Optional[Dict[str, Any]]:
     url = (url or "").strip()
     if not url or not _is_http_url(url):
@@ -269,10 +313,14 @@ def _merge_rank_results(
 # Provider 0: Brave Search API (reliable; requires key)
 # ---------------------------------------------------------
 
-def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str, Any]]:
+def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """
+    Returns (results, meta).
+    meta is merged into provider_debug for visibility (http_status, parse keys, etc.).
+    """
     key = _env_str("SSN_BRAVE_API_KEY")
     if not key:
-        return []
+        return ([], {"reason": "missing_api_key"})
 
     # Cap Brave provider time to keep overall tool bounded even with retries
     provider_deadline = time.time() + min(4.0, float(timeout_s))
@@ -289,13 +337,16 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str,
 
     backoffs = (0.25, 0.75)  # deterministic, bounded (total attempts = 3)
 
+    last_meta: Dict[str, Any] = {"url": url}
+
     for attempt in range(1 + len(backoffs)):
         remaining = provider_deadline - time.time()
         if remaining <= 0:
+            last_meta["reason"] = "deadline_exceeded"
             break
 
         try:
-            text = _http_get_text(
+            status, text = _http_get_text_with_status(
                 url,
                 timeout_s=max(0.5, remaining),
                 max_bytes=_MAX_HTTP_BYTES,
@@ -305,12 +356,30 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str,
                     "X-Subscription-Token": key,
                 },
             )
-            data = json.loads(text)
+            last_meta["http_status"] = status
+            if debug:
+                last_meta["body_preview"] = _sanitize_text(text or "", max_len=400)
+
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                raise BraveParseError(url=url, body_preview=_sanitize_text(text or "", max_len=400))
+
+            if debug and isinstance(data, dict):
+                last_meta["json_keys"] = sorted(list(data.keys()))[:30]
 
             web = data.get("web") if isinstance(data, dict) else None
             results = (web.get("results") if isinstance(web, dict) else None) or []
             if not isinstance(results, list) or not results:
-                return []
+                last_meta["reason"] = "empty_results"
+                # include extra shape hints for debugging
+                if debug and isinstance(web, dict):
+                    last_meta["web_keys"] = sorted(list(web.keys()))[:30]
+                    try:
+                        last_meta["web_results_type"] = str(type(web.get("results")))
+                    except Exception:
+                        pass
+                return ([], last_meta)
 
             out: List[Dict[str, Any]] = []
             for r in results[:top_k]:
@@ -323,20 +392,39 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[str,
                 nr = _normalize_result(title, urlv, snippet, "brave-search")
                 if nr:
                     out.append(nr)
-            return out
 
-        except HTTPError as e:
-            code = getattr(e, "code", None)
-            if isinstance(code, int) and code in _TRANSIENT_HTTP and attempt < len(backoffs):
+            if not out:
+                last_meta["reason"] = "parsed_but_no_valid_urls"
+                return ([], last_meta)
+
+            last_meta["reason"] = None
+            last_meta["returned"] = len(out)
+            return (out, last_meta)
+
+        except BraveHTTPError as e:
+            last_meta.update({"http_status": e.status, "reason": f"http_{e.status}"})
+            if debug:
+                last_meta["body_preview"] = e.body_preview
+            if e.status in _TRANSIENT_HTTP and attempt < len(backoffs):
                 time.sleep(backoffs[attempt])
                 continue
-            return []
-        except (URLError, json.JSONDecodeError):
-            return []
-        except Exception:
-            return []
+            return ([], last_meta)
 
-    return []
+        except BraveParseError as e:
+            last_meta["reason"] = "json_parse_error"
+            if debug:
+                last_meta["body_preview"] = e.body_preview
+            return ([], last_meta)
+
+        except URLError:
+            last_meta["reason"] = "url_error"
+            return ([], last_meta)
+
+        except Exception:
+            last_meta["reason"] = "exception"
+            return ([], last_meta)
+
+    return ([], last_meta)
 
 
 # ---------------------------------------------------------
@@ -520,6 +608,9 @@ def _mock_results(query: str, *, top_k: int) -> List[Dict[str, Any]]:
 # net.search handler
 # ---------------------------------------------------------
 
+ProviderReturn = Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], Dict[str, Any]]]
+
+
 def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     query = args.get("query")
     if not isinstance(query, str) or not query.strip():
@@ -566,7 +657,6 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             "degraded": True,
             "note": "Simulated net.search (offline-safe; set live=True or SSN_LIVE_SEARCH=1 for real search)",
         }
-        # Debug in offline mode can still be helpful/consistent
         if debug:
             out["provider_debug"] = [{"provider": "mock-search", "ok": True, "reason": None, "result_count": len(results)}]
         return out
@@ -578,23 +668,65 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
         providers_tried.append(name)
         t0 = time.time()
         try:
-            res = fn(query, top_k=top_k, timeout_s=timeout_s)
-            provider_debug.append(
-                {
-                    "provider": name,
-                    "ok": bool(res),
-                    "reason": None if res else "empty",
-                    "result_count": len(res) if res else 0,
-                    "elapsed_ms": int((time.time() - t0) * 1000),
-                }
-            )
+            res_any: ProviderReturn = fn(query, top_k=top_k, timeout_s=timeout_s)  # type: ignore[misc]
+
+            meta: Dict[str, Any] = {}
+            res: List[Dict[str, Any]]
+
+            if isinstance(res_any, tuple) and len(res_any) == 2:
+                res, meta = res_any
+            else:
+                res = res_any  # type: ignore[assignment]
+
+            dbg = {
+                "provider": name,
+                "ok": bool(res),
+                "reason": None if res else (meta.get("reason") or "empty"),
+                "result_count": len(res) if res else 0,
+                "elapsed_ms": int((time.time() - t0) * 1000),
+            }
+            # Merge meta into provider_debug so we can see Brave HTTP status/body preview, etc.
+            if isinstance(meta, dict) and meta:
+                for k, v in meta.items():
+                    if k not in dbg:
+                        dbg[k] = v
+
+            provider_debug.append(dbg)
             return res
+
         except ProviderBlocked:
             provider_debug.append(
                 {
                     "provider": name,
                     "ok": False,
                     "reason": "blocked",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
+            return []
+        except BraveHTTPError as e:
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": f"http_{e.status}",
+                    "http_status": e.status,
+                    "url": e.url,
+                    "body_preview": e.body_preview if debug else "",
+                    "result_count": 0,
+                    "elapsed_ms": int((time.time() - t0) * 1000),
+                }
+            )
+            return []
+        except BraveParseError as e:
+            provider_debug.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "reason": "json_parse_error",
+                    "url": e.url,
+                    "body_preview": e.body_preview if debug else "",
                     "result_count": 0,
                     "elapsed_ms": int((time.time() - t0) * 1000),
                 }
@@ -635,8 +767,12 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             )
             return []
 
+    # Wrap Brave so we can pass debug flag without changing the generic provider signature.
+    def _brave_provider(q: str, *, top_k: int, timeout_s: float) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        return _brave_search(q, top_k=top_k, timeout_s=timeout_s, debug=debug)
+
     providers: List[Tuple[str, Any]] = [
-        ("brave-search", _brave_search),
+        ("brave-search", _brave_provider),
         ("duckduckgo-html", _ddg_html_search),
         ("duckduckgo-lite", _ddg_lite_search),
         ("wikipedia-opensearch", _wiki_opensearch),

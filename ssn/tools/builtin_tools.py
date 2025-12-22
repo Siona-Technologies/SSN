@@ -11,6 +11,7 @@ from ssn.tools.net_tools import register_net_tools
 from ssn.tools.media_tools import register_media_tools
 from ssn.tools.speech_tools import register_speech_tools
 from ssn.tools.memory_pending_tools import register_memory_pending_tools
+from ssn.tools.knowledge_tools import register_knowledge_tools
 
 
 def _safe_dict(x: Any) -> Dict[str, Any]:
@@ -487,8 +488,12 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     # Phase 7.3 — Media generation tools (read-only)
     # =========================================================
     register_media_tools(reg)
-
     # =========================================================
     # Phase 7.4 — Speech interface tools (approval-gated)
     # =========================================================
     register_speech_tools(reg)
+
+    # =========================================================
+    # Knowledge tools (promotion + search)
+    # =========================================================
+    register_knowledge_tools(reg)

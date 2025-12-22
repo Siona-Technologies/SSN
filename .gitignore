@@ -12,6 +12,12 @@ __pycache__/
 .env
 *.env
 .env.local
+.env.*
+
+# Allow committed template(s)
+!.env.example
+!.env.template
+!.env.sample
 
 # ============================
 # VIRTUAL ENVIRONMENTS
@@ -73,6 +79,7 @@ logs/
 build/
 dist/
 *.egg-info/
+
 # ============================
 # LOCAL STATE (DO NOT COMMIT)
 # ============================
@@ -90,4 +97,3 @@ dist/
 coverage/
 .mypy_cache/
 .ruff_cache/
-

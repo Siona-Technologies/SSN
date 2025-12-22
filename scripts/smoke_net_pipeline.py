@@ -6,10 +6,42 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from ssn.bootstrap import create_siona
 from ssn.memory import proposal_store  # canonical persistence paths
+
+
+# ----------------------------
+# Optional dotenv loading
+# ----------------------------
+
+def _maybe_load_dotenv() -> Optional[str]:
+    """
+    Load .env early if SSN_AUTO_DOTENV=1.
+
+    Returns:
+      - path to loaded .env file if found/loaded
+      - None otherwise
+
+    Notes:
+    - Does NOT override already-exported environment variables (override=False)
+    - Will not error if python-dotenv is not installed
+    """
+    if os.getenv("SSN_AUTO_DOTENV") != "1":
+        return None
+
+    try:
+        from dotenv import load_dotenv, find_dotenv  # type: ignore
+    except Exception:
+        return None
+
+    env_path = find_dotenv(usecwd=True)
+    if not env_path:
+        return None
+
+    load_dotenv(env_path, override=False)
+    return env_path
 
 
 def _env_flag(name: str) -> str:
@@ -21,14 +53,22 @@ def _bool_env(name: str) -> bool:
     return os.getenv(name) == "1"
 
 
-def _print_env() -> None:
+def _print_env(*, dotenv_path: Optional[str] = None) -> None:
     print("\n=== ENV ===")
+    if dotenv_path:
+        print("dotenv_loaded:", dotenv_path)
+    else:
+        if os.getenv("SSN_AUTO_DOTENV") == "1":
+            print("dotenv_loaded:", "requested (SSN_AUTO_DOTENV=1) but not found/loaded")
+        else:
+            print("dotenv_loaded:", "disabled (SSN_AUTO_DOTENV not set)")
+
     print("SSN_OFFLINE:", _env_flag("SSN_OFFLINE"))
     print("SSN_LIVE_SEARCH:", _env_flag("SSN_LIVE_SEARCH"))
     print("SSN_LIVE_STRICT:", _env_flag("SSN_LIVE_STRICT"))
     print("SSN_STATE_DIR:", _env_flag("SSN_STATE_DIR"))
     print("SSN_RATE_LIMIT_PATH:", _env_flag("SSN_RATE_LIMIT_PATH"))
-    print("SSN_BRAVE_API_KEY:", "set" if os.getenv("SSN_BRAVE_API_KEY") else "not-set")
+    print("SSN_BRAVE_API_KEY:", "set" if (os.getenv("SSN_BRAVE_API_KEY") or "").strip() else "not-set")
     print("SSN_BRAVE_COUNTRY:", _env_flag("SSN_BRAVE_COUNTRY"))
     print("SSN_BRAVE_LANG:", _env_flag("SSN_BRAVE_LANG"))
 
@@ -61,7 +101,12 @@ def _run_tool(
     return orch.tools.run(name=name, role=role, deps=deps, args=args)
 
 
-def _spawn_child(mode: str, *, pid: Optional[str] = None, query: Optional[str] = None) -> subprocess.CompletedProcess:
+def _spawn_child(
+    mode: str,
+    *,
+    pid: Optional[str] = None,
+    query: Optional[str] = None,
+) -> subprocess.CompletedProcess:
     """
     Spawn a fresh Python process to validate cross-process persistence.
     Inherits environment variables (SSN_STATE_DIR, SSN_LIVE_SEARCH, keys).
@@ -73,10 +118,6 @@ def _spawn_child(mode: str, *, pid: Optional[str] = None, query: Optional[str] =
         argv += ["--query", query]
     return subprocess.run(argv, capture_output=True, text=True, env=os.environ.copy())
 
-
-# ----------------------------
-# Mode resolution (production-safe)
-# ----------------------------
 
 def _effective_modes(args: argparse.Namespace) -> Dict[str, Any]:
     """
@@ -105,6 +146,42 @@ def _effective_modes(args: argparse.Namespace) -> Dict[str, Any]:
         "strict": strict,
         "allow_degraded_for_propose": allow_degraded_for_propose,
     }
+
+
+def _print_citation_previews(
+    label: str,
+    citations: Any,
+    *,
+    max_items: int = 2,
+    quote_prefix_len: int = 120,
+) -> None:
+    """
+    Print a small, stable citation preview to make regressions obvious.
+    Expects citations in your net.cite/research.answer shape: list[dict] with url/quote.
+    """
+    if not isinstance(citations, list) or not citations:
+        print(f"{label}_citation_previews: []")
+        return
+
+    out: List[str] = []
+    for c in citations[:max_items]:
+        if not isinstance(c, dict):
+            continue
+        url = str(c.get("url", "") or "").strip()
+        quote = str(c.get("quote", "") or "").strip()
+        if quote:
+            quote = quote.replace("\n", " ")
+        if len(quote) > quote_prefix_len:
+            quote = quote[:quote_prefix_len].rstrip() + "…"
+        out.append(f"- {url} | {quote}")
+
+    if not out:
+        print(f"{label}_citation_previews: []")
+        return
+
+    print(f"{label}_citation_previews:")
+    for line in out:
+        print(line)
 
 
 # ----------------------------
@@ -136,11 +213,7 @@ def _child_propose(query: str) -> int:
             "live_search": bool(live),
             "strict_live": bool(strict),
             "allow_degraded": bool(allow_degraded),
-
-            # IMPORTANT FIX:
-            # Do NOT force disambiguation here. It can turn normal queries (e.g., Python)
-            # into SIONA/SSN-specific queries and trigger degraded/mock selection logic.
-            # "disambiguate": True,
+            # DO NOT force disambiguation here; let ingest auto-decide.
         },
     )
 
@@ -221,6 +294,16 @@ def main() -> int:
     # fetch-url is an OPTIONAL override. If omitted, fetch top1 from net.search.
     parser.add_argument("--fetch-url", type=str, help="Optional override URL for fetch/sanitize/cite", default=None)
 
+    # Increase realism: allow bigger fetch cap for smoke.
+    parser.add_argument(
+        "--fetch-max-bytes",
+        type=int,
+        default=150_000,
+        help="Max bytes for net.fetch/net.sanitize in smoke steps (default: 150000)",
+    )
+
+    parser.add_argument("--timeout-s", type=int, default=10, help="Timeout seconds for net.* tools (default: 10)")
+
     # Optional explicit overrides (otherwise env decides)
     parser.add_argument("--live", action="store_true", help="Force live search on (ignored if SSN_OFFLINE=1)")
     parser.add_argument("--no-live", dest="live", action="store_false", help="Force live search off")
@@ -231,6 +314,9 @@ def main() -> int:
     parser.set_defaults(strict=None)
 
     args = parser.parse_args()
+
+    # ✅ IMPORTANT: load dotenv early so env prints + mode resolution are correct.
+    dotenv_path = _maybe_load_dotenv()
 
     # Child-mode dispatcher
     if args.child:
@@ -250,8 +336,19 @@ def main() -> int:
         return 99
 
     started = time.time()
-    _print_env()
+    _print_env(dotenv_path=dotenv_path)
     _print_store_paths()
+
+    # Clamp bounds for safety (avoid accidental huge fetches)
+    if args.fetch_max_bytes < 5_000:
+        args.fetch_max_bytes = 5_000
+    if args.fetch_max_bytes > 200_000:
+        args.fetch_max_bytes = 200_000
+
+    if args.timeout_s < 2:
+        args.timeout_s = 2
+    if args.timeout_s > 20:
+        args.timeout_s = 20
 
     modes = _effective_modes(args)
     print("\n=== EFFECTIVE MODE ===")
@@ -259,6 +356,8 @@ def main() -> int:
     print("live:", modes["live"])
     print("strict:", modes["strict"])
     print("allow_degraded_for_propose:", modes["allow_degraded_for_propose"])
+    print("fetch_max_bytes:", int(args.fetch_max_bytes))
+    print("timeout_s:", int(args.timeout_s))
 
     orch = create_siona()
     deps = {"role": "OWNER", "tools": orch.tools, "memory": getattr(orch, "memory", None)}
@@ -271,7 +370,7 @@ def main() -> int:
         "query": args.query,
         "top_k": 5,
         "debug": True,
-        "timeout_s": 10,
+        "timeout_s": int(args.timeout_s),
         "live": bool(modes["live"]),
         "strict": bool(modes["strict"]),
     }
@@ -324,7 +423,7 @@ def main() -> int:
         name="net.fetch",
         role="OWNER",
         deps=deps,
-        args={"url": selected_url, "max_bytes": 50_000, "timeout_s": 10},
+        args={"url": selected_url, "max_bytes": int(args.fetch_max_bytes), "timeout_s": int(args.timeout_s)},
     )
     print("ok:", fr.ok)
     if not fr.ok:
@@ -335,7 +434,7 @@ def main() -> int:
     print("note:", fdat.get("note"))
     print("content_type:", fdat.get("content_type"))
     print("bytes:", fdat.get("content_bytes"))
-    print("preview:", (fdat.get("content") or "")[:160])
+    print("preview:", (fdat.get("content") or "")[:200])
 
     # ----------------------------------------
     # 2) net.sanitize
@@ -350,7 +449,7 @@ def main() -> int:
             "url": fdat.get("url") or selected_url,
             "content_type": fdat.get("content_type") or "text/html",
             "content": fdat.get("content") or "",
-            "max_bytes": 50_000,
+            "max_bytes": int(args.fetch_max_bytes),
         },
     )
     print("ok:", sr.ok)
@@ -361,7 +460,7 @@ def main() -> int:
     sdat = sr.data or {}
     print("note:", sdat.get("note"))
     print("clean_bytes:", sdat.get("clean_bytes"))
-    print("preview:", (sdat.get("clean_text") or "")[:160])
+    print("preview:", (sdat.get("clean_text") or "")[:220])
 
     # ----------------------------------------
     # 3) net.cite
@@ -379,6 +478,9 @@ def main() -> int:
             "snippet": "",
             "retrieved_at": fdat.get("fetched_at", 0),
             "content_type": fdat.get("content_type") or "text/html",
+            # If your net.cite supports these, great; if not, it should ignore.
+            "max_quotes": 3,
+            "quote_len": 240,
         },
     )
     print("ok:", cr.ok)
@@ -389,6 +491,7 @@ def main() -> int:
     cdat = cr.data or {}
     print("citation_count:", cdat.get("citation_count"))
     print("keys:", sorted(list(cdat.keys())))
+    _print_citation_previews("net.cite", cdat.get("citations", []), max_items=2, quote_prefix_len=120)
 
     # ----------------------------------------
     # 4) research.answer
@@ -404,6 +507,11 @@ def main() -> int:
             "top_k": 2,
             "live": bool(modes["live"]),
             "strict": bool(modes["strict"]),
+            "debug": True,  # get provider_debug if your research.answer passes it through
+            "max_quotes": 3,
+            "quote_len": 240,
+            "max_answer_chars": 900,
+            "timeout_s": int(args.timeout_s),
         },
     )
     print("ok:", ra.ok)
@@ -413,9 +521,10 @@ def main() -> int:
 
     rad = ra.data or {}
     print("degraded:", rad.get("degraded"))
-    print("answer_preview:", (rad.get("answer") or "")[:200])
+    print("answer_preview:", (rad.get("answer") or "")[:260])
     print("sources:", len(rad.get("sources") or []))
     print("citations:", len(rad.get("citations") or []))
+    _print_citation_previews("research.answer", rad.get("citations", []), max_items=2, quote_prefix_len=120)
 
     # ----------------------------------------
     # 5/6) CROSS-PROCESS: propose -> commit -> idempotent commit

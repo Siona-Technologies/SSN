@@ -19,7 +19,7 @@ def _safe_dict(x: Any) -> Dict[str, Any]:
 def _extract_master_key(req: InterfaceRequest) -> Optional[str]:
     """
     Preferred source: req.meta["master_key"]
-    Fallbacks: req.context["master_key"], req.context["auth"]["master_key"]
+    Fallbacks: req.context["master_key"], req.context["auth"]["master_key"] (legacy)
     """
     if isinstance(req.meta, dict):
         mk = req.meta.get("master_key")
@@ -50,15 +50,13 @@ def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     clean = dict(context)
 
     # remove top-level master_key
-    if "master_key" in clean:
-        clean.pop("master_key", None)
+    clean.pop("master_key", None)
 
     # remove nested auth.master_key
     auth = clean.get("auth")
     if isinstance(auth, dict):
         auth2 = dict(auth)
-        if "master_key" in auth2:
-            auth2.pop("master_key", None)
+        auth2.pop("master_key", None)
         clean["auth"] = auth2
 
     return clean
@@ -70,12 +68,12 @@ def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 def _scrub_secrets(x: Any) -> Any:
     """
-    Defensive redaction: remove any accidental master_key fields from tool results.
+    Defensive redaction: remove any accidental master_key fields from outputs.
     """
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            if str(k).lower() == "master_key":
+            if str(k).lower() in {"master_key", "ssn_master_key"}:
                 continue
             out[k] = _scrub_secrets(v)
         return out
@@ -84,25 +82,50 @@ def _scrub_secrets(x: Any) -> Any:
     return x
 
 
+def _is_registry_like(obj: Any) -> bool:
+    if obj is None:
+        return False
+    for attr in ("get", "run", "list"):
+        if not callable(getattr(obj, attr, None)):
+            return False
+    return True
+
+
 def _get_tool_registry(deps: Dict[str, Any]):
     """
-    ToolRegistry is created lazily and cached in deps as 'tool_registry'.
-    Uses ssn.tools.builtin_tools.register_builtin_tools (same tool layer as run-tool).
+    CRITICAL:
+    Must use the shared ToolRegistry instance.
+
+    Order:
+      1) deps["tool_registry"] (preferred; injected by runtime_builder)
+      2) deps["orchestrator"].tools or deps["orchestrator"].tool_registry
+      3) fallback: local ToolRegistry + builtin tools (tests/dev only)
     """
+    reg = deps.get("tool_registry")
+    if _is_registry_like(reg):
+        return reg
+
+    orch = deps.get("orchestrator")
+    if orch is not None:
+        reg2 = getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
+        if _is_registry_like(reg2):
+            deps["tool_registry"] = reg2
+            return reg2
+
+    # Last resort fallback
     try:
         from ssn.tools.registry import ToolRegistry  # type: ignore
         from ssn.tools.builtin_tools import register_builtin_tools  # type: ignore
     except Exception:
         return None
 
-    reg = deps.get("tool_registry")
-    if isinstance(reg, ToolRegistry):
-        return reg
-
-    reg = ToolRegistry()
-    register_builtin_tools(reg)
-    deps["tool_registry"] = reg
-    return reg
+    reg3 = ToolRegistry()
+    try:
+        register_builtin_tools(reg3)
+    except Exception:
+        pass
+    deps["tool_registry"] = reg3
+    return reg3
 
 
 def _maybe_run_tool_plan(
@@ -118,7 +141,7 @@ def _maybe_run_tool_plan(
 
     Security:
       - Verifies OWNER by master_key (does NOT trust claimed role).
-      - Runs tools through ToolRegistry (which has per-tool role constraints).
+      - Runs tools through shared ToolRegistry (per-tool constraints still apply).
     """
     if not master_key or not isinstance(master_key, str) or not master_key.strip():
         return None
@@ -151,8 +174,9 @@ def _maybe_run_tool_plan(
     results = []
     for call in plan:
         args = dict(call.args or {})
-        # Pass master_key down internally so wrappers (world/identity) can verify.
-        # We still scrub it from outputs.
+
+        # Internal verification for tools that require master_key.
+        # This does NOT go into chat context; it is only tool args.
         args["master_key"] = master_key
 
         r = reg.run(name=call.name, role="OWNER", deps=deps, args=args)
@@ -181,15 +205,12 @@ def _maybe_run_tool_plan(
 
 
 # =====================================================================
-# Phase 6.5C — Identity context injection
+# Phase 6.5C — Identity + World context injection (OWNER verified)
 # =====================================================================
 
 def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
     """
-    Phase 6.5C — Build bounded identity context from persisted identity profile.
-    Owner verification is handled outside; this is purely a loader/normalizer.
-
-    Output is safe for cognition context.
+    Build bounded identity context from persisted identity profile.
     """
     try:
         from ssn.identity.identity_profile import IdentityProfileStore, verify_profile  # type: ignore
@@ -205,7 +226,6 @@ def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
     if not isinstance(prof, dict):
         return {"available": False, "reason": "invalid_identity_profile"}
 
-    # bounded fields (keep it small + deterministic)
     owner_name = str(prof.get("owner_name", "unknown"))
     creator_name = str(prof.get("creator_name", "unknown"))
     system_name = str(prof.get("system_name", "SSN"))
@@ -214,9 +234,8 @@ def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
     laws_raw = prof.get("laws", [])
     laws: list[str] = []
     if isinstance(laws_raw, list):
-        for x in laws_raw[:8]:  # hard bound
-            s = str(x)
-            laws.append(s[:240])  # bound each line
+        for x in laws_raw[:8]:
+            laws.append(str(x)[:240])
 
     sig_ok = False
     try:
@@ -235,7 +254,6 @@ def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
         "version": str(prof.get("version", "")),
     }
 
-    # Deterministic short summary
     laws_part = "; ".join(laws[:3]) if laws else "none"
     summary = f"Identity: system={system_name} | owner={owner_name} | creator={creator_name} | laws={laws_part}"
     if len(summary) > 600:
@@ -247,58 +265,44 @@ def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
 
 def _inject_world_context_if_owner_verified(
     *,
-    req: InterfaceRequest,
     deps: Dict[str, Any],
     ctx: Dict[str, Any],
     master_key: Optional[str],
 ) -> Dict[str, Any]:
     """
-    Inject bounded world context into cognition context ONLY if owner is verified.
+    Inject bounded identity + world context ONLY if owner is verified by master key.
 
     Writes both modern keys and legacy keys for compatibility:
-      ctx["world"] / ctx["world_summary"]
-      ctx["_world"] / ctx["_world_summary"]
-
-    Phase 6.5C addition:
-      ctx["identity"] / ctx["identity_summary"]
-      ctx["_identity"] / ctx["_identity_summary"]
+      - identity / identity_summary AND _identity / _identity_summary
+      - world / world_summary AND _world / _world_summary
     """
     base = dict(ctx or {})
 
     if not master_key or not isinstance(master_key, str) or not master_key.strip():
         return base
 
-    # Verify ownership using master key (do NOT trust claimed role)
     scores = verify_owner(master_key)
     if not is_samson_verified(scores):
         return base
 
-    # ---------
-    # Identity injection (6.5C)
-    # ---------
+    # Identity injection
     try:
         ident = _build_identity_context(master_key=master_key)
-        base["identity"] = {k: v for k, v in ident.items() if k != "summary"}  # structured payload
+        base["identity"] = {k: v for k, v in ident.items() if k != "summary"}
         base["identity_summary"] = str(ident.get("summary", "Identity: unavailable."))
         base["_identity"] = base["identity"]
         base["_identity_summary"] = base["identity_summary"]
     except Exception:
-        # never break cognition due to identity injection
         pass
 
-    # ---------
-    # World injection (existing)
-    # ---------
-    world_model = deps.get("world_model")
+    # World injection
     orch = deps.get("orchestrator")
-
-    if world_model is None and orch is not None:
-        world_model = getattr(orch, "world_model", None)
+    world_model = deps.get("world_model") or (getattr(orch, "world_model", None) if orch else None)
 
     if world_model is None:
         try:
             from ssn.world.world_model import WorldModel  # type: ignore
-            world_model = WorldModel()  # loads ssn/data/world_model.json
+            world_model = WorldModel()
         except Exception:
             world_model = None
 
@@ -309,9 +313,7 @@ def _inject_world_context_if_owner_verified(
         base["_world_summary"] = base["world_summary"]
         return base
 
-    provider = deps.get("world_context_provider")
-    if provider is None and orch is not None:
-        provider = getattr(orch, "world_context_provider", None)
+    provider = deps.get("world_context_provider") or (getattr(orch, "world_context_provider", None) if orch else None)
 
     try:
         from ssn.world.world_context import WorldContextProvider, WorldContextConfig  # type: ignore
@@ -345,11 +347,13 @@ def _inject_world_context_if_owner_verified(
         base["_world_summary"] = world_summary
 
         return base
-
     except Exception:
-        # Never break cognition due to world injection failure
         return base
 
+
+# =====================================================================
+# Compat call helper
+# =====================================================================
 
 def _call_compat(
     fn: Callable[..., Any],
@@ -361,7 +365,7 @@ def _call_compat(
 ) -> Any:
     """
     Calls entrypoints with best-effort compatible signatures.
-    Critically: if 'master_key' is accepted, it is passed explicitly to avoid arg shifting.
+    If 'master_key' is accepted, it is passed explicitly to avoid arg shifting.
     """
     try:
         sig = inspect.signature(fn)
@@ -410,7 +414,6 @@ def _call_compat(
     ]
 
     last_type_error: Optional[TypeError] = None
-
     for kw in kw_candidates:
         try:
             return call_kwargs(kw)
@@ -445,11 +448,15 @@ def _call_compat(
     raise TypeError("No compatible call signature found.")
 
 
+# =====================================================================
+# Primary handlers
+# =====================================================================
+
 def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceResponse:
     """
     Internal cognition. Prefers Orchestrator; falls back to BrainRouter.
 
-    Inject bounded world context (and identity context) for VERIFIED OWNER (by master key).
+    Inject bounded identity/world context for VERIFIED OWNER (by master key).
 
     Phase 6.6:
       - If chat looks like a command, run the tool plan (OWNER-verified) and return
@@ -461,20 +468,21 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
     mk = _extract_master_key(req)
     ctx = _sanitize_context(req.context)
 
+    # Owner-only context injection (identity + world)
     try:
-        ctx = _inject_world_context_if_owner_verified(req=req, deps=deps, ctx=ctx, master_key=mk)
+        ctx = _inject_world_context_if_owner_verified(deps=deps, ctx=ctx, master_key=mk)
     except Exception:
         pass
 
-    # Phase 6.6 — Chat Command Router (OWNER-verified tool execution)
+    # Phase 6.6 — Chat Command Router
     try:
         routed = _maybe_run_tool_plan(text=str(req.user_input or ""), ctx=ctx, deps=deps, master_key=mk)
         if isinstance(routed, dict):
             return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(routed))
     except Exception:
-        # never brick chat due to tool routing failures
         pass
 
+    # Prefer orchestrator entrypoints
     if orchestrator is not None:
         for m in ("handle_request", "run", "process", "handle", "think"):
             fn = getattr(orchestrator, m, None)
@@ -503,6 +511,7 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
             error=ErrorInfo(code="ORCH_ENTRYPOINT_MISSING", message="Orchestrator has no compatible entrypoint."),
         )
 
+    # Fallback to router
     if router is not None:
         fn = getattr(router, "route", None)
         if callable(fn):

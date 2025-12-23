@@ -1,6 +1,15 @@
 # scripts/smoke_net_pipeline.py
 from __future__ import annotations
 
+# --- PATH FIX (ONLY CHANGE RECOMMENDED) ---
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]  # /workspaces/SSN
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+# -----------------------------------------
+
 import argparse
 import os
 import subprocess

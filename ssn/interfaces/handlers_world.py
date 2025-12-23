@@ -6,8 +6,6 @@ from typing import Any, Optional
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
-from ssn.world.world_context import WorldContextProvider, WorldContextConfig
-from ssn.world.world_summary import WorldSummaryNormalizer, WorldSummaryConfig
 
 
 def _get_master_key(req: InterfaceRequest) -> Optional[str]:
@@ -17,7 +15,7 @@ def _get_master_key(req: InterfaceRequest) -> Optional[str]:
         if isinstance(mk, str) and mk.strip():
             return mk.strip()
 
-    # Fallback to context
+    # Fallback to context (legacy)
     if isinstance(req.context, dict):
         mk2 = req.context.get("master_key")
         if isinstance(mk2, str) and mk2.strip():
@@ -33,18 +31,20 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
     OWNER-only (verified by master key):
       - returns bounded world context + summary
       - respects req.context max_entities/max_events/include_events
-      - Phase 6.4: uses WorldModel.snapshot as single source of truth for bounds.
     """
-    master_key = _get_master_key(req)
 
+    master_key = _get_master_key(req)
     scores = verify_owner(master_key)
     verified = is_samson_verified(scores)
+
+    # Force response role based on verification (do NOT trust req.role)
+    resp_role = "OWNER" if verified else "GUEST"
 
     if not verified:
         return InterfaceResponse(
             ok=True,
             action="world",
-            role=req.role,
+            role=resp_role,
             data={
                 "identity_verified": False,
                 "role": "GUEST",
@@ -65,7 +65,7 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         return InterfaceResponse(
             ok=True,
             action="world",
-            role=req.role,
+            role=resp_role,
             data={
                 "identity_verified": True,
                 "role": "OWNER",
@@ -78,15 +78,34 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         )
 
     ctx = req.context if isinstance(req.context, dict) else {}
-
     max_entities = int(ctx.get("max_entities", 8) or 8)
     max_events = int(ctx.get("max_events", 8) or 8)
     include_events = bool(ctx.get("include_events", True))
 
+    # Hard bounds (production safety)
     max_entities = max(1, min(max_entities, 50))
     max_events = max(0, min(max_events, 50))
 
-    # Provider config governs redaction limits; bounds are enforced by snapshot via overrides
+    # Lazy imports to avoid import-time bricking
+    try:
+        from ssn.world.world_context import WorldContextProvider, WorldContextConfig  # type: ignore
+        from ssn.world.world_summary import WorldSummaryNormalizer, WorldSummaryConfig  # type: ignore
+    except Exception:
+        return InterfaceResponse(
+            ok=True,
+            action="world",
+            role=resp_role,
+            data={
+                "identity_verified": True,
+                "role": "OWNER",
+                "allowed": True,
+                "scores": scores,
+                "world": {"available": False, "reason": "world_modules_missing"},
+                "world_summary": "World: unavailable (world_modules_missing).",
+            },
+            error=None,
+        )
+
     provider = WorldContextProvider(
         WorldContextConfig(
             max_entities=max_entities,
@@ -96,15 +115,18 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         )
     )
 
-    # Phase 6.4: pass explicit overrides so provider cannot drift
-    world_context = provider.build(
-        world_model,
-        include_events=include_events,
-        max_entities=max_entities,
-        max_events=max_events,
-    )
+    # Build world context with safe signature fallback
+    try:
+        world_context = provider.build(
+            world_model,
+            include_events=include_events,
+            max_entities=max_entities,
+            max_events=max_events,
+        )
+    except TypeError:
+        # Older provider signature
+        world_context = provider.build(world_model)
 
-    # Phase 6.4: summary uses the SAME bounds so it corresponds to the returned world
     summarizer = WorldSummaryNormalizer(
         WorldSummaryConfig(
             max_entities=max_entities,
@@ -113,12 +135,15 @@ def handle_world(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
             max_chars=700,
         )
     )
-    world_summary = summarizer.summarize(world_context)
+    try:
+        world_summary = summarizer.summarize(world_context)
+    except Exception:
+        world_summary = "World: summary unavailable (summarize_failed)."
 
     return InterfaceResponse(
         ok=True,
         action="world",
-        role=req.role,
+        role=resp_role,
         data={
             "identity_verified": True,
             "role": "OWNER",

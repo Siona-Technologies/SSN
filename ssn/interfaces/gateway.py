@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse, ErrorInfo
 from ssn.interfaces.handlers import HANDLERS
@@ -12,15 +12,24 @@ from ssn.interfaces.handlers_sense_tick import handle_sense_tick
 from ssn.interfaces.handlers_tools import handle_run_tool
 
 
+def _is_registry_like(obj: Any) -> bool:
+    if obj is None:
+        return False
+    for attr in ("get", "run", "list"):
+        if not callable(getattr(obj, attr, None)):
+            return False
+    return True
+
+
 class InterfaceGateway:
     """
     Phase 4.0+ — Internal Interface Gateway
 
     Key rule:
-      - "think" must be allowed to run for both OWNER and GUEST so the SSN core can respond
+      - "think" must be allowed to run for both OWNER and GUEST so SSN can respond
         (with internal restrictions if needed).
-      - "world" and "sense_tick" are OWNER-verified inside their handlers (bounded, internal-only).
-      - "run_tool" is OWNER-verified inside its handler (Phase 6.5A).
+      - "world" and "sense_tick" are OWNER-verified inside their handlers.
+      - "run_tool" is OWNER-verified inside its handler.
     """
 
     ALLOWED_ACTIONS = {
@@ -28,7 +37,7 @@ class InterfaceGateway:
         "explain_state",
         "summarize_memory",
         "suggest",
-        "tool",
+        "tool",        # legacy ToolBus dispatch
         "world",
         "sense_tick",
         "run_tool",
@@ -47,6 +56,7 @@ class InterfaceGateway:
         world_model: Any = None,
         world_context_provider: Any = None,
         perception_hub: Any = None,
+        tool_registry: Any = None,
     ):
         self.deps: Dict[str, Any] = {
             "orchestrator": orchestrator,
@@ -61,6 +71,27 @@ class InterfaceGateway:
             "perception_hub": perception_hub,
         }
 
+        # ------------------------------------------------------
+        # CRITICAL: ToolRegistry must be shared (no split-brain)
+        # ------------------------------------------------------
+        # Precedence:
+        #   1) explicitly provided tool_registry
+        #   2) orchestrator.tools / orchestrator.tool_registry
+        #   3) leave absent (handlers will last-resort fallback)
+        reg: Optional[Any] = None
+
+        if _is_registry_like(tool_registry):
+            reg = tool_registry
+        else:
+            orch = orchestrator
+            if orch is not None:
+                reg2 = getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
+                if _is_registry_like(reg2):
+                    reg = reg2
+
+        if reg is not None:
+            self.deps["tool_registry"] = reg
+
         # Ensure handlers are registered
         HANDLERS.setdefault("world", handle_world)
         HANDLERS.setdefault("sense_tick", handle_sense_tick)
@@ -68,28 +99,22 @@ class InterfaceGateway:
 
     def _policy_allows(self, req: InterfaceRequest) -> bool:
         """
-        Gateway-level policy should NOT block "think" (chat) because:
-          - Phase 63 tests expect chat to work for GUEST too.
-          - Core/orchestrator can still return "blocked"/restricted outputs internally.
+        Gateway-level policy should NOT block "think" (chat), "world", "sense_tick",
+        or "run_tool" at this layer. Those enforce restrictions internally.
 
-        "world" and "sense_tick" are owner-only but enforced inside their handlers.
-        "run_tool" is owner-only but enforced inside its handler.
+        IMPORTANT SECURITY:
+          - Do NOT copy master_key from meta into context here.
+            Context must remain secret-free; handlers use meta["master_key"].
         """
-        if req.action in ("think", "explain_state"):
-            return True
-
-        if req.action in ("world", "sense_tick", "run_tool"):
+        if req.action in ("think", "explain_state", "world", "sense_tick", "run_tool"):
             return True
 
         pe = self.deps.get("policy_engine")
         if pe is None:
             return True
 
-        # Merge master_key from meta into a local ctx copy for engines that need it
         ctx = dict(req.context or {})
         meta = dict(req.meta or {})
-        if "master_key" in meta and "master_key" not in ctx:
-            ctx["master_key"] = meta["master_key"]
 
         for m in ("is_allowed", "allow", "enforce", "check", "check_permission"):
             fn = getattr(pe, m, None)
@@ -102,7 +127,7 @@ class InterfaceGateway:
                         return bool(out.get("allowed", False))
                     return True
                 except Exception:
-                    # Fail-open for non-critical actions to avoid bricking the interface layer.
+                    # Fail-open for non-critical actions to avoid bricking interface layer.
                     return True
 
         return True
@@ -146,6 +171,7 @@ class InterfaceGateway:
                 error=ErrorInfo(code="BLOCKED_BY_SAFETY", message="Request blocked by safety monitor."),
             )
 
+        # Legacy ToolBus dispatch (optional)
         if req.action == "tool":
             bus = self.deps.get("tool_bus")
             if bus is None:
@@ -155,6 +181,7 @@ class InterfaceGateway:
                     role=req.role,
                     error=ErrorInfo(code="NO_TOOL_BUS", message="ToolBus not wired."),
                 )
+
             tool_name = req.meta.get("tool_name") if isinstance(req.meta, dict) else None
             if not isinstance(tool_name, str) or not tool_name.strip():
                 return InterfaceResponse(
@@ -163,6 +190,7 @@ class InterfaceGateway:
                     role=req.role,
                     error=ErrorInfo(code="TOOL_NAME_MISSING", message="meta.tool_name is required."),
                 )
+
             return bus.dispatch(tool_name.strip(), req, self.deps)
 
         handler = HANDLERS.get(req.action)

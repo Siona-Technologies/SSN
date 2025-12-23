@@ -1,3 +1,5 @@
+# /workspaces/SSN/ssn/bootstrap.py
+
 """
 SIONA Bootstrap
 
@@ -61,10 +63,23 @@ def _maybe_load_dotenv() -> None:
     try:
         from dotenv import load_dotenv  # type: ignore
     except Exception:
-        # If python-dotenv isn't installed, fail silently (dev convenience only).
         return
 
     load_dotenv()
+
+
+def _safe_setattr(obj: Any, name: str, value: Any) -> None:
+    """
+    Attach attributes without breaking if object is read-only.
+    Only sets if missing/None. Never overwrites a populated attribute.
+    """
+    if obj is None:
+        return
+    try:
+        if getattr(obj, name, None) is None:
+            setattr(obj, name, value)
+    except Exception:
+        return
 
 
 def _tool_exists(orch: Orchestrator, name: str) -> bool:
@@ -93,6 +108,30 @@ def _register_once(orch: Orchestrator, tool: Any) -> None:
     orch.tools.register(tool)
 
 
+def _wire_compat_aliases(orch: Orchestrator) -> None:
+    """
+    Wire compatibility aliases ONLY (do not overwrite canonical fields).
+
+    Canonical sources of truth:
+      - orch.tools
+      - orch.memory / orch.memory_hub (orch sets both)
+      - orch.policy / orch.policy_engine (orch sets both)
+      - orch.router / orch.brain_router (orch sets both)
+    """
+    # Tool registry alias (some older handlers expect deps["tool_registry"] OR orch.tool_registry)
+    _safe_setattr(orch, "tool_registry", getattr(orch, "tools", None))
+
+    # Defensive: if any of these are missing (older orchestrator), map them from canonicals.
+    _safe_setattr(orch, "memory_hub", getattr(orch, "memory", None))
+    _safe_setattr(orch, "policy_engine", getattr(orch, "policy", None))
+    _safe_setattr(orch, "brain_router", getattr(orch, "router", None))
+
+    # Also keep the reverse aliases if missing (but never overwrite)
+    _safe_setattr(orch, "memory", getattr(orch, "memory_hub", None))
+    _safe_setattr(orch, "policy", getattr(orch, "policy_engine", None))
+    _safe_setattr(orch, "router", getattr(orch, "brain_router", None))
+
+
 def create_siona(
     *,
     output_mode: str = "full",
@@ -110,15 +149,18 @@ def create_siona(
         world_model=world_model,
     )
 
-    # ---------------------------------------------------------
+    # Canonical compatibility wiring (prevents split-brain across layers)
+    _wire_compat_aliases(orch)
+
+    # World
+    if world_model is not None:
+        _safe_setattr(orch, "world_model", world_model)
+
     # Register builtin tools first (ensures tools.list exists)
-    # ---------------------------------------------------------
     if not _tool_exists(orch, "tools.list"):
         register_builtin_tools(orch.tools)
 
-    # ---------------------------------------------------------
     # Register production-direct tools (net.*, research.*, memory commit path, knowledge.*)
-    # ---------------------------------------------------------
     for tool in (
         NET_SEARCH_T,
         NET_FETCH_T,
@@ -151,8 +193,15 @@ def build_runtime(
       {
         "orch": Orchestrator,
         "tools": ToolRegistry,
+        "tool_registry": ToolRegistry (alias),
         "world_model": world_model,
       }
     """
     orch = create_siona(output_mode=output_mode, world_model=world_model)
-    return {"orch": orch, "tools": orch.tools, "world_model": world_model}
+    tools = getattr(orch, "tools", None)
+    return {
+        "orch": orch,
+        "tools": tools,
+        "tool_registry": tools,
+        "world_model": getattr(orch, "world_model", None),
+    }

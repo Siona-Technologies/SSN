@@ -9,3 +9,5 @@ Important:
 """
 
 __all__ = []
+# ssn/interfaces/__init__.py
+from .front_door import handle_user_message

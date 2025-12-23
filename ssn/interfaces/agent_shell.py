@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, Tuple
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse, ErrorInfo
 from ssn.interfaces.gateway import InterfaceGateway
@@ -20,8 +20,8 @@ class AgentShell:
       - suggest    -> action: suggest
       - world      -> action: world
       - sense_tick -> action: sense_tick
-      - tool       -> action: tool
-      - run_tool   -> action: run_tool   (Phase 6.5A)
+      - tool       -> action: tool      (legacy ToolBus, uses meta.tool_name)
+      - run_tool   -> action: run_tool  (ToolRegistry path, uses context.tool_name/context.args)
     """
 
     def __init__(self, gateway: InterfaceGateway, default_role: str = "GUEST"):
@@ -35,7 +35,7 @@ class AgentShell:
         return getattr(d, key, default)
 
     @staticmethod
-    def _normalize_context_meta(context: Any, meta: Any):
+    def _normalize_context_meta(context: Any, meta: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if not isinstance(context, dict):
             context = {}
         if not isinstance(meta, dict):
@@ -60,18 +60,32 @@ class AgentShell:
 
         return context, meta
 
+    @staticmethod
+    def _derive_role(default_role: str, claimed_role: Any, meta: Dict[str, Any]) -> str:
+        """
+        Production rule:
+        - If master_key is present, treat as OWNER *candidate* (handlers re-verify).
+        - Otherwise fall back to claimed role if valid, else default_role.
+        """
+        mk = meta.get("master_key") if isinstance(meta, dict) else None
+        if isinstance(mk, str) and mk.strip():
+            return "OWNER"
+
+        if isinstance(claimed_role, str) and claimed_role in ("OWNER", "GUEST"):
+            return claimed_role
+
+        return default_role if default_role in ("OWNER", "GUEST") else "GUEST"
+
     def handle_event(self, event: Any) -> InterfaceResponse:
         etype = self._get(event, "type", None)
 
-        role = self._get(event, "role", None)
-        if not isinstance(role, str) or role not in ("OWNER", "GUEST"):
-            role = self.default_role
-
+        claimed_role = self._get(event, "role", None)
         text = self._get(event, "text", "")
         context = self._get(event, "context", None)
         meta = self._get(event, "meta", None)
 
         context, meta = self._normalize_context_meta(context, meta)
+        role = self._derive_role(self.default_role, claimed_role, meta)
 
         if etype == "chat":
             req = InterfaceRequest(action="think", role=role, user_input=str(text or ""), context=context, meta=meta)
@@ -97,13 +111,32 @@ class AgentShell:
             req = InterfaceRequest(action="sense_tick", role=role, user_input="", context=context, meta=meta)
             return self.gateway.handle(req)
 
+        # Legacy ToolBus path: gateway requires meta.tool_name
         if etype == "tool":
-            req = InterfaceRequest(action="tool", role=role, user_input=str(text or ""), context=context, meta=meta)
+            tool_name = self._get(event, "tool_name", None)
+            args = self._get(event, "args", None)
+
+            meta2 = dict(meta or {})
+            if isinstance(tool_name, str) and tool_name.strip():
+                meta2.setdefault("tool_name", tool_name.strip())
+            if isinstance(args, dict):
+                meta2.setdefault("args", args)
+
+            req = InterfaceRequest(action="tool", role=role, user_input=str(text or ""), context=context, meta=meta2)
             return self.gateway.handle(req)
 
-        # Phase 6.5A — tool registry execution
+        # ToolRegistry execution path: handlers_tools expects context.tool_name + context.args
         if etype == "run_tool":
-            req = InterfaceRequest(action="run_tool", role=role, user_input="", context=context, meta=meta)
+            tool_name = self._get(event, "tool_name", None)
+            args = self._get(event, "args", None)
+
+            ctx2 = dict(context or {})
+            if isinstance(tool_name, str) and tool_name.strip():
+                ctx2["tool_name"] = tool_name.strip()
+            if isinstance(args, dict):
+                ctx2["args"] = args
+
+            req = InterfaceRequest(action="run_tool", role=role, user_input="", context=ctx2, meta=meta)
             return self.gateway.handle(req)
 
         return InterfaceResponse(

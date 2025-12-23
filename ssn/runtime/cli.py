@@ -9,6 +9,10 @@ from typing import Any
 
 from ssn.runtime.runtime_builder import SSNRuntimeBuilder
 
+# Canonical construction path (bootstrap)
+# Adjust this import ONLY if your bootstrap file/module name differs.
+from ssn.bootstrap import create_siona
+
 
 def _print_json(obj: Any) -> None:
     import json as _json
@@ -95,7 +99,17 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(remaining)
 
-    rt = SSNRuntimeBuilder.build_default(default_role="GUEST")
+    # =========================================================
+    # CANONICAL BUILD: bootstrap -> orchestrator -> runtime wrapper
+    # =========================================================
+    orch = create_siona(output_mode="full")
+    rt = SSNRuntimeBuilder(orchestrator=orch, default_role="GUEST").build()
+
+    # Ensure run-tool sees the canonical ToolRegistry (no accidental fresh registry)
+    try:
+        rt.gateway.deps["tool_registry"] = getattr(orch, "tools", None)
+    except Exception:
+        pass
 
     # Only attach master_key when role == OWNER.
     # This prevents leaking OWNER credentials into GUEST requests.
@@ -126,7 +140,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "chat":
         ctx = mk_context(_parse_json_dict(args.context), role=args.role)
-
         resp = rt.shell.handle_event(
             {
                 "type": "chat",
@@ -140,9 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "state":
-        resp = rt.shell.handle_event(
-            {"type": "state", "role": args.role, "meta": mk_meta(role=args.role)}
-        )
+        resp = rt.shell.handle_event({"type": "state", "role": args.role, "meta": mk_meta(role=args.role)})
         _print_json(resp.__dict__)
         return 0
 
@@ -151,10 +162,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "type": "memory",
                 "role": args.role,
-                "meta": mk_meta(
-                    {"trace_limit": args.trace_limit, "episodic_limit": args.episodic_limit},
-                    role=args.role,
-                ),
+                "meta": mk_meta({"trace_limit": args.trace_limit, "episodic_limit": args.episodic_limit}, role=args.role),
             }
         )
         _print_json(resp.__dict__)

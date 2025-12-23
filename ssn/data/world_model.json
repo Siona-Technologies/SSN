@@ -1,11 +1,11 @@
 {
-  "ts": 1766085318.907528,
+  "ts": 1766525770.0574722,
   "entities": {
     "person:synthetic": {
       "entity": "person",
       "status": "present",
       "confidence": 0.7,
-      "last_seen_ts": 1766085318.7952585,
+      "last_seen_ts": 1766525769.9634786,
       "attributes": {
         "zone": "front"
       },
@@ -611,6 +611,20 @@
     {
       "type": "motion_event",
       "ts": 1766085318.7952478,
+      "confidence": 0.6,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "vision_detection",
+      "ts": 1766525769.9634662,
+      "confidence": 0.7,
+      "source": "sense_tick",
+      "details": {}
+    },
+    {
+      "type": "motion_event",
+      "ts": 1766525769.9634662,
       "confidence": 0.6,
       "source": "sense_tick",
       "details": {}

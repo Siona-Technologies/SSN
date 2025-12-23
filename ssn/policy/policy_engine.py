@@ -15,10 +15,9 @@ class PolicyEngine:
       - OWNER: HOME LAW ULTIMATE POWER (always allow)
       - NON-OWNER: subject to World Law + limited allowed actions
 
-    Compatibility updates (no logic change):
-      - Accepts context/meta kwargs used by InterfaceGateway
-      - Adds common aliases: is_allowed(), allow(), enforce(), check()
-      - Keeps Orchestrator compatibility: check_permission(role, action)
+    Agreed update:
+      - Allow NON-OWNER "interact" so Front Door chat works for GUEST.
+        (OWNER rules unchanged.)
     """
 
     def __init__(self):
@@ -121,7 +120,8 @@ class PolicyEngine:
             world_rules = self.world_law["world_law"]
 
             # Core World Law violations for non-owners
-            action_lower = action.lower()
+            action_lower = (action or "").lower()
+
             if (not world_rules["allow_harm"] and any(word in action_lower for word in ["harm", "hurt", "kill", "injure"])):
                 return {
                     "status": "deny",
@@ -140,9 +140,13 @@ class PolicyEngine:
                     "reason": "Blocked by WORLD LAW: No data leaks"
                 }
 
-            # Basic permissions for normal users
+            # Basic permissions for normal users (UPDATED: allow "interact" for Front Door chat)
             normal_user_allowed_actions = [
-                "basic_query", "request_info", "get_help", "ask_question"
+                "basic_query",
+                "request_info",
+                "get_help",
+                "ask_question",
+                "interact",  # ✅ agreed change
             ]
 
             if action in normal_user_allowed_actions:

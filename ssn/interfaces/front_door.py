@@ -326,10 +326,6 @@ def _run_tool_production(
 def _extract_text(obj: Any) -> Optional[str]:
     """
     Robustly extract a final answer string from varying orchestrator shapes.
-    Supports:
-      - str
-      - dict with common keys
-      - objects with .data/.result attributes
     """
     if obj is None:
         return None
@@ -338,7 +334,6 @@ def _extract_text(obj: Any) -> Optional[str]:
         s = obj.strip()
         return s or None
 
-    # Dataclass-like / response-like objects
     for attr in ("data", "result", "output"):
         try:
             v = getattr(obj, attr, None)
@@ -350,13 +345,11 @@ def _extract_text(obj: Any) -> Optional[str]:
                 return t
 
     if isinstance(obj, dict):
-        # 1) common direct keys
         for k in ("final_message", "answer", "message", "text", "response", "final"):
             v = obj.get(k)
             if isinstance(v, str) and v.strip():
                 return v.strip()
 
-        # 2) common nesting patterns (fusion, routed_engine, etc.)
         fusion = None
         try:
             fusion = obj.get("routed_engine", {}).get("result", {}).get("fusion")
@@ -372,7 +365,6 @@ def _extract_text(obj: Any) -> Optional[str]:
             if isinstance(fm, str) and fm.strip():
                 return fm.strip()
 
-        # 3) last resort: scan a few nested dicts shallowly
         for k in ("routed_engine", "result", "fusion", "data"):
             v = obj.get(k)
             t = _extract_text(v)
@@ -404,13 +396,20 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     # Policy engine lookup (robust)
     pol = getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
 
-    # IMPORTANT:
-    # Your policy allows NON-OWNER only for basic actions like ask_question/basic_query/etc.
-    # So for GUEST we must check permission using an allowed action (not "interact").
+    # AGREED BEHAVIOR (do not change policy rules):
+    # - OWNER checks "interact"
+    # - GUEST checks "ask_question" (since your policy only allows basics to non-owner)
     policy_action = "interact" if _is_owner(role) else "ask_question"
 
     try:
-        allowed = bool(getattr(pol, "check_permission")(role=role, action=policy_action, context=ctx, meta=ctx.get("meta")))
+        allowed = bool(
+            getattr(pol, "check_permission")(
+                role=role,
+                action=policy_action,
+                context=ctx,
+                meta=ctx.get("meta"),
+            )
+        )
     except Exception:
         allowed = False
 
@@ -429,7 +428,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
 
     intent = _route_intent(user_input, ctx)
 
-    # knowledge.promote
+    # knowledge.promote (OWNER only)
     if intent == "knowledge_promote":
         if not _is_owner(role):
             return {
@@ -533,7 +532,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             "note": _clip(note, MAX_NOTE_CHARS) if note else None,
         }
 
-    # research.answer
+    # research.answer (OWNER only, online only)
     if intent == "research_answer":
         if offline:
             return {

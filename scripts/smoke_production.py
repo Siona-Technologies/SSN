@@ -78,6 +78,11 @@ def _gateway_run_tool(
 
 
 def main() -> int:
+    print("\n=== ENV (smoke) ===")
+    print("SSN_OFFLINE:", os.getenv("SSN_OFFLINE"))
+    print("SSN_LIVE_SEARCH:", os.getenv("SSN_LIVE_SEARCH"))
+    print("SSN_LIVE_STRICT:", os.getenv("SSN_LIVE_STRICT"))
+
     print("\n=== Building runtime via SSNRuntimeBuilder.build_default() ===")
     runtime = SSNRuntimeBuilder.build_default(default_role="GUEST", output_mode="full")
 
@@ -104,7 +109,7 @@ def main() -> int:
     ctx_guest = {
         "session_id": "smoke",
         "turn_id": "1",
-        "offline": bool(offline_forced),  # FIX: do not hardcode True
+        "offline": bool(offline_forced),
         "allow_tools": True,
         "allow_research": True,
     }
@@ -114,7 +119,7 @@ def main() -> int:
 
     # ------------------------------------------------------------
     # 2) GUEST research routing test
-    #    - Only meaningful when NOT forced offline (otherwise it won't route to research)
+    #    - Only meaningful when NOT forced offline
     # ------------------------------------------------------------
     print("\n=== Front Door research routing (GUEST) ===")
     if offline_forced:
@@ -166,14 +171,17 @@ def main() -> int:
         print(_pp(out4))
 
         print("\n=== OWNER InterfaceGateway run_tool net.search ===")
-        tool_net = _gateway_run_tool(
-            runtime,
-            role="OWNER",
-            master_key=master_key,
-            tool_name="net.search",
-            args={"query": "KSH to USD exchange rate today", "max_results": 3},
-        )
-        print(_pp(tool_net))
+        if offline_forced:
+            print("[SKIP] SSN_OFFLINE=1 forces offline; net.search live calls are not expected to run.")
+        else:
+            tool_net = _gateway_run_tool(
+                runtime,
+                role="OWNER",
+                master_key=master_key,
+                tool_name="net.search",
+                args={"query": "KSH to USD exchange rate today", "max_results": 3},
+            )
+            print(_pp(tool_net))
 
         print("\n=== OWNER InterfaceGateway world ===")
         req_world = InterfaceRequest(action="world", role="OWNER", user_input="", context={}, meta={"master_key": master_key})

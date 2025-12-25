@@ -1,15 +1,37 @@
 # ssn/interfaces/handlers.py
-
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse, ErrorInfo
 
 # IMPORTANT: module-level imports so tests can patch:
-# patch("ssn.interfaces.handlers.verify_owner", ...)
 from ssn.identity.owner_verification import verify_owner, is_samson_verified
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+_SECRET_KEYS_EXACT = {
+    "master_key", "ssn_master_key",
+    "api_key", "apikey",
+    "token", "access_token", "refresh_token",
+    "authorization", "bearer",
+    "secret", "password", "passwd",
+    "private_key", "privatekey",
+    "client_secret",
+}
+_SECRET_KEY_PREFIXES = ("auth", "bearer", "token", "secret", "password", "private", "access_", "refresh_", "api_key")
+
+
+def _is_secret_key_name(name: str) -> bool:
+    k = (name or "").strip().lower()
+    if not k:
+        return False
+    if k in _SECRET_KEYS_EXACT:
+        return True
+    return any(k.startswith(p) for p in _SECRET_KEY_PREFIXES)
 
 
 def _safe_dict(x: Any) -> Dict[str, Any]:
@@ -19,7 +41,7 @@ def _safe_dict(x: Any) -> Dict[str, Any]:
 def _extract_master_key(req: InterfaceRequest) -> Optional[str]:
     """
     Preferred source: req.meta["master_key"]
-    Fallbacks: req.context["master_key"], req.context["auth"]["master_key"] (legacy)
+    Fallbacks: req.context["meta"]["master_key"], req.context["master_key"], req.context["auth"]["master_key"] (legacy)
     """
     if isinstance(req.meta, dict):
         mk = req.meta.get("master_key")
@@ -27,6 +49,13 @@ def _extract_master_key(req: InterfaceRequest) -> Optional[str]:
             return mk.strip()
 
     ctx = req.context if isinstance(req.context, dict) else {}
+
+    meta = ctx.get("meta")
+    if isinstance(meta, dict):
+        mkm = meta.get("master_key")
+        if isinstance(mkm, str) and mkm.strip():
+            return mkm.strip()
+
     mk2 = ctx.get("master_key")
     if isinstance(mk2, str) and mk2.strip():
         return mk2.strip()
@@ -40,6 +69,22 @@ def _extract_master_key(req: InterfaceRequest) -> Optional[str]:
     return None
 
 
+def _resolve_role(master_key: Optional[str]) -> tuple[str, Optional[dict]]:
+    """
+    Resolve role without trusting the request role.
+    Returns (role, scores).
+    """
+    if not master_key or not isinstance(master_key, str) or not master_key.strip():
+        return "GUEST", None
+    try:
+        scores = verify_owner(master_key)
+        if is_samson_verified(scores):
+            return "OWNER", scores
+        return "GUEST", scores
+    except Exception:
+        return "GUEST", None
+
+
 def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Hard redaction: ensures no secret credential fields are forwarded into SSN core.
@@ -49,31 +94,37 @@ def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
     clean = dict(context)
 
-    # remove top-level master_key
-    clean.pop("master_key", None)
+    # remove top-level secrets
+    for k in list(clean.keys()):
+        if _is_secret_key_name(str(k)):
+            clean.pop(k, None)
 
-    # remove nested auth.master_key
+    # remove nested auth secrets
     auth = clean.get("auth")
     if isinstance(auth, dict):
         auth2 = dict(auth)
-        auth2.pop("master_key", None)
+        for k in list(auth2.keys()):
+            if _is_secret_key_name(str(k)):
+                auth2.pop(k, None)
         clean["auth"] = auth2
+
+    # remove nested meta secrets
+    meta = clean.get("meta")
+    if isinstance(meta, dict):
+        meta2 = dict(meta)
+        for k in list(meta2.keys()):
+            if _is_secret_key_name(str(k)):
+                meta2.pop(k, None)
+        clean["meta"] = meta2
 
     return clean
 
 
-# =====================================================================
-# Phase 6.6 — Chat Command Router helpers (OWNER-verified tools via chat)
-# =====================================================================
-
 def _scrub_secrets(x: Any) -> Any:
-    """
-    Defensive redaction: remove any accidental master_key fields from outputs.
-    """
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            if str(k).lower() in {"master_key", "ssn_master_key"}:
+            if _is_secret_key_name(str(k)):
                 continue
             out[k] = _scrub_secrets(v)
         return out
@@ -92,15 +143,6 @@ def _is_registry_like(obj: Any) -> bool:
 
 
 def _get_tool_registry(deps: Dict[str, Any]):
-    """
-    CRITICAL:
-    Must use the shared ToolRegistry instance.
-
-    Order:
-      1) deps["tool_registry"] (preferred; injected by runtime_builder)
-      2) deps["orchestrator"].tools or deps["orchestrator"].tool_registry
-      3) fallback: local ToolRegistry + builtin tools (tests/dev only)
-    """
     reg = deps.get("tool_registry")
     if _is_registry_like(reg):
         return reg
@@ -112,7 +154,7 @@ def _get_tool_registry(deps: Dict[str, Any]):
             deps["tool_registry"] = reg2
             return reg2
 
-    # Last resort fallback
+    # Last resort fallback (tests/dev only)
     try:
         from ssn.tools.registry import ToolRegistry  # type: ignore
         from ssn.tools.builtin_tools import register_builtin_tools  # type: ignore
@@ -128,26 +170,38 @@ def _get_tool_registry(deps: Dict[str, Any]):
     return reg3
 
 
+# =====================================================================
+# Phase 6.6 — Chat Command Router helpers (OWNER-verified tools via chat)
+# =====================================================================
+
+def _tool_requires_approval(reg: Any, tool_name: str) -> bool:
+    try:
+        spec = reg.get(tool_name)
+    except Exception:
+        spec = None
+    return bool(getattr(spec, "requires_approval", False)) if spec is not None else False
+
+
 def _maybe_run_tool_plan(
     *,
     text: str,
     ctx: Dict[str, Any],
     deps: Dict[str, Any],
     master_key: Optional[str],
+    role: str,
 ) -> Optional[Dict[str, Any]]:
     """
     If chat text looks like a command, run tool(s) and return a structured payload.
     Otherwise return None.
 
     Security:
-      - Verifies OWNER by master_key (does NOT trust claimed role).
-      - Runs tools through shared ToolRegistry (per-tool constraints still apply).
+      - Role is resolved by master_key (caller role ignored).
+      - Enforces requires_approval via ctx.confirm=True.
+      - master_key is injected ONLY into tool args (never into ctx).
     """
-    if not master_key or not isinstance(master_key, str) or not master_key.strip():
+    if role != "OWNER":
         return None
-
-    scores = verify_owner(master_key)
-    if not is_samson_verified(scores):
+    if not master_key or not isinstance(master_key, str) or not master_key.strip():
         return None
 
     try:
@@ -165,21 +219,39 @@ def _maybe_run_tool_plan(
             "tool_command": True,
             "ok": False,
             "reason": "tool_registry_missing",
-            "scores": scores,
             "plan": [{"tool": c.name, "args": _scrub_secrets(c.args)} for c in plan],
             "results": [],
             "final_message": "Tools unavailable (tool_registry_missing).",
         }
 
+    confirmed = bool(ctx.get("confirm") is True)
+
+    # Block approval-required tools unless confirmed
+    blocked: List[dict] = []
+    for call in plan:
+        if _tool_requires_approval(reg, call.name) and not confirmed:
+            blocked.append({"tool": call.name, "args": _scrub_secrets(call.args)})
+
+    if blocked:
+        return {
+            "tool_command": True,
+            "ok": False,
+            "reason": "needs_owner_approval",
+            "plan": [{"tool": c.name, "args": _scrub_secrets(c.args)} for c in plan],
+            "blocked": blocked,
+            "final_message": "Approval required. Re-send with context.confirm=True (OWNER only).",
+        }
+
+    deps_run = dict(deps or {})
+    deps_run["role"] = "OWNER"
+
     results = []
     for call in plan:
         args = dict(call.args or {})
-
-        # Internal verification for tools that require master_key.
-        # This does NOT go into chat context; it is only tool args.
+        # Only tool args get the master_key
         args["master_key"] = master_key
 
-        r = reg.run(name=call.name, role="OWNER", deps=deps, args=args)
+        r = reg.run(name=call.name, role="OWNER", deps=deps_run, args=args)
         results.append(
             {
                 "tool": call.name,
@@ -197,7 +269,6 @@ def _maybe_run_tool_plan(
         "identity_verified": True,
         "role": "OWNER",
         "allowed": True,
-        "scores": scores,
         "plan": [{"tool": c.name, "args": _scrub_secrets(c.args)} for c in plan],
         "results": results,
         "final_message": msg,
@@ -209,9 +280,6 @@ def _maybe_run_tool_plan(
 # =====================================================================
 
 def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
-    """
-    Build bounded identity context from persisted identity profile.
-    """
     try:
         from ssn.identity.identity_profile import IdentityProfileStore, verify_profile  # type: ignore
     except Exception:
@@ -258,7 +326,6 @@ def _build_identity_context(*, master_key: str) -> Dict[str, Any]:
     summary = f"Identity: system={system_name} | owner={owner_name} | creator={creator_name} | laws={laws_part}"
     if len(summary) > 600:
         summary = summary[:599] + "…"
-
     ident["summary"] = summary
     return ident
 
@@ -268,21 +335,13 @@ def _inject_world_context_if_owner_verified(
     deps: Dict[str, Any],
     ctx: Dict[str, Any],
     master_key: Optional[str],
+    role: str,
 ) -> Dict[str, Any]:
-    """
-    Inject bounded identity + world context ONLY if owner is verified by master key.
-
-    Writes both modern keys and legacy keys for compatibility:
-      - identity / identity_summary AND _identity / _identity_summary
-      - world / world_summary AND _world / _world_summary
-    """
     base = dict(ctx or {})
 
-    if not master_key or not isinstance(master_key, str) or not master_key.strip():
+    if role != "OWNER":
         return base
-
-    scores = verify_owner(master_key)
-    if not is_samson_verified(scores):
+    if not master_key or not isinstance(master_key, str) or not master_key.strip():
         return base
 
     # Identity injection
@@ -295,7 +354,6 @@ def _inject_world_context_if_owner_verified(
     except Exception:
         pass
 
-    # World injection
     orch = deps.get("orchestrator")
     world_model = deps.get("world_model") or (getattr(orch, "world_model", None) if orch else None)
 
@@ -358,27 +416,18 @@ def _inject_world_context_if_owner_verified(
 def _call_compat(
     fn: Callable[..., Any],
     *,
-    master_key: Optional[str],
     user_input: Any,
     role: str,
     context: Dict[str, Any],
 ) -> Any:
     """
     Calls entrypoints with best-effort compatible signatures.
-    If 'master_key' is accepted, it is passed explicitly to avoid arg shifting.
+    IMPORTANT: Never passes master_key into orchestrator/router.
     """
     try:
         sig = inspect.signature(fn)
     except Exception:
         sig = None
-
-    def accepts(name: str) -> bool:
-        if sig is None:
-            return True
-        params = sig.parameters
-        if name in params:
-            return True
-        return any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
 
     def call_kwargs(kwargs: Dict[str, Any]) -> Any:
         if sig is None:
@@ -390,19 +439,7 @@ def _call_compat(
         filtered = {k: v for k, v in kwargs.items() if k in params}
         return fn(**filtered)
 
-    kw_candidates: list[Dict[str, Any]] = []
-
-    if accepts("master_key"):
-        kw_candidates += [
-            {"master_key": master_key, "user_input": user_input, "context": context},
-            {"master_key": master_key, "user_input": user_input},
-            {"master_key": master_key, "message": user_input, "context": context},
-            {"master_key": master_key, "message": user_input},
-            {"master_key": master_key, "text": user_input, "context": context},
-            {"master_key": master_key, "text": user_input},
-        ]
-
-    kw_candidates += [
+    kw_candidates: list[Dict[str, Any]] = [
         {"role": role, "user_input": user_input, "context": context},
         {"user_input": user_input, "role": role, "context": context},
         {"user_input": user_input, "context": context},
@@ -421,14 +458,7 @@ def _call_compat(
             last_type_error = e
             continue
 
-    pos_candidates: list[tuple] = []
-    if accepts("master_key"):
-        pos_candidates += [
-            (master_key, user_input, context),
-            (master_key, user_input),
-            (master_key,),
-        ]
-    pos_candidates += [
+    pos_candidates: list[tuple] = [
         (role, user_input, context),
         (role, user_input),
         (user_input, context),
@@ -453,32 +483,24 @@ def _call_compat(
 # =====================================================================
 
 def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceResponse:
-    """
-    Internal cognition. Prefers Orchestrator; falls back to BrainRouter.
-
-    Inject bounded identity/world context for VERIFIED OWNER (by master key).
-
-    Phase 6.6:
-      - If chat looks like a command, run the tool plan (OWNER-verified) and return
-        a structured tool result payload (without touching orchestrator/router).
-    """
     orchestrator = deps.get("orchestrator")
     router = deps.get("brain_router")
 
     mk = _extract_master_key(req)
+    role, _scores = _resolve_role(mk)
     ctx = _sanitize_context(req.context)
 
     # Owner-only context injection (identity + world)
     try:
-        ctx = _inject_world_context_if_owner_verified(deps=deps, ctx=ctx, master_key=mk)
+        ctx = _inject_world_context_if_owner_verified(deps=deps, ctx=ctx, master_key=mk, role=role)
     except Exception:
         pass
 
-    # Phase 6.6 — Chat Command Router
+    # Phase 6.6 — Chat Command Router (approval-safe now)
     try:
-        routed = _maybe_run_tool_plan(text=str(req.user_input or ""), ctx=ctx, deps=deps, master_key=mk)
+        routed = _maybe_run_tool_plan(text=str(req.user_input or ""), ctx=ctx, deps=deps, master_key=mk, role=role)
         if isinstance(routed, dict):
-            return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(routed))
+            return InterfaceResponse(ok=bool(routed.get("ok", True)), action=req.action, role=role, data=_safe_dict(_scrub_secrets(routed)))
     except Exception:
         pass
 
@@ -488,26 +510,20 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
             fn = getattr(orchestrator, m, None)
             if callable(fn):
                 try:
-                    out = _call_compat(
-                        fn,
-                        master_key=mk,
-                        user_input=req.user_input,
-                        role=req.role,
-                        context=ctx,
-                    )
-                    return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(out))
+                    out = _call_compat(fn, user_input=req.user_input, role=role, context=ctx)
+                    return InterfaceResponse(ok=True, action=req.action, role=role, data=_safe_dict(_scrub_secrets(out)))
                 except Exception as e:
                     return InterfaceResponse(
                         ok=False,
                         action=req.action,
-                        role=req.role,
+                        role=role,
                         error=ErrorInfo(code="ORCH_RUNTIME_ERROR", message=str(e)),
                     )
 
         return InterfaceResponse(
             ok=False,
             action=req.action,
-            role=req.role,
+            role=role,
             error=ErrorInfo(code="ORCH_ENTRYPOINT_MISSING", message="Orchestrator has no compatible entrypoint."),
         )
 
@@ -516,26 +532,20 @@ def handle_think(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceRespon
         fn = getattr(router, "route", None)
         if callable(fn):
             try:
-                out = _call_compat(
-                    fn,
-                    master_key=mk,
-                    user_input=req.user_input,
-                    role=req.role,
-                    context=ctx,
-                )
-                return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(out))
+                out = _call_compat(fn, user_input=req.user_input, role=role, context=ctx)
+                return InterfaceResponse(ok=True, action=req.action, role=role, data=_safe_dict(_scrub_secrets(out)))
             except Exception as e:
                 return InterfaceResponse(
                     ok=False,
                     action=req.action,
-                    role=req.role,
+                    role=role,
                     error=ErrorInfo(code="ROUTER_RUNTIME_ERROR", message=str(e)),
                 )
 
     return InterfaceResponse(
         ok=False,
         action=req.action,
-        role=req.role,
+        role=role,
         error=ErrorInfo(code="NO_BRAIN_AVAILABLE", message="No orchestrator or brain_router available."),
     )
 
@@ -544,6 +554,13 @@ def handle_explain_state(req: InterfaceRequest, deps: Dict[str, Any]) -> Interfa
     memory_hub = deps.get("memory_hub")
     safety_monitor = deps.get("safety_monitor")
     policy_engine = deps.get("policy_engine")
+
+    role = "GUEST"
+    try:
+        mk = _extract_master_key(req)
+        role, _ = _resolve_role(mk)
+    except Exception:
+        role = "GUEST"
 
     state: Dict[str, Any] = {"phase": "4.0", "interfaces": "enabled"}
 
@@ -579,16 +596,20 @@ def handle_explain_state(req: InterfaceRequest, deps: Dict[str, Any]) -> Interfa
             epis = get_ep(limit=20) if callable(get_ep) else []
             state["memory"] = {"recent_traces": len(traces or []), "recent_episodic": len(epis or [])}
 
-    return InterfaceResponse(ok=True, action=req.action, role=req.role, data=state)
+    return InterfaceResponse(ok=True, action=req.action, role=role, data=_safe_dict(_scrub_secrets(state)))
 
 
 def handle_summarize_memory(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceResponse:
     memory_hub = deps.get("memory_hub")
+
+    mk = _extract_master_key(req)
+    role, _ = _resolve_role(mk)
+
     if memory_hub is None:
         return InterfaceResponse(
             ok=False,
             action=req.action,
-            role=req.role,
+            role=role,
             error=ErrorInfo(code="NO_MEMORY_HUB", message="MemoryHub not available."),
         )
 
@@ -618,23 +639,26 @@ def handle_summarize_memory(req: InterfaceRequest, deps: Dict[str, Any]) -> Inte
         "trace_type_histogram": types,
     }
 
-    return InterfaceResponse(ok=True, action=req.action, role=req.role, data=data)
+    return InterfaceResponse(ok=True, action=req.action, role=role, data=_safe_dict(_scrub_secrets(data)))
 
 
 def handle_suggest(req: InterfaceRequest, deps: Dict[str, Any]) -> InterfaceResponse:
     suggestion_engine = deps.get("suggestion_engine")
+
+    mk = _extract_master_key(req)
+    role, _ = _resolve_role(mk)
 
     if suggestion_engine is not None:
         fn = getattr(suggestion_engine, "run_once", None)
         if callable(fn):
             meta = req.meta if isinstance(req.meta, dict) else {}
             out = fn(trace_limit=int(meta.get("trace_limit", 150)), write_trace=True)
-            return InterfaceResponse(ok=True, action=req.action, role=req.role, data=_safe_dict(out))
+            return InterfaceResponse(ok=True, action=req.action, role=role, data=_safe_dict(_scrub_secrets(out)))
 
     return InterfaceResponse(
         ok=True,
         action=req.action,
-        role=req.role,
+        role=role,
         data={"status": "no_suggestion_engine", "suggestion_count": 0, "requires_owner_ack": True},
     )
 

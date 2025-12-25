@@ -17,6 +17,48 @@ MAX_CITATIONS = 10
 MAX_NOTE_CHARS = 600
 
 
+# -----------------------------
+# Secret redaction
+# -----------------------------
+_SECRET_KEYS_EXACT = {
+    "master_key",
+    "ssn_master_key",
+    "api_key",
+    "apikey",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "bearer",
+    "secret",
+    "password",
+    "passwd",
+    "private_key",
+    "privatekey",
+    "client_secret",
+}
+_SECRET_KEY_PREFIXES = (
+    "auth",
+    "bearer",
+    "token",
+    "secret",
+    "password",
+    "private",
+    "access_",
+    "refresh_",
+    "api_key",
+)
+
+
+def _is_secret_key_name(name: str) -> bool:
+    k = (name or "").strip().lower()
+    if not k:
+        return False
+    if k in _SECRET_KEYS_EXACT:
+        return True
+    return any(k.startswith(p) for p in _SECRET_KEY_PREFIXES)
+
+
 def _clip(s: str, n: int) -> str:
     s = s or ""
     return s if len(s) <= n else (s[: n - 3] + "...")
@@ -27,14 +69,10 @@ def _forced_offline() -> bool:
 
 
 def _scrub_secrets(x: Any) -> Any:
-    """
-    Defensive redaction: ensure no secret fields leak in outputs.
-    """
     if isinstance(x, dict):
         out = {}
         for k, v in x.items():
-            lk = str(k).lower()
-            if lk in {"master_key", "ssn_master_key"}:
+            if _is_secret_key_name(str(k)):
                 continue
             out[k] = _scrub_secrets(v)
         return out
@@ -45,24 +83,34 @@ def _scrub_secrets(x: Any) -> Any:
 
 def _sanitize_context(ctx: dict) -> dict:
     """
-    Production rule: NEVER forward master_key inside context to tools/LLM.
+    Production rule: NEVER forward master_key (or any secrets) inside context to tools/LLM.
+    FrontDoor may READ context["meta"]["master_key"] but must scrub immediately.
     """
     if not isinstance(ctx, dict):
         return {}
     clean = dict(ctx)
 
-    clean.pop("master_key", None)
+    # remove top-level secrets
+    for k in list(clean.keys()):
+        if _is_secret_key_name(str(k)):
+            clean.pop(k, None)
 
+    # remove nested meta secrets
     meta = clean.get("meta")
     if isinstance(meta, dict):
         meta2 = dict(meta)
-        meta2.pop("master_key", None)
+        for k in list(meta2.keys()):
+            if _is_secret_key_name(str(k)):
+                meta2.pop(k, None)
         clean["meta"] = meta2
 
+    # remove nested auth secrets
     auth = clean.get("auth")
     if isinstance(auth, dict):
         auth2 = dict(auth)
-        auth2.pop("master_key", None)
+        for k in list(auth2.keys()):
+            if _is_secret_key_name(str(k)):
+                auth2.pop(k, None)
         clean["auth"] = auth2
 
     return clean
@@ -71,22 +119,22 @@ def _sanitize_context(ctx: dict) -> dict:
 def _extract_master_key(context: dict) -> Optional[str]:
     """
     Accept master_key from:
+      - context["meta"]["master_key"] (preferred)
       - context["master_key"] (legacy)
-      - context["meta"]["master_key"] (preferred if caller provides meta)
     Then caller must NOT forward it downstream; we scrub it immediately.
     """
     if not isinstance(context, dict):
         return None
-
-    mk = context.get("master_key")
-    if isinstance(mk, str) and mk.strip():
-        return mk.strip()
 
     meta = context.get("meta")
     if isinstance(meta, dict):
         mk2 = meta.get("master_key")
         if isinstance(mk2, str) and mk2.strip():
             return mk2.strip()
+
+    mk = context.get("master_key")
+    if isinstance(mk, str) and mk.strip():
+        return mk.strip()
 
     return None
 
@@ -120,7 +168,9 @@ _PROMOTE_PATTERNS = [
 _RESEARCH_PATTERNS = [
     r"\bresearch\b",
     r"\bsearch the web\b|\binternet\b|\bonline\b",
-    r"\bcitation\b|\bsources?\b",
+    r"\bcitation\b|\bsources?\b|\breferences?\b|\blinks?\b",
+    r"\blatest\b|\bcurrent\b|\bas of\b|\bupdated\b|\bnews\b",
+    r"\bprice\b|\bcost\b|\bstock\b|\brate\b|\bexchange\b",
 ]
 
 
@@ -140,7 +190,6 @@ def _route_intent(user_input: str, context: dict) -> str:
       - research_answer
       - llm_only
     """
-    offline = bool(context.get("offline", False)) or _forced_offline()
     allow_tools = bool(context.get("allow_tools", True))
     allow_research = bool(context.get("allow_research", True))
 
@@ -150,17 +199,12 @@ def _route_intent(user_input: str, context: dict) -> str:
     if _match_any(_KNOWLEDGE_PATTERNS, user_input):
         return "knowledge_search"
 
-    if not allow_tools:
+    if not allow_tools or not allow_research:
         return "llm_only"
 
-    if allow_research and not offline and _match_any(_RESEARCH_PATTERNS, user_input):
-        return "research_answer"
-
-    looks_like_question = (
-        "?" in (user_input or "")
-        or re.match(r"^\s*(what|why|how|when|where|who)\b", user_input or "", re.I) is not None
-    )
-    if allow_research and not offline and looks_like_question:
+    # If user asked for research, route to research_answer EVEN in offline mode.
+    # The research handler will decide whether to block or run deterministic degraded mode.
+    if _match_any(_RESEARCH_PATTERNS, user_input):
         return "research_answer"
 
     return "llm_only"
@@ -216,7 +260,7 @@ def _build_approval_envelope(
 
 
 def _resolve_registry(orch: Any, deps: Dict[str, Any]) -> Any:
-    reg = deps.get("tool_registry")
+    reg = deps.get("tool_registry") or deps.get("tools")
     if reg is not None:
         return reg
     return getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
@@ -227,8 +271,11 @@ def _tool_deps_for_run(
     orch: Any,
     deps: Dict[str, Any],
     role: str,
-    master_key: Optional[str],
 ) -> Dict[str, Any]:
+    """
+    IMPORTANT: do NOT place master_key in deps.
+    Tools that need it receive it through tool args only (after approval).
+    """
     out = dict(deps or {})
     out["orchestrator"] = orch
 
@@ -258,10 +305,6 @@ def _tool_deps_for_run(
             out["safety_monitor"] = sm
 
     out["role"] = role
-
-    if _is_owner(role) and master_key:
-        out["master_key"] = master_key
-
     return out
 
 
@@ -276,6 +319,13 @@ def _run_tool_production(
     context: Dict[str, Any],
     used_tools: List[str],
 ) -> Dict[str, Any]:
+    if len(used_tools) >= MAX_USED_TOOLS:
+        return {
+            "ok": False,
+            "error": {"code": "TOO_MANY_TOOLS", "message": f"Tool cap reached ({MAX_USED_TOOLS})."},
+            "data": None,
+        }
+
     reg = _resolve_registry(orch, deps)
     if reg is None or not callable(getattr(reg, "run", None)):
         return {
@@ -289,6 +339,7 @@ def _run_tool_production(
     except Exception:
         spec = None
 
+    # Approval gate
     if _approval_required(spec):
         confirmed = bool(context.get("confirm") is True)
         if not (_is_owner(role) and confirmed):
@@ -305,10 +356,12 @@ def _run_tool_production(
             }
 
     args2 = dict(tool_args or {})
+
+    # Inject master_key only into tool args (OWNER only) after approval gate passes
     if _is_owner(role) and master_key:
         args2["master_key"] = master_key
 
-    deps_for_tool = _tool_deps_for_run(orch=orch, deps=deps, role=role, master_key=master_key)
+    deps_for_tool = _tool_deps_for_run(orch=orch, deps=deps, role=role)
 
     r = reg.run(name=tool_name, role=role, deps=deps_for_tool, args=args2)
     used_tools.append(tool_name)
@@ -323,9 +376,25 @@ def _run_tool_production(
 # -----------------------------
 # Orchestrator output extraction
 # -----------------------------
+_TEXT_KEYS = (
+    "final_message",
+    "answer",
+    "message",
+    "text",
+    "response",
+    "final",
+    "content",
+    "output",
+    "reply",
+)
+
+_ATTR_TEXT_KEYS = _TEXT_KEYS
+
+
 def _extract_text(obj: Any) -> Optional[str]:
     """
-    Robustly extract a final answer string from varying orchestrator shapes.
+    Robustly extract a final answer string from dicts OR objects.
+    Fixes "No response produced" when fusion/result is an object with attributes.
     """
     if obj is None:
         return None
@@ -334,6 +403,16 @@ def _extract_text(obj: Any) -> Optional[str]:
         s = obj.strip()
         return s or None
 
+    # object attributes (fusion objects, dataclasses, etc.)
+    for k in _ATTR_TEXT_KEYS:
+        try:
+            v = getattr(obj, k, None)
+        except Exception:
+            v = None
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+
+    # common container-like attrs
     for attr in ("data", "result", "output"):
         try:
             v = getattr(obj, attr, None)
@@ -345,33 +424,65 @@ def _extract_text(obj: Any) -> Optional[str]:
                 return t
 
     if isinstance(obj, dict):
-        for k in ("final_message", "answer", "message", "text", "response", "final"):
+        for k in _TEXT_KEYS:
             v = obj.get(k)
             if isinstance(v, str) and v.strip():
                 return v.strip()
 
-        fusion = None
-        try:
-            fusion = obj.get("routed_engine", {}).get("result", {}).get("fusion")
-        except Exception:
-            fusion = None
-        if fusion is None:
-            try:
-                fusion = obj.get("result", {}).get("fusion")
-            except Exception:
-                fusion = None
-        if isinstance(fusion, dict):
-            fm = fusion.get("final_message")
-            if isinstance(fm, str) and fm.strip():
-                return fm.strip()
+        # try common nested fusion shapes
+        for path in (
+            ("routed_engine", "result", "fusion"),
+            ("result", "fusion"),
+            ("fusion",),
+            ("routed_engine",),
+            ("result",),
+            ("data",),
+        ):
+            cur: Any = obj
+            ok = True
+            for p in path:
+                if isinstance(cur, dict) and p in cur:
+                    cur = cur[p]
+                else:
+                    ok = False
+                    break
+            if ok:
+                t = _extract_text(cur)
+                if t:
+                    return t
 
-        for k in ("routed_engine", "result", "fusion", "data"):
-            v = obj.get(k)
-            t = _extract_text(v)
+        for k in ("llm", "snn"):
+            t = _extract_text(obj.get(k))
             if t:
                 return t
 
     return None
+
+
+def _orch_call_no_secrets(orch: Any, *, role: str, user_input: str, context: dict) -> Any:
+    """
+    Best-effort call to orchestrator WITHOUT passing master_key.
+    If orchestrator.run expects (master_key, ...), we pass None (not secret).
+    """
+    for attempt in (
+        lambda: orch.run(role=role, user_input=user_input, context=context),
+        lambda: orch.run(user_input=user_input, context=context),
+        lambda: orch.run(role, user_input, context),
+        lambda: orch.run(user_input, context),
+        lambda: orch.run(None, user_input, context),
+        lambda: orch.llm_route(role=role, user_input=user_input, context=context),
+        lambda: orch.llm_route(user_input=user_input, context=context),
+    ):
+        try:
+            return attempt()
+        except TypeError:
+            continue
+        except Exception:
+            continue
+    try:
+        return orch.run(user_input)
+    except Exception:
+        return None
 
 
 # -----------------------------
@@ -390,46 +501,56 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     ctx = _sanitize_context(context_in)
 
     # Identity / role (do NOT trust caller-provided role)
-    _is_owner_verified, role, _scores = orch.resolve_identity(master_key)
-    ctx["role"] = role
-
-    # Policy engine lookup (robust)
-    pol = getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
-
-    # AGREED BEHAVIOR (do not change policy rules):
-    # - OWNER checks "interact"
-    # - GUEST checks "ask_question" (since your policy only allows basics to non-owner)
-    policy_action = "interact" if _is_owner(role) else "ask_question"
-
+    role = "GUEST"
     try:
-        allowed = bool(
-            getattr(pol, "check_permission")(
-                role=role,
-                action=policy_action,
-                context=ctx,
-                meta=ctx.get("meta"),
-            )
-        )
+        _is_owner_verified, role2, _scores = orch.resolve_identity(master_key)
+        role = role2 or "GUEST"
     except Exception:
-        allowed = False
-
-    if not allowed:
-        return {
-            "answer": "Blocked by policy.",
-            "degraded": False,
-            "used_tools": [],
-            "session_state": _safe_session_state(ctx),
-            "note": f"Policy denied action={policy_action}.",
-        }
+        role = "GUEST"
+    ctx["role"] = role
 
     used_tools: List[str] = []
     degraded = bool(ctx.get("degraded", False))
     offline = bool(ctx.get("offline", False)) or _forced_offline()
+    strict = bool(ctx.get("strict", False))
+    allow_degraded = bool(ctx.get("allow_degraded", False))
+    allow_tools = bool(ctx.get("allow_tools", True))
+
+    # Policy check (fail-open for chat; fail-closed only if explicit deny)
+    pol = getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
+    policy_action = "interact" if _is_owner(role) else "ask_question"
+    allowed = True
+    try:
+        if pol is not None and callable(getattr(pol, "check_permission", None)):
+            allowed = bool(
+                getattr(pol, "check_permission")(role=role, action=policy_action, context=ctx, meta=ctx.get("meta"))
+            )
+    except Exception:
+        allowed = True
+        degraded = True
+
+    if not allowed:
+        return {
+            "answer": "Blocked by policy.",
+            "degraded": bool(degraded),
+            "used_tools": [],
+            "session_state": _safe_session_state({**ctx, "degraded": bool(degraded)}),
+            "note": f"Policy denied action={policy_action}.",
+        }
 
     intent = _route_intent(user_input, ctx)
 
-    # knowledge.promote (OWNER only)
+    # knowledge.promote
     if intent == "knowledge_promote":
+        if not allow_tools:
+            return {
+                "answer": "Tools are disabled for this session (context.allow_tools=False).",
+                "degraded": degraded,
+                "used_tools": [],
+                "session_state": _safe_session_state(ctx),
+                "note": "Promotion requested but tools are disabled.",
+            }
+
         if not _is_owner(role):
             return {
                 "answer": "Not authorized: knowledge promotion is OWNER-only.",
@@ -487,6 +608,15 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
 
     # knowledge.search
     if intent == "knowledge_search":
+        if not allow_tools:
+            return {
+                "answer": "Tools are disabled for this session (context.allow_tools=False).",
+                "degraded": degraded,
+                "used_tools": [],
+                "session_state": _safe_session_state(ctx),
+                "note": "Knowledge search requested but tools are disabled.",
+            }
+
         query = _extract_prefixed_payload(user_input, patterns=[r"^\s*(?:kb|knowledge)\s*:\s*(.*)$"]) or user_input
 
         out = _run_tool_production(
@@ -532,25 +662,43 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             "note": _clip(note, MAX_NOTE_CHARS) if note else None,
         }
 
-    # research.answer (OWNER only, online only)
+    # research.answer (online OR offline deterministic degraded mode)
     if intent == "research_answer":
-        if offline:
+        if not allow_tools:
             return {
-                "answer": "Offline mode is enabled; external research is unavailable. Try knowledge search or provide local sources.",
-                "degraded": True,
+                "answer": "Tools are disabled for this session (context.allow_tools=False).",
+                "degraded": degraded,
                 "used_tools": [],
-                "session_state": _safe_session_state({**ctx, "degraded": True}),
-                "note": "Research blocked by offline mode (SSN_OFFLINE=1 or context.offline=True).",
+                "session_state": _safe_session_state(ctx),
+                "note": "Research requested but tools are disabled.",
             }
 
         if not _is_owner(role):
             return {
-                "answer": "Not authorized: web research is OWNER-only.",
+                "answer": "Not authorized: research is OWNER-only.",
                 "degraded": degraded,
                 "used_tools": [],
                 "session_state": _safe_session_state(ctx),
                 "note": "Research denied due to role.",
             }
+
+        # UPDATED: offline research is allowed ONLY if allow_degraded=True.
+        # strict controls tool behavior, but should not block if allow_degraded=True.
+        if offline and not allow_degraded:
+            return {
+                "answer": "Offline mode is enabled; research is blocked unless allow_degraded=True (deterministic offline research mocks).",
+                "degraded": True,
+                "used_tools": [],
+                "session_state": _safe_session_state({**ctx, "degraded": True}),
+                "note": "Research blocked: offline + allow_degraded=False.",
+            }
+
+        tool_args = {
+            "query": user_input,
+            "allow_degraded": bool(allow_degraded),
+            "strict": bool(strict),
+            "offline": bool(offline),
+        }
 
         out = _run_tool_production(
             orch=orch,
@@ -558,7 +706,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             role=role,
             master_key=master_key,
             tool_name="research.answer",
-            tool_args={"query": user_input},
+            tool_args=tool_args,
             context=ctx,
             used_tools=used_tools,
         )
@@ -579,7 +727,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
         answer = str(data.get("answer") or "") if isinstance(data, dict) else ""
         citations = data.get("citations") if isinstance(data, dict) and isinstance(data.get("citations"), list) else []
         sources = data.get("sources") if isinstance(data, dict) and isinstance(data.get("sources"), list) else []
-        degraded2 = degraded or (bool(data.get("degraded", False)) if isinstance(data, dict) else False)
+        degraded2 = degraded or offline or (bool(data.get("degraded", False)) if isinstance(data, dict) else False)
         note = str(data.get("note") or "") if isinstance(data, dict) else ""
 
         return {
@@ -593,14 +741,40 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
         }
 
     # -------------------------
-    # LLM-only path (prefer Orchestrator pipeline)
+    # LLM-only path
+    # Prefer InterfaceGateway if provided, otherwise call orchestrator directly (no secrets).
     # -------------------------
-    try:
-        routed = orch.run(master_key, user_input, ctx)
-    except Exception:
-        routed = orch.llm_route(role=role, user_input=user_input, context=ctx)
+    gw = deps.get("gateway") or deps.get("interface_gateway")
+    if gw is not None and callable(getattr(gw, "handle", None)):
+        try:
+            from ssn.interfaces.contracts import InterfaceRequest  # local import to avoid cycles
 
-    final_msg = _extract_text(routed) or "No response produced."
+            meta = {}
+            if master_key:
+                meta["master_key"] = master_key
+            req = InterfaceRequest(action="think", role=role, user_input=user_input, context=ctx, meta=meta)
+            resp = gw.handle(req)
+            routed = getattr(resp, "data", None) if resp is not None else None
+        except Exception:
+            routed = None
+    else:
+        routed = None
+
+    if routed is None:
+        routed = _orch_call_no_secrets(orch, role=role, user_input=user_input, context=ctx)
+
+    final_msg = _extract_text(routed)
+    if not final_msg:
+        debug_keys: List[str] = []
+        if isinstance(routed, dict):
+            debug_keys = list(routed.keys())[:20]
+        return {
+            "answer": _clip("No response produced.", MAX_ANSWER_CHARS),
+            "degraded": True,
+            "used_tools": used_tools[:MAX_USED_TOOLS],
+            "session_state": _safe_session_state({**ctx, "degraded": True}),
+            "note": _clip(f"FrontDoor could not extract text from output. top_keys={debug_keys}", MAX_NOTE_CHARS),
+        }
 
     return {
         "answer": _clip(str(final_msg), MAX_ANSWER_CHARS),

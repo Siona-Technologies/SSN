@@ -40,6 +40,10 @@ _PERMISSION_DENIED_CODES = {
 }
 
 
+def _is_owner(role: str) -> bool:
+    return (role or "").upper().strip() == "OWNER"
+
+
 class Orchestrator:
     """
     Phase 3.5 Stable Orchestrator
@@ -100,7 +104,7 @@ class Orchestrator:
         self.safety_monitor = getattr(self.policy, "safety_monitor", None)
 
     # ==========================================================
-    # IDENTITY / TOOL HELPERS (for Front Door)
+    # IDENTITY / POLICY HELPERS
     # ==========================================================
     def resolve_identity(self, master_key: Optional[str]) -> Tuple[bool, str, Any]:
         """
@@ -113,12 +117,15 @@ class Orchestrator:
 
     def _policy_action_for_role(self, role: str) -> str:
         """
-        Keep policy unchanged:
+        Keep policy logic unchanged:
           - OWNER uses "interact"
-          - NON-OWNER (GUEST) uses a basic allowed action from your policy: "ask_question"
+          - NON-OWNER uses a basic allowed action in your policy: "ask_question"
         """
-        return "interact" if (role or "").upper().strip() == "OWNER" else "ask_question"
+        return "interact" if _is_owner(role) else "ask_question"
 
+    # ==========================================================
+    # TOOL HELPERS
+    # ==========================================================
     def _build_tool_deps(self, *, role: str) -> Dict[str, Any]:
         """
         Single, canonical deps bundle passed to ToolRegistry handlers.
@@ -162,6 +169,7 @@ class Orchestrator:
         Single canonical tool execution entrypoint for external callers.
         Normalizes to dict (never leaks ToolResult class outward).
         """
+        _ = context  # reserved for future auditing/correlation if needed
         tool_deps = self._build_tool_deps(role=role)
 
         tool_result = self.tools.run(
@@ -212,7 +220,7 @@ class Orchestrator:
         """
         ctx = dict(context or {})
 
-        if (role or "").upper().strip() != "OWNER":
+        if not _is_owner(role):
             return ctx
         if self.world_model is None:
             return ctx
@@ -277,7 +285,12 @@ class Orchestrator:
         # - OWNER checks "interact"
         # - GUEST checks "ask_question" (allowed action in your policy)
         policy_action = self._policy_action_for_role(role)
-        allowed = bool(self.policy.check_permission(role=role, action=policy_action, context=context, meta=context.get("meta")))
+
+        try:
+            allowed = bool(self.policy.check_permission(role=role, action=policy_action, context=context, meta=context.get("meta")))
+        except Exception:
+            allowed = False
+
         if not allowed:
             return {
                 "identity_verified": is_owner,
@@ -298,7 +311,7 @@ class Orchestrator:
         allow_memory_log = bool(context.get("allow_memory_log", False))
         allow_auto_index = bool(context.get("allow_auto_index", False))
 
-        if role == "OWNER" and allow_memory_log:
+        if _is_owner(role) and allow_memory_log:
             try:
                 self.memory.log_interaction(
                     role=role,
@@ -310,7 +323,7 @@ class Orchestrator:
             except Exception:
                 pass
 
-        if role == "OWNER" and allow_auto_index and isinstance(user_input, str):
+        if _is_owner(role) and allow_auto_index and isinstance(user_input, str):
             try:
                 self.memory.auto_index_from_text(role, user_input)
             except Exception:

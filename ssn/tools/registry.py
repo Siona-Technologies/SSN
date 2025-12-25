@@ -1,4 +1,5 @@
 # ssn/tools/registry.py
+# Version: 2025-12-24 v1.1
 
 from __future__ import annotations
 
@@ -13,6 +14,10 @@ from ssn.tools.contracts import ToolResult, ToolSpec
 class _FileRateLimiter:
     """
     File-backed fixed-window rate limiter.
+
+    Notes:
+    - Best-effort. If the file cannot be written, we fail open (allow).
+    - Buckets are per-minute and per (tool, role).
     """
 
     def __init__(self, path: str) -> None:
@@ -62,6 +67,7 @@ class _FileRateLimiter:
 
         db = self._load()
 
+        # Keep only the last ~2 minutes
         min_keep = bucket - 2
         pruned: Dict[str, int] = {}
         for kk, vv in db.items():
@@ -85,6 +91,7 @@ class _FileRateLimiter:
         try:
             self._save(pruned)
         except Exception:
+            # fail open if FS issues
             return True, used + 1, 0
 
         return True, used + 1, 0
@@ -129,39 +136,53 @@ class ToolRegistry:
         }
 
     def list(self) -> Dict[str, Dict[str, Any]]:
-        return {
-            name: self._spec_to_dict(spec)
-            for name, spec in sorted(self._tools.items(), key=lambda kv: kv[0])
-        }
+        return {name: self._spec_to_dict(spec) for name, spec in sorted(self._tools.items(), key=lambda kv: kv[0])}
 
     def list_public(self, *, role: str = "GUEST") -> Dict[str, Dict[str, Any]]:
+        """
+        Public listing is intended to be guest-safe.
+        We additionally suppress state-changing tools here as a safety backstop.
+        """
+        r = str(role or "GUEST").upper()
         out: Dict[str, Dict[str, Any]] = {}
         for name, spec in sorted(self._tools.items(), key=lambda kv: kv[0]):
             if not bool(getattr(spec, "public", False)):
                 continue
-            if not self._is_role_allowed(spec, role):
+            if bool(getattr(spec, "state_changing", False)):
+                continue
+            if not self._is_role_allowed(spec, r):
                 continue
             out[name] = self._spec_to_dict(spec)
         return out
+
+    def list_for_role(self, *, role: str) -> Dict[str, Dict[str, Any]]:
+        """
+        Convenience: OWNER gets full list; GUEST gets public-only list.
+        """
+        r = str(role or "GUEST").upper()
+        return self.list() if r == "OWNER" else self.list_public(role="GUEST")
 
     # -----------------------------
     # Permission checks
     # -----------------------------
     @staticmethod
     def _is_role_allowed(spec: ToolSpec, role: str) -> bool:
+        r = str(role or "GUEST").upper()
+
         fn = getattr(spec, "is_role_allowed", None)
         if callable(fn):
             try:
-                return bool(fn(role))
+                return bool(fn(r))  # ToolSpec accepts "OWNER"/"GUEST"
             except Exception:
                 pass
 
         required = getattr(spec, "required_role", "OWNER")
-        return not (required == "OWNER" and role != "OWNER")
+        return not (required == "OWNER" and r != "OWNER")
 
     @staticmethod
     def _is_state_change_allowed(spec: ToolSpec, role: str) -> bool:
-        return not (bool(getattr(spec, "state_changing", False)) and role != "OWNER")
+        r = str(role or "GUEST").upper()
+        return not (bool(getattr(spec, "state_changing", False)) and r != "OWNER")
 
     def _rate_limit_allowed(self, *, spec: ToolSpec, tool_name: str, role: str) -> Optional[Dict[str, Any]]:
         max_cpm = getattr(spec, "max_calls_per_minute", None)
@@ -176,7 +197,7 @@ class ToolRegistry:
 
         allowed, used, retry_after = self._rate_limiter.check_and_increment(
             tool=tool_name,
-            role=role,
+            role=str(role or "GUEST").upper(),
             limit_per_minute=limit,
         )
         if allowed:
@@ -194,49 +215,50 @@ class ToolRegistry:
     # Execution
     # -----------------------------
     def run(self, *, name: str, role: str, deps: Dict[str, Any], args: Dict[str, Any]) -> ToolResult:
+        r = str(role or "GUEST").upper()
         spec = self.get(name)
         if spec is None:
-            return ToolResult(ok=False, tool=name, role=role, error={"code": "TOOL_NOT_FOUND", "message": name})
+            return ToolResult(ok=False, tool=name, role=r, data={}, error={"code": "TOOL_NOT_FOUND", "message": name})
 
-        if not self._is_role_allowed(spec, role):
+        if not self._is_role_allowed(spec, r):
             return ToolResult(
                 ok=False,
                 tool=name,
-                role=role,
-                error={"code": "TOOL_FORBIDDEN", "message": f"Role '{role}' not allowed for tool '{name}'"},
+                role=r,
+                data={},
+                error={"code": "TOOL_FORBIDDEN", "message": f"Role '{r}' not allowed for tool '{name}'"},
             )
 
-        if not self._is_state_change_allowed(spec, role):
+        if not self._is_state_change_allowed(spec, r):
             return ToolResult(
                 ok=False,
                 tool=name,
-                role=role,
+                role=r,
+                data={},
                 error={"code": "TOOL_STATE_CHANGE_FORBIDDEN", "message": "State-changing tools require OWNER"},
             )
 
-        rl_err = self._rate_limit_allowed(spec=spec, tool_name=name, role=role)
+        rl_err = self._rate_limit_allowed(spec=spec, tool_name=name, role=r)
         if rl_err is not None:
-            return ToolResult(ok=False, tool=name, role=role, error=rl_err)
+            return ToolResult(ok=False, tool=name, role=r, data={}, error=rl_err)
 
         try:
-            out = spec.handler(deps, args or {})
+            safe_args = args if isinstance(args, dict) else {}
+            out = spec.handler(deps, safe_args)
 
             # Normalize non-dict outputs
             if not isinstance(out, dict):
                 out = {"result": out}
 
-            # ✅ CRITICAL: handler-level error normalization
-            # If the handler returns {"error": {...}}, treat it as ok=False.
-            if isinstance(out, dict) and out.get("error"):
-                return ToolResult(
-                    ok=False,
-                    tool=name,
-                    role=role,
-                    data=None,
-                    error=out.get("error"),
-                )
+            # Handler-level error normalization:
+            # If handler returns {"error": {...}}, treat it as ok=False.
+            if out.get("error"):
+                err = out.get("error")
+                if not isinstance(err, dict):
+                    err = {"code": "TOOL_ERROR", "message": str(err)}
+                return ToolResult(ok=False, tool=name, role=r, data={}, error=err)
 
-            return ToolResult(ok=True, tool=name, role=role, data=out)
+            return ToolResult(ok=True, tool=name, role=r, data=out, error=None)
 
         except Exception as e:
-            return ToolResult(ok=False, tool=name, role=role, error={"code": "TOOL_ERROR", "message": str(e)})
+            return ToolResult(ok=False, tool=name, role=r, data={}, error={"code": "TOOL_ERROR", "message": str(e)})

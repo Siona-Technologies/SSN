@@ -52,6 +52,10 @@ def _assert(cond: bool, msg: str) -> None:
         raise AssertionError(msg)
 
 
+def _forced_offline() -> bool:
+    return os.getenv("SSN_OFFLINE") == "1"
+
+
 def _gateway_run_tool(
     runtime,
     *,
@@ -100,12 +104,12 @@ def main() -> int:
         _assert(reg_from_deps is reg_from_orch, "Split-brain: deps['tool_registry'] is not orch.tools")
 
     master_key = _get_master_key()
-    offline_forced = os.getenv("SSN_OFFLINE") == "1"
+    offline_forced = _forced_offline()
 
     # ------------------------------------------------------------
     # 1) Front Door baseline (respects SSN_OFFLINE)
     # ------------------------------------------------------------
-    print("\n=== Front Door baseline (respects SSN_OFFLINE) ===")
+    print("\n=== 1) Front Door baseline (respects SSN_OFFLINE) ===")
     ctx_guest = {
         "session_id": "smoke",
         "turn_id": "1",
@@ -115,13 +119,12 @@ def main() -> int:
     }
     out = handle_user_message("Hello SIONA. Give me a short status.", deps, ctx_guest)
     print(_pp(out))
-    _assert(isinstance(out.get("answer"), str) and out["answer"], "FrontDoor did not return an answer string")
+    _assert(isinstance(out.get("answer"), str) and out["answer"].strip(), "FrontDoor did not return an answer string")
 
     # ------------------------------------------------------------
-    # 2) GUEST research routing test
-    #    - Only meaningful when NOT forced offline
+    # 2) GUEST research routing test (only meaningful when NOT offline)
     # ------------------------------------------------------------
-    print("\n=== Front Door research routing (GUEST) ===")
+    print("\n=== 2) Front Door research routing (GUEST) ===")
     if offline_forced:
         print("[SKIP] SSN_OFFLINE=1 forces offline; research routing is not expected to run.")
     else:
@@ -138,23 +141,28 @@ def main() -> int:
             ctx_guest_online,
         )
         print(_pp(out2))
-        _assert(
-            "Not authorized" in (out2.get("answer") or ""),
-            "Expected GUEST research denial ('Not authorized') when online",
-        )
+        a2 = (out2.get("answer") or "")
+        _assert(("Not authorized" in a2) or ("OWNER-only" in a2), "Expected GUEST research denial when online")
 
     # ------------------------------------------------------------
-    # 3) InterfaceGateway run_tool (GUEST tools.list)
+    # 3) InterfaceGateway run_tool (GUEST tools.public_list)
+    #    NOTE: tools.list is OWNER-only by design in builtin_tools.py
     # ------------------------------------------------------------
-    print("\n=== InterfaceGateway run_tool (GUEST tools.list) ===")
-    tool_list = _gateway_run_tool(runtime, role="GUEST", master_key="", tool_name="tools.list", args={})
+    print("\n=== 3) InterfaceGateway run_tool (GUEST tools.public_list) ===")
+    tool_list = _gateway_run_tool(runtime, role="GUEST", master_key="", tool_name="tools.public_list", args={})
     print(_pp(tool_list))
+
+    d = tool_list.get("data") if isinstance(tool_list.get("data"), dict) else {}
+    _assert(d.get("identity_verified") is False, f"Expected identity_verified=False, got: {_pp(d)}")
+    _assert(d.get("role") == "GUEST", f"Expected role=GUEST, got: {_pp(d)}")
+    _assert(d.get("allowed") is True, f"Expected allowed=True, got: {_pp(d)}")
+    _assert(tool_list.get("ok") is True, f"Expected ok=True, got: {_pp(tool_list)}")
 
     # ------------------------------------------------------------
     # 4) OWNER checks (only if SSN_MASTER_KEY is set)
     # ------------------------------------------------------------
     if master_key:
-        print("\n=== OWNER Front Door checks ===")
+        print("\n=== 4) OWNER Front Door checks ===")
         ctx_owner = {
             "session_id": "smoke",
             "turn_id": "3",
@@ -166,11 +174,22 @@ def main() -> int:
 
         out3 = handle_user_message("knowledge: list what you know about SIONA", deps, ctx_owner)
         print(_pp(out3))
+        _assert(isinstance(out3.get("answer"), str) and out3["answer"].strip(), "OWNER knowledge search did not return answer")
 
         out4 = handle_user_message("promote: This is a production smoke note.", deps, ctx_owner)
         print(_pp(out4))
+        _assert("Knowledge promoted" in (out4.get("answer") or ""), "Expected knowledge promotion confirmation")
 
-        print("\n=== OWNER InterfaceGateway run_tool net.search ===")
+        print("\n=== 4a) OWNER InterfaceGateway run_tool tools.list ===")
+        tool_all = _gateway_run_tool(runtime, role="OWNER", master_key=master_key, tool_name="tools.list", args={})
+        print(_pp(tool_all))
+        d_all = tool_all.get("data") if isinstance(tool_all.get("data"), dict) else {}
+        _assert(d_all.get("identity_verified") is True, f"Expected identity_verified=True, got: {_pp(d_all)}")
+        _assert(d_all.get("role") == "OWNER", f"Expected role=OWNER, got: {_pp(d_all)}")
+        _assert(d_all.get("allowed") is True, f"Expected allowed=True, got: {_pp(d_all)}")
+        _assert(tool_all.get("ok") is True, f"Expected ok=True, got: {_pp(tool_all)}")
+
+        print("\n=== 4b) OWNER InterfaceGateway run_tool net.search ===")
         if offline_forced:
             print("[SKIP] SSN_OFFLINE=1 forces offline; net.search live calls are not expected to run.")
         else:
@@ -182,21 +201,24 @@ def main() -> int:
                 args={"query": "KSH to USD exchange rate today", "max_results": 3},
             )
             print(_pp(tool_net))
+            _assert(tool_net.get("ok") is True, f"Expected OWNER net.search ok=True, got: {_pp(tool_net)}")
 
-        print("\n=== OWNER InterfaceGateway world ===")
+        print("\n=== 4c) OWNER InterfaceGateway world ===")
         req_world = InterfaceRequest(action="world", role="OWNER", user_input="", context={}, meta={"master_key": master_key})
         resp_world = runtime.gateway.handle(req_world)
         print(_pp({"ok": resp_world.ok, "data": resp_world.data, "error": (resp_world.error.__dict__ if resp_world.error else None)}))
+        _assert(bool(resp_world.ok) is True, "Expected world ok=True")
 
-        print("\n=== OWNER InterfaceGateway sense_tick ===")
+        print("\n=== 4d) OWNER InterfaceGateway sense_tick ===")
         req_tick = InterfaceRequest(action="sense_tick", role="OWNER", user_input="", context={"max_events": 5}, meta={"master_key": master_key})
         resp_tick = runtime.gateway.handle(req_tick)
         print(_pp({"ok": resp_tick.ok, "data": resp_tick.data, "error": (resp_tick.error.__dict__ if resp_tick.error else None)}))
+        _assert(bool(resp_tick.ok) is True, "Expected sense_tick ok=True")
 
     else:
         print("\n[INFO] SSN_MASTER_KEY not set; skipping OWNER-only smoke checks.")
 
-    print("\n=== DONE: smoke_production.py finished ===")
+    print("\n=== DONE: smoke_production.py PASSED ===")
     return 0
 
 

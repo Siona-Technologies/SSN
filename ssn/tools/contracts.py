@@ -7,6 +7,11 @@ from typing import Any, Callable, Dict, Literal, Optional, Tuple
 
 
 Role = Literal["OWNER", "GUEST"]
+_ALLOWED_ROLE_VALUES = ("OWNER", "GUEST")
+
+
+def _norm_role(role: Any) -> str:
+    return str(role or "GUEST").upper().strip()
 
 
 def _default_allowed_roles(required_role: Role) -> Tuple[Role, ...]:
@@ -16,6 +21,27 @@ def _default_allowed_roles(required_role: Role) -> Tuple[Role, ...]:
       - required_role == "GUEST"  => OWNER and GUEST
     """
     return ("OWNER",) if required_role == "OWNER" else ("OWNER", "GUEST")
+
+
+def _coerce_allowed_roles(x: Any) -> Optional[Tuple[Role, ...]]:
+    """
+    Normalize and filter allowed_roles to the supported role set.
+    Returns None if input is missing/invalid so we fall back to required_role mapping.
+    """
+    if x is None:
+        return None
+    if not isinstance(x, (tuple, list)):
+        return None
+
+    out = []
+    seen = set()
+    for r in x:
+        rr = _norm_role(r)
+        if rr in _ALLOWED_ROLE_VALUES and rr not in seen:
+            out.append(rr)
+            seen.add(rr)
+
+    return tuple(out) if out else None
 
 
 @dataclass(frozen=True)
@@ -44,8 +70,7 @@ class ToolSpec:
     # Tool properties
     state_changing: bool = False
 
-    # NEW: indicates real-world or external side effects
-    # (calls, payments, device actions, speech output, code writes, etc.)
+    # indicates real-world or external side effects
     external_effect: bool = False
 
     public: bool = False  # if True, appears in a "public tools list" for GUEST
@@ -61,14 +86,14 @@ class ToolSpec:
     )
 
     def roles_allowed(self) -> Tuple[Role, ...]:
-        return (
-            self.allowed_roles
-            if self.allowed_roles is not None
-            else _default_allowed_roles(self.required_role)
-        )
+        coerced = _coerce_allowed_roles(self.allowed_roles)
+        if coerced is not None:
+            return coerced
+        return _default_allowed_roles(self.required_role)
 
-    def is_role_allowed(self, role: Role) -> bool:
-        return role in self.roles_allowed()
+    def is_role_allowed(self, role: Any) -> bool:
+        r = _norm_role(role)
+        return r in self.roles_allowed()
 
     @property
     def requires_approval(self) -> bool:

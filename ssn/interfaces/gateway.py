@@ -71,6 +71,12 @@ class InterfaceGateway:
             "perception_hub": perception_hub,
         }
 
+        # Common aliases (helps FrontDoor/tools avoid split expectations)
+        if policy_engine is not None:
+            self.deps.setdefault("policy", policy_engine)
+        if memory_hub is not None:
+            self.deps.setdefault("memory", memory_hub)
+
         # ------------------------------------------------------
         # CRITICAL: ToolRegistry must be shared (no split-brain)
         # ------------------------------------------------------
@@ -91,6 +97,7 @@ class InterfaceGateway:
 
         if reg is not None:
             self.deps["tool_registry"] = reg
+            self.deps.setdefault("tools", reg)
 
         # Ensure handlers are registered
         HANDLERS.setdefault("world", handle_world)
@@ -109,7 +116,7 @@ class InterfaceGateway:
         if req.action in ("think", "explain_state", "world", "sense_tick", "run_tool"):
             return True
 
-        pe = self.deps.get("policy_engine")
+        pe = self.deps.get("policy_engine") or self.deps.get("policy")
         if pe is None:
             return True
 

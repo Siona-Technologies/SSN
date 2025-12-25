@@ -1,5 +1,4 @@
 # ssn/interfaces/handlers_tools.py
-
 from __future__ import annotations
 
 import time
@@ -10,27 +9,63 @@ from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse
 from ssn.tools.registry import ToolRegistry
 from ssn.tools.builtin_tools import register_builtin_tools
 
-
 # Tool run errors that mean "not permitted" (vs runtime failure)
 _PERMISSION_DENIED_CODES = {
     "TOOL_NOT_FOUND",
     "TOOL_FORBIDDEN",
     "TOOL_STATE_CHANGE_FORBIDDEN",
-    "RATE_LIMITED",
+    # NOTE: RATE_LIMITED is throttling, not permission denial.
 }
+
+# GUEST-ALLOWED INTROSPECTION (read-only)
+_GUEST_ALLOWLIST = {"tools.list", "tools.public_list"}
+
+# Keys that are almost always secrets
+_SECRET_KEYS_EXACT = {
+    "master_key", "ssn_master_key",
+    "api_key", "apikey",
+    "token", "access_token", "refresh_token",
+    "authorization", "bearer",
+    "secret", "password", "passwd",
+    "private_key", "privatekey",
+    "client_secret",
+}
+
+# Prefixes that are likely secrets
+_SECRET_KEY_PREFIXES = (
+    "auth",
+    "bearer",
+    "token",
+    "secret",
+    "password",
+    "private",
+    "api_key",
+    "access_",
+    "refresh_",
+)
+
+
+def _norm_role(role: Any) -> str:
+    r = str(role or "GUEST").upper().strip()
+    return r if r in ("OWNER", "GUEST") else "GUEST"
 
 
 def _is_registry_like(obj: Any) -> bool:
-    """
-    Avoid strict isinstance-only checks to prevent accidental split-brain when
-    registry is a proxy/subclass or injected object with same interface.
-    """
     if obj is None:
         return False
     for attr in ("get", "run", "list"):
         if not callable(getattr(obj, attr, None)):
             return False
     return True
+
+
+def _is_secret_key_name(name: str) -> bool:
+    k = (name or "").strip().lower()
+    if not k:
+        return False
+    if k in _SECRET_KEYS_EXACT:
+        return True
+    return any(k.startswith(p) for p in _SECRET_KEY_PREFIXES)
 
 
 def _get_master_key(req: InterfaceRequest) -> Optional[str]:
@@ -40,8 +75,15 @@ def _get_master_key(req: InterfaceRequest) -> Optional[str]:
         if isinstance(mk, str) and mk.strip():
             return mk.strip()
 
-    # Fallback to context (legacy; CLI tries to avoid this)
+    # Prefer context.meta.master_key (frontdoor_cli uses this)
     if isinstance(req.context, dict):
+        meta = req.context.get("meta")
+        if isinstance(meta, dict):
+            mk3 = meta.get("master_key")
+            if isinstance(mk3, str) and mk3.strip():
+                return mk3.strip()
+
+        # Fallback to context (legacy)
         mk2 = req.context.get("master_key")
         if isinstance(mk2, str) and mk2.strip():
             return mk2.strip()
@@ -50,16 +92,6 @@ def _get_master_key(req: InterfaceRequest) -> Optional[str]:
 
 
 def _get_registry(deps: Dict[str, Any]) -> Any:
-    """
-    CRITICAL:
-    ToolRegistry must be a SINGLE shared instance (orchestrator.tools),
-    otherwise tools appear "missing" or write to a different memory/stack.
-
-    Order:
-      1) deps["tool_registry"] (preferred)
-      2) deps["orchestrator"].tools OR deps["orchestrator"].tool_registry (canonical)
-      3) fallback: local ToolRegistry + builtin tools (last resort; tests/dev only)
-    """
     reg = deps.get("tool_registry")
     if _is_registry_like(reg):
         return reg
@@ -71,7 +103,6 @@ def _get_registry(deps: Dict[str, Any]) -> Any:
             deps["tool_registry"] = reg2
             return reg2
 
-    # Last resort fallback (tests/dev only)
     reg3 = ToolRegistry()
     try:
         register_builtin_tools(reg3)
@@ -97,8 +128,8 @@ def _redact_args(args: Any) -> Dict[str, Any]:
 
     out: Dict[str, Any] = {}
     for k, v in args.items():
-        ks = str(k)
-        if ks.lower() in {"master_key", "ssn_master_key"}:
+        ks = str(k)[:80]
+        if _is_secret_key_name(ks):
             continue
 
         if isinstance(v, (str, int, float, bool)) or v is None:
@@ -108,7 +139,7 @@ def _redact_args(args: Any) -> Dict[str, Any]:
             for i, (sk, sv) in enumerate(v.items()):
                 if i >= 20:
                     break
-                if str(sk).lower() in {"master_key", "ssn_master_key"}:
+                if _is_secret_key_name(str(sk)):
                     continue
                 sub[str(sk)[:80]] = (sv if isinstance(sv, (int, float, bool)) else str(sv)[:240])
             s = sub
@@ -117,7 +148,7 @@ def _redact_args(args: Any) -> Dict[str, Any]:
         else:
             s = str(v)[:300]
 
-        out[ks[:80]] = s
+        out[ks] = s
 
     return out
 
@@ -136,11 +167,7 @@ def _write_tool_trace(
     if mh is None:
         return
 
-    add = (
-        getattr(mh, "add_trace", None)
-        or getattr(mh, "write_trace", None)
-        or getattr(mh, "log_trace", None)
-    )
+    add = getattr(mh, "add_trace", None) or getattr(mh, "write_trace", None) or getattr(mh, "log_trace", None)
     if not callable(add):
         return
 
@@ -171,23 +198,34 @@ def _write_tool_trace(
         return
 
 
-def _parse_tool_request(req: InterfaceRequest) -> Tuple[Optional[str], Dict[str, Any]]:
+def _parse_tool_request(req: InterfaceRequest) -> Tuple[Optional[str], Dict[str, Any], bool]:
+    """
+    Expected shape:
+      req.context = { tool_name: str, args: dict, confirm?: bool }
+    Approval confirmation MUST be read from context.confirm (not args.confirm).
+    """
     ctx = req.context if isinstance(req.context, dict) else {}
     tool_name = ctx.get("tool_name")
     args = ctx.get("args", {})
 
+    confirmed = bool(ctx.get("confirm") is True)
+    if not confirmed and isinstance(req.meta, dict):
+        confirmed = bool(req.meta.get("confirm") is True)
+
     if not isinstance(tool_name, str) or not tool_name.strip():
-        return None, {}
+        return None, {}, confirmed
 
     if not isinstance(args, dict):
         args = {}
 
     args = dict(args)
-    # never accept secrets through args
-    args.pop("master_key", None)
-    args.pop("ssn_master_key", None)
+    # Never accept secrets through args (meta is the only place)
+    for sk in ("master_key", "ssn_master_key"):
+        args.pop(sk, None)
+    # Never forward confirm into tool args
+    args.pop("confirm", None)
 
-    return tool_name.strip(), args
+    return tool_name.strip(), args, confirmed
 
 
 def _build_approval_summary(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -201,10 +239,6 @@ def _build_approval_summary(tool_name: str, args: Dict[str, Any]) -> Dict[str, A
 
 
 def _allowed_from_tool_result(result_ok: bool, result_error: Any) -> bool:
-    """
-    "allowed" means: permission was granted to attempt the tool.
-    A tool can be allowed but still fail (network, parsing, etc.).
-    """
     if result_ok:
         return True
     if isinstance(result_error, dict):
@@ -214,31 +248,88 @@ def _allowed_from_tool_result(result_ok: bool, result_error: Any) -> bool:
     return True
 
 
+def _deps_for_run(depsd: Dict[str, Any], *, role: str) -> Dict[str, Any]:
+    out = dict(depsd or {})
+    out["role"] = _norm_role(role)
+    return out
+
+
 def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
-    depsd = deps if isinstance(deps, dict) else {}
-    tool_name, args = _parse_tool_request(req)
+    depsd: Dict[str, Any] = deps if isinstance(deps, dict) else {}
+    tool_name, args, confirmed = _parse_tool_request(req)
 
     if tool_name is None:
         return InterfaceResponse(
             ok=False,
             action="run_tool",
-            role=req.role,
+            role="GUEST",
             data={},
             error={"code": "BAD_REQUEST", "message": "context.tool_name is required"},
         )
 
     reg = _get_registry(depsd)
 
+    # Resolve role (do not trust req.role)
+    mk = _get_master_key(req)
+    scores = None
+    resolved_role = "GUEST"
+    if mk:
+        try:
+            scores = verify_owner(mk)
+            if is_samson_verified(scores):
+                resolved_role = "OWNER"
+        except Exception:
+            resolved_role = "GUEST"
+
     # -----------------------------
     # GUEST path
     # -----------------------------
-    if req.role == "GUEST":
+    if resolved_role == "GUEST":
+        deps_run = _deps_for_run(depsd, role="GUEST")
+
+        if tool_name in _GUEST_ALLOWLIST:
+            spec = reg.get(tool_name)
+            if spec is not None and bool(getattr(spec, "state_changing", False)):
+                return InterfaceResponse(
+                    ok=False,
+                    action="run_tool",
+                    role="GUEST",
+                    data={
+                        "identity_verified": False,
+                        "role": "GUEST",
+                        "allowed": False,
+                        "tool": tool_name,
+                        "result": None,
+                        "error": {
+                            "code": "TOOL_STATE_CHANGE_FORBIDDEN",
+                            "message": "State-changing tools require OWNER",
+                        },
+                    },
+                    error=None,
+                )
+
+            result = reg.run(name=tool_name, role="GUEST", deps=deps_run, args=args)
+            return InterfaceResponse(
+                ok=bool(result.ok),
+                action="run_tool",
+                role="GUEST",
+                data={
+                    "identity_verified": False,
+                    "role": "GUEST",
+                    "allowed": _allowed_from_tool_result(bool(result.ok), result.error),
+                    "tool": tool_name,
+                    "result": result.data if result.ok else None,
+                    "error": result.error if not result.ok else None,
+                },
+                error=None,
+            )
+
         spec = reg.get(tool_name)
         if spec is None:
             return InterfaceResponse(
                 ok=False,
                 action="run_tool",
-                role=req.role,
+                role="GUEST",
                 data={
                     "identity_verified": False,
                     "role": "GUEST",
@@ -250,29 +341,31 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
                 error=None,
             )
 
-        # Guest may only run: public + role allowed + not state-changing
-        if (not bool(getattr(spec, "public", False))) or (not spec.is_role_allowed("GUEST")) or bool(getattr(spec, "state_changing", False)):
+        is_public = bool(getattr(spec, "public", False))
+        is_allowed = bool(getattr(spec, "is_role_allowed", lambda r: False)("GUEST"))
+        is_state_changing = bool(getattr(spec, "state_changing", False))
+
+        if (not is_public) or (not is_allowed) or is_state_changing:
             return InterfaceResponse(
                 ok=False,
                 action="run_tool",
-                role=req.role,
+                role="GUEST",
                 data={
                     "identity_verified": False,
                     "role": "GUEST",
                     "allowed": False,
-                    "final_result": "BLOCKED_BY_POLICY",
                     "tool": tool_name,
                     "result": None,
+                    "error": {"code": "TOOL_FORBIDDEN", "message": f"GUEST not permitted for tool '{tool_name}'"},
                 },
                 error=None,
             )
 
-        result = reg.run(name=tool_name, role="GUEST", deps=depsd, args=args)
-
+        result = reg.run(name=tool_name, role="GUEST", deps=deps_run, args=args)
         return InterfaceResponse(
             ok=bool(result.ok),
             action="run_tool",
-            role=req.role,
+            role="GUEST",
             data={
                 "identity_verified": False,
                 "role": "GUEST",
@@ -285,81 +378,57 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         )
 
     # -----------------------------
-    # OWNER path (verified by master key)
+    # OWNER path
     # -----------------------------
-    mk = _get_master_key(req)
-    scores = verify_owner(mk)
-
-    if not is_samson_verified(scores):
-        return InterfaceResponse(
-            ok=True,
-            action="run_tool",
-            role=req.role,
-            data={
-                "identity_verified": False,
-                "role": "GUEST",
-                "allowed": False,
-                "final_result": "BLOCKED_BY_POLICY",
-                "scores": scores,
-                "tool": tool_name,
-                "result": None,
-            },
-            error=None,
-        )
+    deps_run = _deps_for_run(depsd, role="OWNER")
 
     spec = reg.get(tool_name)
     if spec is None:
         return InterfaceResponse(
             ok=False,
             action="run_tool",
-            role=req.role,
+            role="OWNER",
             data={},
             error={"code": "TOOL_NOT_FOUND", "message": tool_name},
         )
 
-    # -----------------------------
-    # OWNER approval gate
-    # -----------------------------
-    if bool(getattr(spec, "requires_approval", False)):
-        confirmed = bool(args.get("confirm") is True)
-        if not confirmed:
-            summary = _build_approval_summary(tool_name, args)
+    if bool(getattr(spec, "requires_approval", False)) and not confirmed:
+        summary = _build_approval_summary(tool_name, args)
 
-            _write_tool_trace(
-                deps=depsd,
-                tool_name=tool_name,
-                args=args,
-                ok=False,
-                err={"code": "NEEDS_OWNER_APPROVAL", "message": "Explicit confirmation required"},
-                approval_required=True,
-                approved=False,
-            )
+        _write_tool_trace(
+            deps=deps_run,
+            tool_name=tool_name,
+            args=args,
+            ok=False,
+            err={"code": "NEEDS_OWNER_APPROVAL", "message": "Explicit confirmation required"},
+            approval_required=True,
+            approved=False,
+        )
 
-            return InterfaceResponse(
-                ok=False,
-                action="run_tool",
-                role=req.role,
-                data={
-                    "identity_verified": True,
-                    "role": "OWNER",
-                    "allowed": False,
-                    "final_result": "NEEDS_OWNER_APPROVAL",
-                    "scores": scores,
-                    "tool": tool_name,
-                    "approval": summary,
-                },
-                error=None,
-            )
+        return InterfaceResponse(
+            ok=False,
+            action="run_tool",
+            role="OWNER",
+            data={
+                "identity_verified": True,
+                "role": "OWNER",
+                "allowed": False,
+                "final_result": "NEEDS_OWNER_APPROVAL",
+                "scores": scores,
+                "tool": tool_name,
+                "approval": summary,
+            },
+            error=None,
+        )
 
-    # Inject master_key only after approval
     args2 = dict(args)
     if mk:
-        args2["master_key"] = mk
+        args2["master_key"] = mk  # injected only after approval
 
-    result = reg.run(name=tool_name, role="OWNER", deps=depsd, args=args2)
+    result = reg.run(name=tool_name, role="OWNER", deps=deps_run, args=args2)
 
     _write_tool_trace(
-        deps=depsd,
+        deps=deps_run,
         tool_name=tool_name,
         args=args2,
         ok=bool(result.ok),
@@ -371,7 +440,7 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
     return InterfaceResponse(
         ok=bool(result.ok),
         action="run_tool",
-        role=req.role,
+        role="OWNER",
         data={
             "identity_verified": True,
             "role": "OWNER",

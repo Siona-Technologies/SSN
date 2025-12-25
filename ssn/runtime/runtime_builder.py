@@ -35,6 +35,7 @@ class _DummyPerceptionHub:
     """
     Deterministic fallback so sense_tick always works (tests / minimal installs).
     """
+
     def tick(self, world_model: Any = None, events: Any = None) -> Dict[str, Any]:
         import time
 
@@ -94,6 +95,7 @@ def _safe_setattr(obj: Any, name: str, value: Any) -> None:
 def _try_load_world_model() -> Any:
     try:
         from ssn.world.world_model import WorldModel  # type: ignore
+
         return WorldModel()
     except Exception:
         return None
@@ -141,6 +143,7 @@ def _build_orchestrator_via_bootstrap(*, output_mode: str, world_model: Any = No
         tools = getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
         if tools is not None:
             from ssn.tools.builtin_tools import register_builtin_tools  # type: ignore
+
             register_builtin_tools(tools)
     except Exception:
         # Keep fallback alive; tool layer may be unavailable in minimal installs.
@@ -231,12 +234,13 @@ class SSNRuntimeBuilder:
             or getattr(orch, "router", None)
         )
 
-        # World wiring
-        self.world_model = (
-            self.world_model
-            or getattr(orch, "world_model", None)
-            or _try_load_world_model()
-        )
+        # Prefer orchestrator's world_model if it already has one
+        orch_wm = getattr(orch, "world_model", None)
+        if orch_wm is not None:
+            self.world_model = orch_wm
+        else:
+            self.world_model = self.world_model or _try_load_world_model()
+
         self.world_context_provider = (
             self.world_context_provider
             or getattr(orch, "world_context_provider", None)
@@ -252,6 +256,7 @@ class SSNRuntimeBuilder:
         if self.suggestion_engine is None:
             try:
                 from ssn.core.suggestion_engine import SuggestionEngine  # type: ignore
+
                 self.suggestion_engine = SuggestionEngine(
                     memory_hub=self.memory_hub,
                     safety_monitor=self.safety_monitor,
@@ -262,7 +267,9 @@ class SSNRuntimeBuilder:
         # Compatibility aliases back onto orchestrator (ONLY if missing)
         _safe_setattr(orch, "tool_registry", self.tool_registry)
         _safe_setattr(orch, "memory_hub", self.memory_hub)
+        _safe_setattr(orch, "memory", self.memory_hub)  # common alias used by tools
         _safe_setattr(orch, "policy_engine", self.policy_engine)
+        _safe_setattr(orch, "policy", self.policy_engine)  # common alias used by callers
         _safe_setattr(orch, "brain_router", self.brain_router)
         _safe_setattr(orch, "world_model", self.world_model)
         _safe_setattr(orch, "world_context_provider", self.world_context_provider)
@@ -272,9 +279,17 @@ class SSNRuntimeBuilder:
         if self.perception_hub is not None:
             return self.perception_hub
 
+        # Prefer orchestrator's existing perception hub if present
+        orch = self.orchestrator
+        if orch is not None:
+            ph = getattr(orch, "perception_hub", None)
+            if ph is not None:
+                return ph
+
         # Best-effort real PerceptionHub; else dummy
         try:
             from ssn.perception.perception_hub import PerceptionHub  # type: ignore
+
             try:
                 return PerceptionHub(world_model=self.world_model, memory_hub=self.memory_hub)
             except TypeError:
@@ -327,12 +342,23 @@ class SSNRuntimeBuilder:
         deps = getattr(gateway, "deps", None)
         if isinstance(deps, dict):
             deps["orchestrator"] = self.orchestrator
-            deps["tool_registry"] = self.tool_registry  # used by handlers_tools
+
+            # Tool registry aliases used across handlers/frontdoor
+            deps["tool_registry"] = self.tool_registry
+            deps["tools"] = self.tool_registry
+
+            # Memory aliases used across tools/handlers
             deps["memory_hub"] = self.memory_hub
+            deps["memory"] = self.memory_hub
+
+            # World/perception
             deps["world_model"] = self.world_model
             deps["world_context_provider"] = self.world_context_provider
             deps["perception_hub"] = self.perception_hub
+
+            # Policy/safety/suggestions
             deps["policy_engine"] = self.policy_engine
+            deps["policy"] = self.policy_engine
             deps["safety_monitor"] = self.safety_monitor
             deps["suggestion_engine"] = self.suggestion_engine
 

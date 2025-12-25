@@ -200,7 +200,6 @@ def _http_get_text(
     max_bytes: int,
     headers: Dict[str, str],
 ) -> str:
-    # Keep headers minimal; avoid Accept-Encoding to prevent gzip surprises in urllib.
     req = Request(url, headers=headers, method="GET")
     with urlopen(req, timeout=timeout_s) as resp:
         data = resp.read(max_bytes + 1)
@@ -233,7 +232,6 @@ def _http_get_text_with_status(
             text = body.decode("utf-8", errors="replace") if isinstance(body, (bytes, bytearray)) else str(body)
         except Exception:
             text = ""
-        # Raise a BraveHTTPError so caller can add rich debug info
         raise BraveHTTPError(url=url, status=status, body_preview=_sanitize_text(text, max_len=400))
 
 
@@ -257,7 +255,6 @@ def _norm_url_for_dedupe(u: str) -> str:
             return ""
         host = (p.netloc or "").lower()
         path = p.path or "/"
-        # drop fragment, keep query (some sites encode identity in query)
         return f"{p.scheme.lower()}://{host}{path}?{p.query}"
     except Exception:
         return ""
@@ -280,7 +277,6 @@ def _score_result(query: str, r: Dict[str, Any], rank_in_provider: int) -> float
     source = str(r.get("source") or "")
     w = float(_PROVIDER_WEIGHT.get(source, 0.5))
 
-    # deterministic penalties
     rank_penalty = 0.10 * float(rank_in_provider)
     return w + 0.15 * float(overlap) + 0.10 * float(snippet_quality) - rank_penalty
 
@@ -305,24 +301,19 @@ def _merge_rank_results(
             s = _score_result(query, r, idx)
             scored.append((s, key, r))
 
-    scored.sort(key=lambda x: (-x[0], x[1]))  # deterministic tie-breaker by URL key
+    scored.sort(key=lambda x: (-x[0], x[1]))
     return [r for _, _, r in scored[:max_out]]
 
 
 # ---------------------------------------------------------
-# Provider 0: Brave Search API (reliable; requires key)
+# Provider 0: Brave Search API
 # ---------------------------------------------------------
 
 def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """
-    Returns (results, meta).
-    meta is merged into provider_debug for visibility (http_status, parse keys, etc.).
-    """
     key = _env_str("SSN_BRAVE_API_KEY")
     if not key:
         return ([], {"reason": "missing_api_key"})
 
-    # Cap Brave provider time to keep overall tool bounded even with retries
     provider_deadline = time.time() + min(4.0, float(timeout_s))
 
     q = quote_plus(_clip_query(query, _MAX_QUERY_LEN))
@@ -335,7 +326,7 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> T
     if lang:
         url += f"&search_lang={quote_plus(lang)}"
 
-    backoffs = (0.25, 0.75)  # deterministic, bounded (total attempts = 3)
+    backoffs = (0.25, 0.75)
 
     last_meta: Dict[str, Any] = {"url": url}
 
@@ -372,7 +363,6 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> T
             results = (web.get("results") if isinstance(web, dict) else None) or []
             if not isinstance(results, list) or not results:
                 last_meta["reason"] = "empty_results"
-                # include extra shape hints for debugging
                 if debug and isinstance(web, dict):
                     last_meta["web_keys"] = sorted(list(web.keys()))[:30]
                     try:
@@ -428,7 +418,7 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> T
 
 
 # ---------------------------------------------------------
-# Provider 1: DuckDuckGo HTML parsing
+# Provider 1: DuckDuckGo HTML
 # ---------------------------------------------------------
 
 _RE_RESULT_A = re.compile(
@@ -481,7 +471,7 @@ def _ddg_html_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 
 
 # ---------------------------------------------------------
-# Provider 2: DuckDuckGo Lite parsing (fallback)
+# Provider 2: DuckDuckGo Lite
 # ---------------------------------------------------------
 
 _RE_LITE_LINK = re.compile(
@@ -532,7 +522,7 @@ def _ddg_lite_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 
 
 # ---------------------------------------------------------
-# Provider 3: Wikipedia OpenSearch (reliable, no key)
+# Provider 3: Wikipedia OpenSearch
 # ---------------------------------------------------------
 
 def _wiki_normalize_query(q: str) -> str:
@@ -582,23 +572,30 @@ def _wiki_opensearch(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 
 
 # ---------------------------------------------------------
-# Mock fallback (deterministic + stable URL)
+# Mock fallback (deterministic)
 # ---------------------------------------------------------
 
 def _mock_results(query: str, *, top_k: int) -> List[Dict[str, Any]]:
-    stable_url = "https://example.com/"
+    """
+    Deterministic mock results for stable tests.
+
+    - retrieved_at is fixed (0.0) to avoid snapshot drift
+    - URL is unique per result so downstream pipeline can distinguish sources
+    """
+    q = quote_plus(_clip_query(query, 120))
+    base = "https://example.com/search"
     results: List[Dict[str, Any]] = []
     for i in range(top_k):
         results.append(
             {
                 "title": _sanitize_text(f"Simulated search result {i + 1} for '{query}'", max_len=140),
-                "url": stable_url,
+                "url": f"{base}?q={q}&i={i+1}",
                 "snippet": _sanitize_text(
                     "This is a simulated search result used for safe pipeline testing.",
                     max_len=300,
                 ),
                 "source": "mock-search",
-                "retrieved_at": time.time(),
+                "retrieved_at": 0.0,
             }
         )
     return results
@@ -619,7 +616,6 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
     top_k = max(1, min(_safe_int(args.get("top_k"), 5), 10))
 
-    # Phase 7.3 hardening args
     preferred = args.get("preferred_provider")
     preferred_provider = str(preferred).strip().lower() if isinstance(preferred, str) and preferred.strip() else None
 
@@ -629,14 +625,12 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
     forced_offline = os.getenv("SSN_OFFLINE") == "1"
     debug = _safe_bool(args.get("debug"), default=False)
 
-    # live: args overrides env if explicitly provided
     env_live = os.getenv("SSN_LIVE_SEARCH") == "1"
     if "live" in args:
         live = _safe_bool(args.get("live"), default=False) and not forced_offline
     else:
         live = env_live and not forced_offline
 
-    # strict: args overrides env if explicitly provided
     env_strict = os.getenv("SSN_LIVE_STRICT") == "1"
     if "strict" in args:
         strict_live = _safe_bool(args.get("strict"), default=False)
@@ -685,7 +679,6 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
                 "result_count": len(res) if res else 0,
                 "elapsed_ms": int((time.time() - t0) * 1000),
             }
-            # Merge meta into provider_debug so we can see Brave HTTP status/body preview, etc.
             if isinstance(meta, dict) and meta:
                 for k, v in meta.items():
                     if k not in dbg:
@@ -767,7 +760,6 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             )
             return []
 
-    # Wrap Brave so we can pass debug flag without changing the generic provider signature.
     def _brave_provider(q: str, *, top_k: int, timeout_s: float) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         return _brave_search(q, top_k=top_k, timeout_s=timeout_s, debug=debug)
 
@@ -785,7 +777,7 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
     for name, fn in providers:
         if name == "brave-search" and not _env_str("SSN_BRAVE_API_KEY"):
-            providers_tried.append("brave-search (missing SSN_BRAVE_API_KEY)")
+            providers_tried.append("brave-search")
             provider_debug.append({"provider": "brave-search", "ok": False, "reason": "missing_api_key", "result_count": 0})
             continue
 
@@ -810,7 +802,6 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             out["provider_debug"] = provider_debug
         return out
 
-    # STRICT means: do NOT fall back to mock
     if strict_live:
         err = {
             "code": "SEARCH_NO_RESULTS",

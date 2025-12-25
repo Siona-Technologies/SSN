@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 import ipaddress
 import os
 import socket
@@ -174,7 +173,12 @@ def _gzip_magic(raw: bytes) -> bool:
 
 def _zlib_magic(raw: bytes) -> bool:
     # common zlib headers: 0x78 0x01 / 0x78 0x9C / 0x78 0xDA
-    return isinstance(raw, (bytes, bytearray)) and len(raw) >= 2 and raw[0] == 0x78 and raw[1] in (0x01, 0x9C, 0xDA)
+    return (
+        isinstance(raw, (bytes, bytearray))
+        and len(raw) >= 2
+        and raw[0] == 0x78
+        and raw[1] in (0x01, 0x9C, 0xDA)
+    )
 
 
 def _safe_decompress_gzip(raw: bytes, *, max_out: int) -> bytes:
@@ -183,7 +187,6 @@ def _safe_decompress_gzip(raw: bytes, *, max_out: int) -> bytes:
     """
     dobj = zlib.decompressobj(16 + zlib.MAX_WBITS)
     out = bytearray()
-    # small chunks to cap output growth
     chunk_size = 32_768
     for i in range(0, len(raw), chunk_size):
         piece = raw[i : i + chunk_size]
@@ -201,6 +204,7 @@ def _safe_decompress_deflate(raw: bytes, *, max_out: int) -> Tuple[bytes, str]:
     - try zlib-wrapped first
     - then raw DEFLATE
     """
+
     def _stream(wbits: int) -> bytes:
         dobj = zlib.decompressobj(wbits)
         out = bytearray()
@@ -248,12 +252,10 @@ def _looks_like_binary(text: str) -> bool:
     if not isinstance(text, str) or not text:
         return False
 
-    # replacement char density
     rep = text.count("\ufffd")
     if rep > max(8, len(text) // 40):  # >2.5%
         return True
 
-    # control chars density (excluding \n\t\r)
     bad_ctrl = 0
     for ch in text:
         o = ord(ch)
@@ -365,6 +367,15 @@ def net_fetch_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, A
 
     opener = build_opener(_SafeRedirectHandler())
 
+    final_url = url
+    status = 0
+    raw_ct = "application/octet-stream"
+    ct = "application/octet-stream"
+    ce = "identity"
+    decoded_from = "identity"
+    decoded_bytes: bytes = b""
+    truncated = False
+
     try:
         with opener.open(req, timeout=timeout_s) as resp:
             status = int(getattr(resp, "status", 200) or 200)
@@ -412,7 +423,10 @@ def net_fetch_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, A
                     decoded_bytes, which = _safe_decompress_deflate(raw, max_out=max_bytes)
                     decoded_from = f"{which}(sniff)"
 
-            truncated = bool(raw_truncated)
+            # Truncation is true if:
+            # - we truncated compressed read, OR
+            # - decoded output hit max_bytes cap
+            truncated = bool(raw_truncated) or (len(decoded_bytes) >= max_bytes)
 
     except _SSRFRedirectBlocked as e:
         return {"error": {"code": "SSRF_BLOCKED", "message": f"Redirect blocked: {e}"}}
@@ -424,7 +438,7 @@ def net_fetch_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, A
     except Exception as e:
         return {"error": {"code": "FETCH_FAILED", "message": f"Fetch failed: {e}"}}
 
-    text = _decode_text(decoded_bytes, charset)
+    text = _decode_text(decoded_bytes, _infer_charset(raw_ct))
 
     # Guard: if it decodes but looks like binary junk, fail explicitly (prevents poisoning sanitize/cite).
     if _looks_like_binary(text):
@@ -448,7 +462,10 @@ def net_fetch_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, A
         "fetched_at": time.time(),
         "truncated": bool(truncated),
         "degraded": False,
-        "note": "Live net.fetch (urllib, SSRF-protected, bounded, redirect-validated, content-type allowlist, safe streaming decode + sniff fallback)",
+        "note": (
+            "Live net.fetch (urllib, SSRF-protected, bounded, redirect-validated, "
+            "content-type allowlist, safe streaming decode + sniff fallback)"
+        ),
     }
 
 

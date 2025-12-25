@@ -679,22 +679,26 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
         # 4) net.cite (pass query for better relevance)
         try:
+            cite_args: Dict[str, Any] = {
+                "url": url,
+                "clean_text": clean_text,
+                "query": query,
+                "title": title,
+                "snippet": snippet,
+                "content_type": "text/plain",
+                "max_quotes": max_quotes,
+                "quote_len": quote_len,
+            }
+            # IMPORTANT: do not fake epoch 0; only pass if we have a real timestamp
+            if retrieved_at_f is not None:
+                cite_args["retrieved_at"] = retrieved_at_f
+
             cite_data = _run_tool(
                 registry,
                 name="net.cite",
                 role=role,
                 deps=deps,
-                args={
-                    "url": url,
-                    "clean_text": clean_text,
-                    "query": query,
-                    "title": title,
-                    "snippet": snippet,
-                    "retrieved_at": retrieved_at_f if retrieved_at_f is not None else 0,
-                    "content_type": "text/plain",
-                    "max_quotes": max_quotes,
-                    "quote_len": quote_len,
-                },
+                args=cite_args,
             )
             citations = cite_data.get("citations", [])
             if isinstance(citations, list):
@@ -818,3 +822,10 @@ RESEARCH_ANSWER_T = ToolSpec(
     },
     handler=research_answer_handler,
 )
+
+
+def register_research_tools(registry: Any) -> None:
+    """
+    Explicit registration hook for builtin_tools.py.
+    """
+    registry.register(RESEARCH_ANSWER_T)

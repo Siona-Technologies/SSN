@@ -146,7 +146,6 @@ def _build_orchestrator_via_bootstrap(*, output_mode: str, world_model: Any = No
 
             register_builtin_tools(tools)
     except Exception:
-        # Keep fallback alive; tool layer may be unavailable in minimal installs.
         pass
 
     return orch
@@ -207,32 +206,16 @@ class SSNRuntimeBuilder:
             return
 
         # Tool registry is canonical on orch.tools
-        self.tool_registry = (
-            self.tool_registry
-            or getattr(orch, "tools", None)
-            or getattr(orch, "tool_registry", None)
-        )
+        self.tool_registry = self.tool_registry or getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
 
         # Memory hub: orch may expose memory_hub or memory
-        self.memory_hub = (
-            self.memory_hub
-            or getattr(orch, "memory_hub", None)
-            or getattr(orch, "memory", None)
-        )
+        self.memory_hub = self.memory_hub or getattr(orch, "memory_hub", None) or getattr(orch, "memory", None)
 
         # Policy engine: orch may expose policy_engine or policy
-        self.policy_engine = (
-            self.policy_engine
-            or getattr(orch, "policy_engine", None)
-            or getattr(orch, "policy", None)
-        )
+        self.policy_engine = self.policy_engine or getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
 
         # Brain router: orch may expose brain_router or router
-        self.brain_router = (
-            self.brain_router
-            or getattr(orch, "brain_router", None)
-            or getattr(orch, "router", None)
-        )
+        self.brain_router = self.brain_router or getattr(orch, "brain_router", None) or getattr(orch, "router", None)
 
         # Prefer orchestrator's world_model if it already has one
         orch_wm = getattr(orch, "world_model", None)
@@ -241,10 +224,7 @@ class SSNRuntimeBuilder:
         else:
             self.world_model = self.world_model or _try_load_world_model()
 
-        self.world_context_provider = (
-            self.world_context_provider
-            or getattr(orch, "world_context_provider", None)
-        )
+        self.world_context_provider = self.world_context_provider or getattr(orch, "world_context_provider", None)
 
         # Safety monitor usually hangs off policy
         if self.safety_monitor is None and self.policy_engine is not None:
@@ -267,9 +247,9 @@ class SSNRuntimeBuilder:
         # Compatibility aliases back onto orchestrator (ONLY if missing)
         _safe_setattr(orch, "tool_registry", self.tool_registry)
         _safe_setattr(orch, "memory_hub", self.memory_hub)
-        _safe_setattr(orch, "memory", self.memory_hub)  # common alias used by tools
+        _safe_setattr(orch, "memory", self.memory_hub)
         _safe_setattr(orch, "policy_engine", self.policy_engine)
-        _safe_setattr(orch, "policy", self.policy_engine)  # common alias used by callers
+        _safe_setattr(orch, "policy", self.policy_engine)
         _safe_setattr(orch, "brain_router", self.brain_router)
         _safe_setattr(orch, "world_model", self.world_model)
         _safe_setattr(orch, "world_context_provider", self.world_context_provider)
@@ -279,14 +259,12 @@ class SSNRuntimeBuilder:
         if self.perception_hub is not None:
             return self.perception_hub
 
-        # Prefer orchestrator's existing perception hub if present
         orch = self.orchestrator
         if orch is not None:
             ph = getattr(orch, "perception_hub", None)
             if ph is not None:
                 return ph
 
-        # Best-effort real PerceptionHub; else dummy
         try:
             from ssn.perception.perception_hub import PerceptionHub  # type: ignore
 
@@ -298,31 +276,23 @@ class SSNRuntimeBuilder:
             return _DummyPerceptionHub()
 
     def build(self) -> SSNRuntime:
-        # Guarantee orchestrator (canonical bootstrap path)
         if self.orchestrator is None:
             wm = self.world_model if self.world_model is not None else _try_load_world_model()
             self.world_model = wm
-            self.orchestrator = _build_orchestrator_via_bootstrap(
-                output_mode=self.output_mode,
-                world_model=wm,
-            )
+            self.orchestrator = _build_orchestrator_via_bootstrap(output_mode=self.output_mode, world_model=wm)
 
-        # Pull canonical refs from orchestrator
         self._pull_from_orchestrator()
 
-        # Production fail-fast: if tools are missing, you are not wired correctly.
         if self.tool_registry is None:
             raise RuntimeError(
                 "ToolRegistry not wired (orchestrator.tools/tool_registry is None). "
                 "Bootstrap must construct Orchestrator with a ToolRegistry."
             )
 
-        # Perception hub
         self.perception_hub = self._build_perception_hub()
         _safe_setattr(self.orchestrator, "perception_hub", self.perception_hub)
 
-        # Legacy tool bus (InterfaceGateway action="tool") — keep empty/legacy-safe
-        # DO NOT register ToolRegistry ToolSpecs into ToolBus (different handler signatures).
+        # Legacy tool bus — keep empty/legacy-safe
         tool_bus = ToolBus()
 
         gateway = InterfaceGateway(
@@ -338,10 +308,25 @@ class SSNRuntimeBuilder:
             perception_hub=self.perception_hub,
         )
 
-        # CRITICAL: ensure interface handlers share the SAME deps (no split-brain)
+        # OPTIONAL but useful for later phases: let orchestrator know its canonical interface gateway
+        _safe_setattr(self.orchestrator, "interface_gateway", gateway)
+
+        # Ensure deps exists
         deps = getattr(gateway, "deps", None)
+        if deps is None:
+            try:
+                setattr(gateway, "deps", {})
+                deps = gateway.deps
+            except Exception:
+                deps = None
+
+        # CRITICAL: ensure interface handlers share the SAME deps (no split-brain)
         if isinstance(deps, dict):
             deps["orchestrator"] = self.orchestrator
+
+            # Provide gateway aliases so FrontDoor (and future interfaces) can reuse it without manual injection
+            deps["gateway"] = gateway
+            deps["interface_gateway"] = gateway
 
             # Tool registry aliases used across handlers/frontdoor
             deps["tool_registry"] = self.tool_registry
@@ -361,6 +346,11 @@ class SSNRuntimeBuilder:
             deps["policy"] = self.policy_engine
             deps["safety_monitor"] = self.safety_monitor
             deps["suggestion_engine"] = self.suggestion_engine
+
+            # OFFLINE propagation (single source of truth for tools)
+            # - env SSN_OFFLINE=1 still works
+            # - FrontDoor/CLI can set deps["offline"]=True and tools will honor it
+            deps.setdefault("offline", False)
 
         shell = AgentShell(gateway=gateway, default_role=self.default_role)
 

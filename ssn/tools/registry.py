@@ -1,5 +1,5 @@
 # ssn/tools/registry.py
-# Version: 2025-12-24 v1.1
+# Version: 2025-12-25 v1.2 (policy-gated tools)
 
 from __future__ import annotations
 
@@ -211,6 +211,81 @@ class ToolRegistry:
             "used_in_current_window": used,
         }
 
+    @staticmethod
+    def _extract_context(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Best-effort: locate request context for policy gating.
+        """
+        if isinstance(args, dict):
+            c = args.get("context")
+            if isinstance(c, dict):
+                return c
+        for k in ("context", "ctx", "frontdoor_context", "request_context"):
+            v = deps.get(k)
+            if isinstance(v, dict):
+                return v
+        return {}
+
+    @staticmethod
+    def _extract_meta(deps: Dict[str, Any], args: Dict[str, Any], ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Best-effort: meta is optional; never required.
+        """
+        if isinstance(args, dict):
+            m = args.get("meta")
+            if isinstance(m, dict):
+                return m
+        m2 = deps.get("meta")
+        if isinstance(m2, dict):
+            return m2
+        if isinstance(ctx, dict):
+            mm = ctx.get("meta")
+            if isinstance(mm, dict):
+                return mm
+        return None
+
+    @staticmethod
+    def _resolve_policy_engine(deps: Dict[str, Any]) -> Any:
+        """
+        Prefer explicit deps['policy_engine'] / deps['policy'].
+        Fallback: orchestrator.policy_engine / orchestrator.policy
+        """
+        pe = deps.get("policy_engine") or deps.get("policy")
+        if pe is not None:
+            return pe
+        orch = deps.get("orchestrator")
+        if orch is not None:
+            return getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
+        return None
+
+    def _policy_allows_tool(self, *, name: str, role: str, deps: Dict[str, Any], args: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Minimal policy gate for tools:
+        - OWNER: always allow (Home Law override)
+        - NON-OWNER: require PolicyEngine to allow the action (uses context gating logic)
+        """
+        r = str(role or "GUEST").upper()
+        if r == "OWNER":
+            return None
+
+        pe = self._resolve_policy_engine(deps)
+        if pe is None or not callable(getattr(pe, "check_permission", None)):
+            # No policy engine available => fail closed for non-owner tools.
+            return {"code": "TOOL_POLICY_MISSING", "message": "Policy engine missing; non-owner tool execution blocked."}
+
+        ctx = self._extract_context(deps, args)
+        meta = self._extract_meta(deps, args, ctx)
+
+        try:
+            allowed = bool(pe.check_permission(role=r, action=name, context=ctx, meta=meta))
+        except Exception as e:
+            return {"code": "TOOL_POLICY_ERROR", "message": f"Policy check error: {e}"}
+
+        if not allowed:
+            return {"code": "TOOL_POLICY_DENY", "message": f"Policy denied tool '{name}' for role={r}."}
+
+        return None
+
     # -----------------------------
     # Execution
     # -----------------------------
@@ -220,6 +295,7 @@ class ToolRegistry:
         if spec is None:
             return ToolResult(ok=False, tool=name, role=r, data={}, error={"code": "TOOL_NOT_FOUND", "message": name})
 
+        # ToolSpec role gate (fast gate)
         if not self._is_role_allowed(spec, r):
             return ToolResult(
                 ok=False,
@@ -229,6 +305,12 @@ class ToolRegistry:
                 error={"code": "TOOL_FORBIDDEN", "message": f"Role '{r}' not allowed for tool '{name}'"},
             )
 
+        # Policy gate (non-owner tools require explicit policy/context permission)
+        pol_err = self._policy_allows_tool(name=name, role=r, deps=deps, args=(args if isinstance(args, dict) else {}))
+        if pol_err is not None:
+            return ToolResult(ok=False, tool=name, role=r, data={}, error=pol_err)
+
+        # State-changing tools require OWNER (existing behavior)
         if not self._is_state_change_allowed(spec, r):
             return ToolResult(
                 ok=False,
@@ -250,8 +332,7 @@ class ToolRegistry:
             if not isinstance(out, dict):
                 out = {"result": out}
 
-            # Handler-level error normalization:
-            # If handler returns {"error": {...}}, treat it as ok=False.
+            # Handler-level error normalization
             if out.get("error"):
                 err = out.get("error")
                 if not isinstance(err, dict):

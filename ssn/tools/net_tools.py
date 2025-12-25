@@ -26,6 +26,7 @@ Enable live search:
 
 Force offline:
 - env SSN_OFFLINE=1  (always mock)
+- OR deps.offline=True / args.offline=True (FrontDoor/CLI offline flag propagation)
 
 Strict live:
 - args {"strict": True} OR env SSN_LIVE_STRICT=1
@@ -53,7 +54,6 @@ from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
 
 from ssn.tools.contracts import ToolSpec
-
 
 # ---------------------------------------------------------
 # Helpers
@@ -215,7 +215,8 @@ def _http_get_text_with_status(
     headers: Dict[str, str],
 ) -> Tuple[int, str]:
     """
-    Like _http_get_text but also returns HTTP status. For HTTPError, returns status + body.
+    Like _http_get_text but also returns HTTP status.
+    For HTTPError, raises BraveHTTPError including status + body preview.
     """
     req = Request(url, headers=headers, method="GET")
     try:
@@ -255,6 +256,7 @@ def _norm_url_for_dedupe(u: str) -> str:
             return ""
         host = (p.netloc or "").lower()
         path = p.path or "/"
+        # keep query because some providers return canonical pages with query identifiers
         return f"{p.scheme.lower()}://{host}{path}?{p.query}"
     except Exception:
         return ""
@@ -305,11 +307,70 @@ def _merge_rank_results(
     return [r for _, _, r in scored[:max_out]]
 
 
+def _offline_requested(deps: Dict[str, Any], args: Dict[str, Any]) -> bool:
+    """
+    FrontDoor/CLI may run with --offline without setting SSN_OFFLINE.
+    Respect:
+      - env SSN_OFFLINE=1
+      - args.offline=True (if caller passes)
+      - deps.offline=True (if runtime injects)
+    """
+    if os.getenv("SSN_OFFLINE") == "1":
+        return True
+    if isinstance(args, dict) and bool(args.get("offline", False)):
+        return True
+    if isinstance(deps, dict) and bool(deps.get("offline", False)):
+        return True
+    return False
+
+
+def _ctx_flag(ctx: Any, key: str, default: bool = False) -> bool:
+    if not isinstance(ctx, dict):
+        return default
+    v = ctx.get(key, default)
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("1", "true", "yes", "y", "on"):
+            return True
+        if s in ("0", "false", "no", "n", "off"):
+            return False
+    return bool(default)
+
+
+def _guest_context_allows_research(deps: Dict[str, Any], args: Dict[str, Any]) -> bool:
+    """
+    Tool-level safety backstop for GUEST:
+    only allow when context.allow_tools==True AND context.allow_research==True.
+
+    Context may be provided either in:
+      - args["context"] (preferred passthrough)
+      - deps["context"] (if runtime injects it)
+    """
+    ctx = {}
+    if isinstance(deps, dict) and isinstance(deps.get("context"), dict):
+        ctx = deps.get("context")  # type: ignore[assignment]
+    if isinstance(args, dict) and isinstance(args.get("context"), dict):
+        ctx = args.get("context")  # type: ignore[assignment]
+
+    allow_tools = _ctx_flag(ctx, "allow_tools", default=False)
+    allow_research = _ctx_flag(ctx, "allow_research", default=False)
+    return bool(allow_tools and allow_research)
+
+
 # ---------------------------------------------------------
 # Provider 0: Brave Search API
 # ---------------------------------------------------------
 
-def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+
+def _brave_search(
+    query: str,
+    *,
+    top_k: int,
+    timeout_s: float,
+    debug: bool,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     key = _env_str("SSN_BRAVE_API_KEY")
     if not key:
         return ([], {"reason": "missing_api_key"})
@@ -327,7 +388,6 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> T
         url += f"&search_lang={quote_plus(lang)}"
 
     backoffs = (0.25, 0.75)
-
     last_meta: Dict[str, Any] = {"url": url}
 
     for attempt in range(1 + len(backoffs)):
@@ -365,10 +425,6 @@ def _brave_search(query: str, *, top_k: int, timeout_s: float, debug: bool) -> T
                 last_meta["reason"] = "empty_results"
                 if debug and isinstance(web, dict):
                     last_meta["web_keys"] = sorted(list(web.keys()))[:30]
-                    try:
-                        last_meta["web_results_type"] = str(type(web.get("results")))
-                    except Exception:
-                        pass
                 return ([], last_meta)
 
             out: List[Dict[str, Any]] = []
@@ -525,6 +581,7 @@ def _ddg_lite_search(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 # Provider 3: Wikipedia OpenSearch
 # ---------------------------------------------------------
 
+
 def _wiki_normalize_query(q: str) -> str:
     q = (q or "").strip()
     q = re.sub(r'-"[^"]+"', " ", q)
@@ -575,15 +632,18 @@ def _wiki_opensearch(query: str, *, top_k: int, timeout_s: float) -> List[Dict[s
 # Mock fallback (deterministic)
 # ---------------------------------------------------------
 
+
 def _mock_results(query: str, *, top_k: int) -> List[Dict[str, Any]]:
     """
     Deterministic mock results for stable tests.
 
-    - retrieved_at is fixed (0.0) to avoid snapshot drift
-    - URL is unique per result so downstream pipeline can distinguish sources
+    IMPORTANT FIX:
+    - Use example.com ROOT with query params, NOT /search (which returns 404).
+      This prevents net.fetch from failing with HTTP 404 if offline flags were not
+      propagated correctly.
     """
     q = quote_plus(_clip_query(query, 120))
-    base = "https://example.com/search"
+    base = "https://example.com/"
     results: List[Dict[str, Any]] = []
     for i in range(top_k):
         results.append(
@@ -609,6 +669,17 @@ ProviderReturn = Union[List[Dict[str, Any]], Tuple[List[Dict[str, Any]], Dict[st
 
 
 def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    # Tool-level backstop: if called as GUEST, require explicit allow_tools+allow_research gate.
+    role = str((deps or {}).get("role") or "GUEST").upper()
+    if role != "OWNER":
+        if not _guest_context_allows_research(deps, args):
+            return {
+                "error": {
+                    "code": "TOOL_FORBIDDEN",
+                    "message": "GUEST net.search requires context.allow_tools=true and context.allow_research=true",
+                }
+            }
+
     query = args.get("query")
     if not isinstance(query, str) or not query.strip():
         return {"error": {"code": "INVALID_QUERY", "message": "Missing or invalid 'query' string"}}
@@ -622,8 +693,10 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
     min_results = _safe_int(args.get("min_results"), min(5, top_k))
     min_results = max(1, min(min_results, top_k))
 
-    forced_offline = os.getenv("SSN_OFFLINE") == "1"
     debug = _safe_bool(args.get("debug"), default=False)
+
+    # OFFLINE (env OR args OR deps) must hard-force mock
+    forced_offline = _offline_requested(deps, args)
 
     env_live = os.getenv("SSN_LIVE_SEARCH") == "1"
     if "live" in args:
@@ -642,7 +715,7 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
     if not live:
         results = _mock_results(query, top_k=top_k)
-        out = {
+        out: Dict[str, Any] = {
             "query": query,
             "provider": "mock-search",
             "providers_tried": ["mock-search"],
@@ -652,7 +725,15 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             "note": "Simulated net.search (offline-safe; set live=True or SSN_LIVE_SEARCH=1 for real search)",
         }
         if debug:
-            out["provider_debug"] = [{"provider": "mock-search", "ok": True, "reason": None, "result_count": len(results)}]
+            out["provider_debug"] = [
+                {
+                    "provider": "mock-search",
+                    "ok": True,
+                    "reason": None,
+                    "result_count": len(results),
+                    "forced_offline": forced_offline,
+                }
+            ]
         return out
 
     providers_tried: List[str] = []
@@ -672,7 +753,7 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             else:
                 res = res_any  # type: ignore[assignment]
 
-            dbg = {
+            dbg: Dict[str, Any] = {
                 "provider": name,
                 "ok": bool(res),
                 "reason": None if res else (meta.get("reason") or "empty"),
@@ -778,7 +859,9 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
     for name, fn in providers:
         if name == "brave-search" and not _env_str("SSN_BRAVE_API_KEY"):
             providers_tried.append("brave-search")
-            provider_debug.append({"provider": "brave-search", "ok": False, "reason": "missing_api_key", "result_count": 0})
+            provider_debug.append(
+                {"provider": "brave-search", "ok": False, "reason": "missing_api_key", "result_count": 0}
+            )
             continue
 
         res = _try(fn, name)
@@ -789,7 +872,7 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 
     if batches:
         ranked = _merge_rank_results(query, batches, max_out=top_k)
-        out = {
+        out2: Dict[str, Any] = {
             "query": query,
             "provider": "ranked-aggregate",
             "providers_tried": providers_tried,
@@ -799,11 +882,11 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
             "note": "Live net.search (ranked aggregate, bounded)",
         }
         if debug:
-            out["provider_debug"] = provider_debug
-        return out
+            out2["provider_debug"] = provider_debug
+        return out2
 
     if strict_live:
-        err = {
+        err: Dict[str, Any] = {
             "code": "SEARCH_NO_RESULTS",
             "message": f"No results parsed from providers. tried={providers_tried}",
             "providers_tried": providers_tried,
@@ -813,7 +896,7 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
         return {"error": err}
 
     mock = _mock_results(query, top_k=top_k)
-    out = {
+    out3: Dict[str, Any] = {
         "query": query,
         "provider": "mock-search",
         "providers_tried": providers_tried + ["mock-search"],
@@ -823,8 +906,10 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
         "note": f"Live net.search unavailable (providers blocked/empty). FELL BACK to mock. tried={providers_tried}",
     }
     if debug:
-        out["provider_debug"] = provider_debug + [{"provider": "mock-search", "ok": True, "reason": None, "result_count": len(mock)}]
-    return out
+        out3["provider_debug"] = provider_debug + [
+            {"provider": "mock-search", "ok": True, "reason": None, "result_count": len(mock)}
+        ]
+    return out3
 
 
 # ---------------------------------------------------------
@@ -834,8 +919,8 @@ def net_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, 
 NET_SEARCH_T = ToolSpec(
     name="net.search",
     description="Read-only network search (safe, bounded, offline-compatible; live optional with fallback).",
-    required_role="OWNER",
-    allowed_roles=("OWNER",),
+    required_role="GUEST",
+    allowed_roles=("OWNER", "GUEST"),
     state_changing=False,
     external_effect=True,
     public=False,
@@ -843,12 +928,22 @@ NET_SEARCH_T = ToolSpec(
     input_schema={
         "query": {"type": "string", "required": True, "description": "Search query"},
         "top_k": {"type": "integer", "required": False, "description": "Number of results (1–10)"},
-        "min_results": {"type": "integer", "required": False, "description": "Try providers until at least this many raw results are collected (1–top_k)"},
-        "preferred_provider": {"type": "string", "required": False, "description": "Optional preferred provider: brave-search | duckduckgo-html | duckduckgo-lite | wikipedia-opensearch"},
+        "min_results": {
+            "type": "integer",
+            "required": False,
+            "description": "Try providers until at least this many raw results are collected (1–top_k)",
+        },
+        "preferred_provider": {
+            "type": "string",
+            "required": False,
+            "description": "Optional preferred provider: brave-search | duckduckgo-html | duckduckgo-lite | wikipedia-opensearch",
+        },
         "live": {"type": "boolean", "required": False, "description": "Enable live search (default env or False)"},
         "timeout_s": {"type": "integer", "required": False, "description": "Timeout seconds (2–20)"},
         "strict": {"type": "boolean", "required": False, "description": "Strict live: no mock fallback"},
         "debug": {"type": "boolean", "required": False, "description": "Include provider_debug diagnostics"},
+        "offline": {"type": "boolean", "required": False, "description": "Force deterministic offline simulation (tests/CLI)"},
+        "context": {"type": "object", "required": False, "description": "Optional context passthrough for gating (allow_tools/allow_research)"},
     },
     handler=net_search_handler,
 )

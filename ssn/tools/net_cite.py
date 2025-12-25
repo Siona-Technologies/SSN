@@ -10,11 +10,17 @@ Purpose:
 - Convert sanitized text into bounded citation objects (evidence snippets)
 - Emits provenance (url/title/retrieved_at/content_type) + stable hashes for audit
 - Deterministic, boilerplate-aware extraction (better than naive chunking)
+
+Hardening additions (minimal, non-destructive):
+- Stable captured_at when offline (env/deps/args) to keep tests deterministic
+- Optional args.offline support (propagation from FrontDoor/CLI)
+- Allow GUEST execution at tool layer (policy still gates via allow_tools/allow_research)
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -104,6 +110,34 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except Exception:
         return default
+
+
+def _safe_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("1", "true", "yes", "y", "on"):
+            return True
+        if v in ("0", "false", "no", "n", "off"):
+            return False
+    return default
+
+
+def _offline_requested(deps: Dict[str, Any], args: Dict[str, Any]) -> bool:
+    """
+    Offline compatibility for deterministic tests:
+      - env SSN_OFFLINE=1
+      - args.offline=True
+      - deps.offline=True
+    """
+    if os.getenv("SSN_OFFLINE") == "1":
+        return True
+    if isinstance(args, dict) and _safe_bool(args.get("offline"), default=False):
+        return True
+    if isinstance(deps, dict) and _safe_bool(deps.get("offline"), default=False):
+        return True
+    return False
 
 
 def _truncate_on_word_boundary(text: str, max_len: int) -> str:
@@ -276,7 +310,6 @@ def _sentence_windows(para: str) -> List[str]:
         return []
 
     out: List[str] = []
-
     for i in range(len(sents)):
         out.append(sents[i])
         if i + 1 < len(sents):
@@ -449,7 +482,8 @@ def net_cite_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, An
 
     clean_text = clean_text[:DEFAULT_MAX_TEXT_CHARS]
 
-    captured_at = time.time()
+    # Offline stability: keep timestamps deterministic for tests
+    captured_at = 0.0 if _offline_requested(deps, args) else time.time()
 
     flat_text = _normalize_ws_flat(clean_text)
     text_sha256 = _sha256_hex(flat_text)
@@ -518,8 +552,10 @@ def net_cite_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, An
 NET_CITE_T = ToolSpec(
     name="net.cite",
     description="Create bounded citation snippets from sanitized text (read-only, boilerplate-aware, provenance+hashes).",
-    required_role="OWNER",
-    allowed_roles=("OWNER",),
+    # IMPORTANT for your goal (“GUEST can research when context allows”):
+    # Tool layer must allow it; policy still gates the behavior.
+    required_role="GUEST",
+    allowed_roles=("OWNER", "GUEST"),
     state_changing=False,
     external_effect=False,
     public=False,
@@ -535,6 +571,11 @@ NET_CITE_T = ToolSpec(
         "snippet": {"type": "string", "required": False, "description": "Search snippet (optional)"},
         "retrieved_at": {"type": "number", "required": False, "description": "When content was retrieved (epoch seconds)"},
         "content_type": {"type": "string", "required": False, "description": "Content type (optional)"},
+        "offline": {"type": "boolean", "required": False, "description": "Force deterministic offline behavior (tests)"},
     },
     handler=net_cite_handler,
 )
+
+
+def register_net_cite_tools(registry: Any) -> None:
+    registry.register(NET_CITE_T)

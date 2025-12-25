@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterable
 
 from ssn.interfaces.contracts import InterfaceRequest, InterfaceResponse, ErrorInfo
 from ssn.interfaces.handlers import HANDLERS
@@ -19,6 +19,100 @@ def _is_registry_like(obj: Any) -> bool:
         if not callable(getattr(obj, attr, None)):
             return False
     return True
+
+
+# -----------------------------
+# Secret redaction (gateway-level)
+# -----------------------------
+_SECRET_KEYS_EXACT = {
+    "master_key",
+    "ssn_master_key",
+    "api_key",
+    "apikey",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "bearer",
+    "secret",
+    "password",
+    "passwd",
+    "private_key",
+    "privatekey",
+    "client_secret",
+}
+_SECRET_KEY_PREFIXES = (
+    "auth",
+    "bearer",
+    "token",
+    "secret",
+    "password",
+    "private",
+    "access_",
+    "refresh_",
+    "api_key",
+)
+
+
+def _is_secret_key_name(name: str) -> bool:
+    k = (name or "").strip().lower()
+    if not k:
+        return False
+    if k in _SECRET_KEYS_EXACT:
+        return True
+    return any(k.startswith(p) for p in _SECRET_KEY_PREFIXES)
+
+
+def _redact_str(s: str, secrets: Iterable[str]) -> str:
+    out = s
+    for sec in secrets:
+        if isinstance(sec, str) and sec and sec in out:
+            out = out.replace(sec, "[REDACTED]")
+    return out
+
+
+def _scrub_obj(x: Any, *, secrets: Iterable[str]) -> Any:
+    """
+    1) Remove secret-looking keys (master_key, token, etc.) from dicts.
+    2) Redact secret values from strings if accidentally echoed.
+    """
+    if x is None:
+        return None
+
+    if isinstance(x, str):
+        return _redact_str(x, secrets)
+
+    if isinstance(x, dict):
+        out: Dict[str, Any] = {}
+        for k, v in x.items():
+            if _is_secret_key_name(str(k)):
+                continue
+            out[str(k)] = _scrub_obj(v, secrets=secrets)
+        return out
+
+    if isinstance(x, list):
+        return [_scrub_obj(v, secrets=secrets) for v in x]
+
+    if isinstance(x, tuple):
+        return tuple(_scrub_obj(v, secrets=secrets) for v in x)
+
+    # For arbitrary objects, leave as-is (InterfaceResponse.data should be dict/list typically).
+    return x
+
+
+def _scrub_meta_for_policy(meta: Optional[dict]) -> dict:
+    """
+    Policy should never see master_key (or any secret values).
+    Keep non-secret meta fields such as tool_name.
+    """
+    if not isinstance(meta, dict):
+        return {}
+    out: Dict[str, Any] = {}
+    for k, v in meta.items():
+        if _is_secret_key_name(str(k)):
+            continue
+        out[str(k)] = v
+    return out
 
 
 class InterfaceGateway:
@@ -71,6 +165,10 @@ class InterfaceGateway:
             "perception_hub": perception_hub,
         }
 
+        # Handy aliases for callers (FrontDoor, tests, etc.)
+        self.deps.setdefault("gateway", self)
+        self.deps.setdefault("interface_gateway", self)
+
         # Common aliases (helps FrontDoor/tools avoid split expectations)
         if policy_engine is not None:
             self.deps.setdefault("policy", policy_engine)
@@ -80,12 +178,7 @@ class InterfaceGateway:
         # ------------------------------------------------------
         # CRITICAL: ToolRegistry must be shared (no split-brain)
         # ------------------------------------------------------
-        # Precedence:
-        #   1) explicitly provided tool_registry
-        #   2) orchestrator.tools / orchestrator.tool_registry
-        #   3) leave absent (handlers will last-resort fallback)
         reg: Optional[Any] = None
-
         if _is_registry_like(tool_registry):
             reg = tool_registry
         else:
@@ -110,8 +203,8 @@ class InterfaceGateway:
         or "run_tool" at this layer. Those enforce restrictions internally.
 
         IMPORTANT SECURITY:
-          - Do NOT copy master_key from meta into context here.
-            Context must remain secret-free; handlers use meta["master_key"].
+          - Never pass master_key into policy checks (scrub meta).
+          - Never copy master_key from meta into context here.
         """
         if req.action in ("think", "explain_state", "world", "sense_tick", "run_tool"):
             return True
@@ -121,13 +214,13 @@ class InterfaceGateway:
             return True
 
         ctx = dict(req.context or {})
-        meta = dict(req.meta or {})
+        meta_scrubbed = _scrub_meta_for_policy(req.meta if isinstance(req.meta, dict) else {})
 
         for m in ("is_allowed", "allow", "enforce", "check", "check_permission"):
             fn = getattr(pe, m, None)
             if callable(fn):
                 try:
-                    out = fn(role=req.role, action=req.action, context=ctx, meta=meta)
+                    out = fn(role=req.role, action=req.action, context=ctx, meta=meta_scrubbed)
                     if isinstance(out, bool):
                         return out
                     if isinstance(out, dict):
@@ -152,6 +245,46 @@ class InterfaceGateway:
                 except Exception:
                     return False
         return True
+
+    def _scrub_response(self, req: InterfaceRequest, resp: InterfaceResponse) -> InterfaceResponse:
+        """
+        Final safety net: scrub InterfaceResponse so secrets can't leak even if a handler
+        mistakenly echoes req.meta or other secret-bearing structures.
+        """
+        mk = None
+        if isinstance(req.meta, dict):
+            v = req.meta.get("master_key")
+            if isinstance(v, str) and v:
+                mk = v
+
+        secrets = [mk] if isinstance(mk, str) and mk else []
+
+        try:
+            if resp is not None and getattr(resp, "data", None) is not None:
+                resp.data = _scrub_obj(resp.data, secrets=secrets)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        try:
+            err = getattr(resp, "error", None)
+            if err is not None:
+                # scrub structured details if present
+                try:
+                    if getattr(err, "details", None) is not None:
+                        err.details = _scrub_obj(err.details, secrets=secrets)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                # scrub message text if it accidentally contains the secret value
+                try:
+                    msg = getattr(err, "message", None)
+                    if isinstance(msg, str) and secrets:
+                        err.message = _redact_str(msg, secrets)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return resp
 
     def handle(self, req: InterfaceRequest) -> InterfaceResponse:
         if req.action not in self.ALLOWED_ACTIONS:
@@ -198,7 +331,8 @@ class InterfaceGateway:
                     error=ErrorInfo(code="TOOL_NAME_MISSING", message="meta.tool_name is required."),
                 )
 
-            return bus.dispatch(tool_name.strip(), req, self.deps)
+            resp = bus.dispatch(tool_name.strip(), req, self.deps)
+            return self._scrub_response(req, resp)
 
         handler = HANDLERS.get(req.action)
         if handler is None:
@@ -209,4 +343,5 @@ class InterfaceGateway:
                 error=ErrorInfo(code="HANDLER_MISSING", message=f"No handler for action: {req.action}"),
             )
 
-        return handler(req, self.deps)
+        resp = handler(req, self.deps)
+        return self._scrub_response(req, resp)

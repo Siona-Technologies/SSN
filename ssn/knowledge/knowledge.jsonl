@@ -5,3 +5,5 @@
 {"kid": "k_1766602204_5a17c6cbae", "title": "", "text": "This is a production smoke note.", "tags": [], "sources": [], "citations": [], "provenance": {}, "created_at": 1766602204.5665107}
 {"kid": "k_1766603779_9ac71770d5", "title": "", "text": "This is a production smoke note.", "tags": [], "sources": [], "citations": [], "provenance": {}, "created_at": 1766603779.2692697}
 {"kid": "k_1766603962_9fb7ec3a7e", "title": "", "text": "This is a production smoke note.", "tags": [], "sources": [], "citations": [], "provenance": {}, "created_at": 1766603962.4990916}
+{"kid": "k_1766674394_eef5fd3cb9", "title": "", "text": "SSN test fact: the master key must never leak.", "tags": [], "sources": [], "citations": [], "provenance": {}, "created_at": 1766674394.8093748}
+{"kid": "k_1766674409_37fb482fab", "title": "", "text": "SSN test fact: hello", "tags": [], "sources": [], "citations": [], "provenance": {}, "created_at": 1766674409.2542903}

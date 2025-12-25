@@ -16,7 +16,6 @@ MAX_SOURCES = 10
 MAX_CITATIONS = 10
 MAX_NOTE_CHARS = 600
 
-
 # -----------------------------
 # Secret redaction
 # -----------------------------
@@ -154,7 +153,7 @@ def _safe_session_state(ctx: dict) -> dict:
 # Intent routing (deterministic)
 # -----------------------------
 _KNOWLEDGE_PATTERNS = [
-    r"^\s*(kb|knowledge)\s*:\s*",
+    r"^\s*(?:kb|knowledge)\s*:\s*",
     r"\bwhat do we know about\b",
     r"\b(search|lookup|find)\b.*\b(knowledge|kb)\b",
 ]
@@ -168,7 +167,8 @@ _PROMOTE_PATTERNS = [
 _RESEARCH_PATTERNS = [
     r"\bresearch\b",
     r"\bsearch the web\b|\binternet\b|\bonline\b",
-    r"\bcitation\b|\bsources?\b|\breferences?\b|\blinks?\b",
+    r"\bcitations?\b|\bsources?\b|\breferences?\b|\blinks?\b",
+    r"\bprovide\b.*\b(citations?|sources?|references?|links?)\b",
     r"\blatest\b|\bcurrent\b|\bas of\b|\bupdated\b|\bnews\b",
     r"\bprice\b|\bcost\b|\bstock\b|\brate\b|\bexchange\b",
 ]
@@ -202,8 +202,6 @@ def _route_intent(user_input: str, context: dict) -> str:
     if not allow_tools or not allow_research:
         return "llm_only"
 
-    # If user asked for research, route to research_answer EVEN in offline mode.
-    # The research handler will decide whether to block or run deterministic degraded mode.
     if _match_any(_RESEARCH_PATTERNS, user_input):
         return "research_answer"
 
@@ -266,12 +264,7 @@ def _resolve_registry(orch: Any, deps: Dict[str, Any]) -> Any:
     return getattr(orch, "tools", None) or getattr(orch, "tool_registry", None)
 
 
-def _tool_deps_for_run(
-    *,
-    orch: Any,
-    deps: Dict[str, Any],
-    role: str,
-) -> Dict[str, Any]:
+def _tool_deps_for_run(*, orch: Any, deps: Dict[str, Any], role: str) -> Dict[str, Any]:
     """
     IMPORTANT: do NOT place master_key in deps.
     Tools that need it receive it through tool args only (after approval).
@@ -378,6 +371,7 @@ def _run_tool_production(
 # -----------------------------
 _TEXT_KEYS = (
     "final_message",
+    "reply",
     "answer",
     "message",
     "text",
@@ -385,34 +379,51 @@ _TEXT_KEYS = (
     "final",
     "content",
     "output",
-    "reply",
+    "note",  # BrainRouter fast/deep includes note
 )
 
-_ATTR_TEXT_KEYS = _TEXT_KEYS
+# Many orchestrators use sentinel status strings; we must not treat them as answers.
+_IGNORE_TEXT_VALUES = {"EXECUTED", "OK", "DONE"}
+
+
+def _is_bad_text_value(s: str) -> bool:
+    v = (s or "").strip()
+    if not v:
+        return True
+    if v in _IGNORE_TEXT_VALUES:
+        return True
+    # If the value looks like a pure status token, not a human answer:
+    if len(v) <= 10 and v.isupper() and " " not in v:
+        return True
+    return False
 
 
 def _extract_text(obj: Any) -> Optional[str]:
     """
     Robustly extract a final answer string from dicts OR objects.
-    Fixes "No response produced" when fusion/result is an object with attributes.
+
+    Priority:
+      1) routed_engine.result.* (because that's where BrainRouter puts outputs)
+      2) nested llm.reply / fusion.final_message
+      3) only then consider top-level fields
     """
     if obj is None:
         return None
 
     if isinstance(obj, str):
         s = obj.strip()
-        return s or None
+        return None if _is_bad_text_value(s) else s
 
-    # object attributes (fusion objects, dataclasses, etc.)
-    for k in _ATTR_TEXT_KEYS:
+    # Object attribute scan
+    for k in _TEXT_KEYS:
         try:
             v = getattr(obj, k, None)
         except Exception:
             v = None
-        if isinstance(v, str) and v.strip():
+        if isinstance(v, str) and v.strip() and not _is_bad_text_value(v):
             return v.strip()
 
-    # common container-like attrs
+    # Object nested fields
     for attr in ("data", "result", "output"):
         try:
             v = getattr(obj, attr, None)
@@ -423,56 +434,77 @@ def _extract_text(obj: Any) -> Optional[str]:
             if t:
                 return t
 
-    if isinstance(obj, dict):
-        for k in _TEXT_KEYS:
-            v = obj.get(k)
-            if isinstance(v, str) and v.strip():
-                return v.strip()
+    if not isinstance(obj, dict):
+        return None
 
-        # try common nested fusion shapes
-        for path in (
-            ("routed_engine", "result", "fusion"),
-            ("result", "fusion"),
-            ("fusion",),
-            ("routed_engine",),
-            ("result",),
-            ("data",),
-        ):
-            cur: Any = obj
-            ok = True
-            for p in path:
-                if isinstance(cur, dict) and p in cur:
-                    cur = cur[p]
-                else:
-                    ok = False
-                    break
-            if ok:
-                t = _extract_text(cur)
-                if t:
-                    return t
+    # Candidate paths (highest value first)
+    candidate_paths = (
+        # BrainRouter path
+        ("routed_engine", "result", "fusion", "final_message"),
+        ("routed_engine", "result", "fusion", "fusion", "final_message"),
+        ("routed_engine", "result", "llm", "reply"),
+        ("routed_engine", "result", "llm", "final_message"),
+        ("routed_engine", "result", "note"),  # at least returns something in fast mode
+        ("routed_engine", "auto_message"),
 
-        for k in ("llm", "snn"):
-            t = _extract_text(obj.get(k))
+        # Other common layouts
+        ("result", "fusion", "final_message"),
+        ("result", "llm", "reply"),
+        ("fusion", "final_message"),
+        ("llm", "reply"),
+    )
+
+    for path in candidate_paths:
+        cur: Any = obj
+        ok = True
+        for p in path:
+            if isinstance(cur, dict) and p in cur:
+                cur = cur[p]
+            else:
+                ok = False
+                break
+        if ok:
+            t = _extract_text(cur)
             if t:
                 return t
+
+    # Direct dict scan
+    for k in _TEXT_KEYS:
+        v = obj.get(k)
+        if isinstance(v, str) and v.strip() and not _is_bad_text_value(v):
+            return v.strip()
+
+    # LAST resort: never allow EXECUTED to win
+    v = obj.get("final_result")
+    if isinstance(v, str) and v.strip() and not _is_bad_text_value(v):
+        return v.strip()
 
     return None
 
 
-def _orch_call_no_secrets(orch: Any, *, role: str, user_input: str, context: dict) -> Any:
+def _orch_call(
+    orch: Any,
+    *,
+    master_key: Optional[str],
+    role: str,
+    user_input: str,
+    context: dict,
+) -> Any:
     """
-    Best-effort call to orchestrator WITHOUT passing master_key.
-    If orchestrator.run expects (master_key, ...), we pass None (not secret).
+    Best-effort call to orchestrator.
+    We pass master_key as a separate argument (NOT inside context), which is safe
+    because FrontDoor never forwards it to tools.
     """
-    for attempt in (
+    mk = master_key if _is_owner(role) else None
+
+    attempts = (
+        lambda: orch.run(mk, user_input, context),
         lambda: orch.run(role=role, user_input=user_input, context=context),
         lambda: orch.run(user_input=user_input, context=context),
         lambda: orch.run(role, user_input, context),
         lambda: orch.run(user_input, context),
-        lambda: orch.run(None, user_input, context),
-        lambda: orch.llm_route(role=role, user_input=user_input, context=context),
-        lambda: orch.llm_route(user_input=user_input, context=context),
-    ):
+    )
+    for attempt in attempts:
         try:
             return attempt()
         except TypeError:
@@ -496,7 +528,6 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     if orch is None:
         raise ValueError("FrontDoor requires deps['orchestrator'].")
 
-    # Secret handling: extract then scrub downstream context
     master_key = _extract_master_key(context_in)
     ctx = _sanitize_context(context_in)
 
@@ -515,6 +546,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     strict = bool(ctx.get("strict", False))
     allow_degraded = bool(ctx.get("allow_degraded", False))
     allow_tools = bool(ctx.get("allow_tools", True))
+    allow_research = bool(ctx.get("allow_research", True))
 
     # Policy check (fail-open for chat; fail-closed only if explicit deny)
     pol = getattr(orch, "policy_engine", None) or getattr(orch, "policy", None)
@@ -522,9 +554,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     allowed = True
     try:
         if pol is not None and callable(getattr(pol, "check_permission", None)):
-            allowed = bool(
-                getattr(pol, "check_permission")(role=role, action=policy_action, context=ctx, meta=ctx.get("meta"))
-            )
+            allowed = bool(pol.check_permission(role=role, action=policy_action, context=ctx, meta=ctx.get("meta")))
     except Exception:
         allowed = True
         degraded = True
@@ -662,28 +692,36 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             "note": _clip(note, MAX_NOTE_CHARS) if note else None,
         }
 
-    # research.answer (online OR offline deterministic degraded mode)
+    # research.answer
     if intent == "research_answer":
-        if not allow_tools:
+        if not allow_tools or not allow_research:
             return {
-                "answer": "Tools are disabled for this session (context.allow_tools=False).",
+                "answer": "Research/tools are disabled for this session (require context.allow_tools=true AND context.allow_research=true).",
                 "degraded": degraded,
                 "used_tools": [],
                 "session_state": _safe_session_state(ctx),
-                "note": "Research requested but tools are disabled.",
+                "note": "Research requested but allow_tools/allow_research gate is false.",
             }
 
-        if not _is_owner(role):
-            return {
-                "answer": "Not authorized: research is OWNER-only.",
-                "degraded": degraded,
-                "used_tools": [],
-                "session_state": _safe_session_state(ctx),
-                "note": "Research denied due to role.",
-            }
+        if pol is not None and callable(getattr(pol, "check_permission", None)):
+            try:
+                if not bool(pol.check_permission(role=role, action="research.answer", context=ctx, meta=ctx.get("meta"))):
+                    return {
+                        "answer": "Not authorized: research denied by policy.",
+                        "degraded": degraded,
+                        "used_tools": [],
+                        "session_state": _safe_session_state(ctx),
+                        "note": "Research denied by policy.",
+                    }
+            except Exception:
+                return {
+                    "answer": "Research blocked due to policy check error.",
+                    "degraded": True,
+                    "used_tools": [],
+                    "session_state": _safe_session_state({**ctx, "degraded": True}),
+                    "note": "Policy check raised exception for research path.",
+                }
 
-        # UPDATED: offline research is allowed ONLY if allow_degraded=True.
-        # strict controls tool behavior, but should not block if allow_degraded=True.
         if offline and not allow_degraded:
             return {
                 "answer": "Offline mode is enabled; research is blocked unless allow_degraded=True (deterministic offline research mocks).",
@@ -698,6 +736,7 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             "allow_degraded": bool(allow_degraded),
             "strict": bool(strict),
             "offline": bool(offline),
+            "context": dict(ctx),
         }
 
         out = _run_tool_production(
@@ -741,27 +780,9 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
         }
 
     # -------------------------
-    # LLM-only path
-    # Prefer InterfaceGateway if provided, otherwise call orchestrator directly (no secrets).
+    # LLM-only path (cognition)
     # -------------------------
-    gw = deps.get("gateway") or deps.get("interface_gateway")
-    if gw is not None and callable(getattr(gw, "handle", None)):
-        try:
-            from ssn.interfaces.contracts import InterfaceRequest  # local import to avoid cycles
-
-            meta = {}
-            if master_key:
-                meta["master_key"] = master_key
-            req = InterfaceRequest(action="think", role=role, user_input=user_input, context=ctx, meta=meta)
-            resp = gw.handle(req)
-            routed = getattr(resp, "data", None) if resp is not None else None
-        except Exception:
-            routed = None
-    else:
-        routed = None
-
-    if routed is None:
-        routed = _orch_call_no_secrets(orch, role=role, user_input=user_input, context=ctx)
+    routed = _orch_call(orch, master_key=master_key, role=role, user_input=user_input, context=ctx)
 
     final_msg = _extract_text(routed)
     if not final_msg:

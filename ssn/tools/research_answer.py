@@ -4,7 +4,6 @@
 Research Answer Tool — Phase 7.3 (Production Front Door + Deterministic Quality)
 
 READ-ONLY
-OWNER-only
 SAFE
 OFFLINE-COMPATIBLE
 
@@ -13,17 +12,15 @@ Purpose:
   net.search -> net.fetch -> net.sanitize -> net.cite
 - Returns a bounded, deterministic answer + citations + sources.
 
-Phase 7.3 hardening additions:
-- Deterministic sentence-ranking summarizer to avoid nav boilerplate.
-- Assemble answer from best-ranked sentences across sources (diversity bias).
-- Citation selection prefers sources that actually contributed sentences.
-- Optional pass-through of net.search hardening args:
-  preferred_provider, min_results, debug.
+Access model:
+- OWNER: allowed (default).
+- GUEST: allowed ONLY when explicitly enabled by context/policy:
+    allow_tools=True AND allow_research=True
+  This prevents direct tool calls from bypassing FrontDoor gating.
 
-Notes:
-- This tool does NOT write to memory.
-- This tool does NOT perform raw HTTP itself; it calls ToolRegistry tools.
-- In strict mode, degraded/mock search results are rejected unless allow_degraded=True.
+Offline model:
+- When offline is requested (env SSN_OFFLINE=1 OR deps.offline=True OR args.offline=True),
+  net.search/net.fetch are expected to return deterministic simulated outputs for pipeline testing.
 """
 
 from __future__ import annotations
@@ -42,7 +39,6 @@ from ssn.tools.contracts import ToolSpec
 DEFAULT_TOP_K = 3
 HARD_TOP_K = 5
 
-# Wikipedia and similar sites often need >50k of HTML before the main article appears.
 DEFAULT_FETCH_MAX_BYTES = 150_000
 HARD_FETCH_MAX_BYTES = 200_000
 
@@ -58,7 +54,6 @@ HARD_MAX_ANSWER_CHARS = 2000
 DEFAULT_TIMEOUT_S = 10
 HARD_TIMEOUT_S = 20
 
-# Sentence ranker bounds
 _MIN_SENT_LEN = 40
 _MAX_SENT_LEN = 360
 _MAX_SENTS_PER_SOURCE = 45
@@ -68,11 +63,9 @@ _MAX_CANDIDATE_SENTS = 220
 # ---------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------
-
 _RE_WS = re.compile(r"\s+")
 _RE_SPLIT = re.compile(r"(?<=[\.\?\!])\s+|\n+")
 
-# NOTE: keep this list minimal/high-signal; sanitize should already remove most boilerplate.
 _BOILERPLATE_NEEDLES = (
     "cookie",
     "cookies",
@@ -96,16 +89,13 @@ _BOILERPLATE_NEEDLES = (
     "menu",
     "breadcrumb",
     "consent",
-    # wikipedia maintenance leakage
     "please help clean up",
     "this article needs additional citations",
     "citation needed",
     "this article is in list format",
-    # language selector leakage
     "languages",
 )
 
-# Extra safety: sometimes truncated HTML still leaks MediaWiki/client JS fragments into "text".
 _CODE_NEEDLES = (
     "function(",
     "var ",
@@ -146,35 +136,71 @@ def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(value, hi))
 
 
-def _forced_offline() -> bool:
-    return os.getenv("SSN_OFFLINE") == "1"
-
-
 def _env_flag(name: str) -> bool:
     return os.getenv(name) == "1"
 
 
-def _effective_mode(args: Dict[str, Any]) -> Tuple[bool, bool]:
+def _offline_requested(deps: Dict[str, Any], args: Dict[str, Any]) -> bool:
+    """
+    Respect offline from:
+      - env SSN_OFFLINE=1
+      - args.offline=True
+      - deps.offline=True
+    """
+    if os.getenv("SSN_OFFLINE") == "1":
+        return True
+    if isinstance(args, dict) and bool(args.get("offline", False)):
+        return True
+    if isinstance(deps, dict) and bool(deps.get("offline", False)):
+        return True
+    return False
+
+
+def _extract_ctx(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Best-effort locate FrontDoor/context dict if it is available.
+    """
+    for k in ("context", "ctx", "frontdoor_context", "request_context"):
+        v = deps.get(k)
+        if isinstance(v, dict):
+            return v
+    v2 = args.get("context")
+    if isinstance(v2, dict):
+        return v2
+    return {}
+
+
+def _guest_research_allowed(role: str, deps: Dict[str, Any], args: Dict[str, Any]) -> bool:
+    """
+    OWNER always allowed.
+    GUEST allowed only with explicit enablement (context/policy).
+    """
+    role_u = (role or "").strip().upper()
+    if role_u == "OWNER":
+        return True
+    if role_u != "GUEST":
+        return False
+
+    if _safe_bool(args.get("allow_guest_research"), default=False):
+        return True
+
+    ctx = _extract_ctx(deps, args)
+    allow_research = _safe_bool(ctx.get("allow_research"), default=False)
+    allow_tools = _safe_bool(ctx.get("allow_tools"), default=False)
+    return bool(allow_research and allow_tools)
+
+
+def _effective_mode(deps: Dict[str, Any], args: Dict[str, Any]) -> Tuple[bool, bool]:
     """
     Returns (live_effective, strict_effective)
-
-    Rules:
-    - SSN_OFFLINE=1 forces live=False and strict=False
-    - If args include live/strict, they override env (unless forced offline)
-    - Else env controls apply
+    - Offline forces live=False and strict=False
+    - args override env (unless offline)
     """
-    if _forced_offline():
+    if _offline_requested(deps, args):
         return (False, False)
 
-    if "live" in args:
-        live = _safe_bool(args.get("live"), default=False)
-    else:
-        live = _env_flag("SSN_LIVE_SEARCH")
-
-    if "strict" in args:
-        strict = _safe_bool(args.get("strict"), default=False)
-    else:
-        strict = _env_flag("SSN_LIVE_STRICT")
+    live = _safe_bool(args.get("live"), default=_env_flag("SSN_LIVE_SEARCH")) if "live" in args else _env_flag("SSN_LIVE_SEARCH")
+    strict = _safe_bool(args.get("strict"), default=_env_flag("SSN_LIVE_STRICT")) if "strict" in args else _env_flag("SSN_LIVE_STRICT")
 
     return (bool(live), bool(strict))
 
@@ -230,27 +256,19 @@ def _split_sentences(clean_text: str) -> List[str]:
 
 
 def _is_code_like_sentence(sent: str) -> bool:
-    """
-    Conservative "code/JS/template leakage" detector.
-    Intended to catch MediaWiki/client JS fragments that sometimes survive sanitization.
-    """
     if not isinstance(sent, str):
         return True
     s = sent.strip()
     if not s:
         return True
-
     low = s.lower()
     if any(n in low for n in _CODE_NEEDLES):
         return True
-
-    # punctuation-density heuristic (filters minified/JS-like fragments)
     punct = sum(1 for ch in s if ch in "{}[]();=<>|")
     if punct >= 8:
         return True
     if len(s) >= 120 and (punct / max(1, len(s))) >= 0.06:
         return True
-
     return False
 
 
@@ -268,20 +286,8 @@ def _is_boilerplate_sentence(sent: str) -> bool:
     return any(n in low for n in _BOILERPLATE_NEEDLES)
 
 
-def _rank_sentences(
-    query: str,
-    docs: List[Dict[str, Any]],
-    *,
-    max_answer_chars: int,
-) -> Dict[str, Any]:
-    """
-    Deterministic ranker:
-    - score by token overlap + early-position bonus + length bonus
-    - enforce source diversity: 1 sentence per URL until we have >=2 URLs (if possible)
-    """
-    qtok = _tokenize(query)
-    if not qtok:
-        qtok = _tokenize(query.lower())
+def _rank_sentences(query: str, docs: List[Dict[str, Any]], *, max_answer_chars: int) -> Dict[str, Any]:
+    qtok = _tokenize(query) or _tokenize(query.lower())
 
     candidates: List[Dict[str, Any]] = []
     for doc in docs:
@@ -291,15 +297,12 @@ def _rank_sentences(
             continue
 
         sents = _split_sentences(clean)[:_MAX_SENTS_PER_SOURCE]
-
         for idx, sent in enumerate(sents):
             if _is_boilerplate_sentence(sent):
                 continue
 
             low = sent.lower()
             overlap = sum(1 for t in qtok if t in low)
-
-            # if sentence shares zero tokens with query, keep but heavily down-weight
             overlap_score = (0.22 * overlap) if overlap > 0 else -0.25
 
             pos_bonus = 0.9 if idx < 3 else (0.4 if idx < 10 else 0.0)
@@ -308,7 +311,6 @@ def _rank_sentences(
             len_bonus = 0.45 if 90 <= slen <= 240 else (0.15 if 60 <= slen < 90 else 0.0)
 
             score = overlap_score + (0.10 * pos_bonus) + (0.05 * len_bonus)
-
             candidates.append({"url": url, "sent": sent, "sent_idx": idx, "score": float(score)})
 
             if len(candidates) >= _MAX_CANDIDATE_SENTS:
@@ -349,10 +351,8 @@ def _rank_sentences(
         if not norm or norm in used_sent_hashes:
             continue
 
-        # If multiple URLs exist, take only 1 sentence per URL until we have >=2 URLs
         if distinct_urls_available and len(used_urls) < 2 and url in used_urls:
             continue
-
         if used_urls.get(url, 0) >= 2:
             continue
 
@@ -387,12 +387,7 @@ def _dedupe_citations(citations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         start = c.get("start")
         end = c.get("end")
         quote = str(c.get("quote", "") or "")
-        key = (
-            url,
-            int(start) if isinstance(start, int) else start,
-            int(end) if isinstance(end, int) else end,
-            quote[:90],
-        )
+        key = (url, int(start) if isinstance(start, int) else start, int(end) if isinstance(end, int) else end, quote[:90])
         if key in seen:
             continue
         seen.add(key)
@@ -422,12 +417,6 @@ def _select_best_citations(
     prefer_urls: Optional[List[str]] = None,
     per_url_cap: int = 3,
 ) -> List[Dict[str, Any]]:
-    """
-    Deterministic citation selection:
-    - Prefer citations whose URL contributed to the answer (prefer_urls)
-    - Rank by token overlap with the produced answer (+ small length bonus)
-    - Enforce per-URL cap for diversity
-    """
     if not isinstance(answer, str) or not answer.strip():
         return []
 
@@ -468,28 +457,20 @@ def _fetch_with_retry(
     url: str,
     max_bytes: int,
     timeout_s: int,
+    offline: bool,
 ) -> Dict[str, Any]:
-    """
-    Bounded fetch with ONE retry if net.fetch reports truncation.
-    Helps Wikipedia-style pages where main content appears after large headers/nav.
-    """
-    fd = _run_tool(
-        registry,
-        name="net.fetch",
-        role=role,
-        deps=deps,
-        args={"url": url, "max_bytes": max_bytes, "timeout_s": timeout_s},
-    )
+    args = {"url": url, "max_bytes": max_bytes, "timeout_s": timeout_s}
+    if offline:
+        args["offline"] = True
+
+    fd = _run_tool(registry, name="net.fetch", role=role, deps=deps, args=args)
 
     if bool(fd.get("truncated", False)) and max_bytes < HARD_FETCH_MAX_BYTES:
         retry_bytes = min(HARD_FETCH_MAX_BYTES, max(max_bytes + 1, int(max_bytes * 2)))
-        fd2 = _run_tool(
-            registry,
-            name="net.fetch",
-            role=role,
-            deps=deps,
-            args={"url": url, "max_bytes": retry_bytes, "timeout_s": timeout_s},
-        )
+        args2 = {"url": url, "max_bytes": retry_bytes, "timeout_s": timeout_s}
+        if offline:
+            args2["offline"] = True
+        fd2 = _run_tool(registry, name="net.fetch", role=role, deps=deps, args=args2)
         return fd2
 
     return fd
@@ -498,12 +479,31 @@ def _fetch_with_retry(
 # ---------------------------------------------------------
 # Handler
 # ---------------------------------------------------------
-
 def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     query = args.get("query")
     if not isinstance(query, str) or not query.strip():
         return {"error": {"code": "INVALID_QUERY", "message": "Missing or invalid 'query'"}}
     query = query.strip()
+
+    # role MUST default to GUEST (never OWNER).
+    role = deps.get("role")
+    if not isinstance(role, str) or not role.strip():
+        role = "GUEST"
+    role = role.strip().upper()
+
+    # Enforce GUEST gating inside the tool (defense in depth).
+    if not _guest_research_allowed(role, deps, args):
+        now = 0.0 if _offline_requested(deps, args) else time.time()
+        return {
+            "error": {
+                "code": "NOT_AUTHORIZED",
+                "message": "Research is not enabled for this role. For GUEST, require allow_tools=true AND allow_research=true in context/policy.",
+            },
+            "query": query,
+            "answered_at": now,
+        }
+
+    offline = _offline_requested(deps, args)
 
     top_k = _clamp(_safe_int(args.get("top_k"), DEFAULT_TOP_K), 1, HARD_TOP_K)
     fetch_max_bytes = _clamp(_safe_int(args.get("max_bytes"), DEFAULT_FETCH_MAX_BYTES), 1000, HARD_FETCH_MAX_BYTES)
@@ -511,11 +511,7 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     max_quotes = _clamp(_safe_int(args.get("max_quotes"), DEFAULT_MAX_QUOTES), 1, HARD_MAX_QUOTES)
     quote_len = _clamp(_safe_int(args.get("quote_len"), DEFAULT_QUOTE_LEN), 80, HARD_QUOTE_LEN)
 
-    max_answer_chars = _clamp(
-        _safe_int(args.get("max_answer_chars"), DEFAULT_MAX_ANSWER_CHARS),
-        200,
-        HARD_MAX_ANSWER_CHARS,
-    )
+    max_answer_chars = _clamp(_safe_int(args.get("max_answer_chars"), DEFAULT_MAX_ANSWER_CHARS), 200, HARD_MAX_ANSWER_CHARS)
 
     timeout_s = float(_clamp(_safe_int(args.get("timeout_s"), DEFAULT_TIMEOUT_S), 2, HARD_TIMEOUT_S))
     allow_degraded = _safe_bool(args.get("allow_degraded"), default=False)
@@ -524,11 +520,7 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     min_results = args.get("min_results")
     debug = _safe_bool(args.get("debug"), default=False)
 
-    live_effective, strict_effective = _effective_mode(args)
-
-    role = deps.get("role")
-    if not isinstance(role, str):
-        role = "OWNER"
+    live_effective, strict_effective = _effective_mode(deps, args)
 
     registry = _get_tool_runner(deps)
     started_at = time.time()
@@ -541,6 +533,8 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         "live": bool(live_effective),
         "strict": bool(strict_effective),
     }
+    if offline:
+        search_args["offline"] = True
 
     if isinstance(preferred_provider, str) and preferred_provider.strip():
         search_args["preferred_provider"] = preferred_provider.strip()
@@ -557,11 +551,12 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     try:
         search_data = _run_tool(registry, name="net.search", role=role, deps=deps, args=search_args)
     except Exception as e:
+        now = 0.0 if offline else time.time()
         return {
             "error": {"code": "SEARCH_FAILED", "message": str(e)},
             "query": query,
-            "answered_at": time.time(),
-            "elapsed_ms": int((time.time() - started_at) * 1000),
+            "answered_at": now,
+            "elapsed_ms": 0 if offline else int((time.time() - started_at) * 1000),
         }
 
     results = search_data.get("results", [])
@@ -570,9 +565,10 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
     result_count = search_data.get("result_count")
     provider_debug = search_data.get("provider_debug") if debug else None
 
-    degraded_search = bool(search_data.get("degraded", False)) or (provider == "mock-search") or _forced_offline()
+    degraded_search = bool(search_data.get("degraded", False)) or (provider == "mock-search") or offline
 
     if strict_effective and degraded_search and not allow_degraded:
+        now = 0.0 if offline else time.time()
         out = {
             "error": {
                 "code": "DEGRADED_RESULTS_BLOCKED",
@@ -586,15 +582,17 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
                 "degraded": True,
                 "live_effective": live_effective,
                 "strict_effective": strict_effective,
+                "offline": offline,
             },
-            "answered_at": time.time(),
-            "elapsed_ms": int((time.time() - started_at) * 1000),
+            "answered_at": now,
+            "elapsed_ms": 0 if offline else int((time.time() - started_at) * 1000),
         }
         if debug and provider_debug is not None:
             out["search"]["provider_debug"] = provider_debug
         return out
 
     if not isinstance(results, list) or not results:
+        now = 0.0 if offline else time.time()
         out = {
             "query": query,
             "answer": "",
@@ -609,10 +607,11 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
                 "degraded": degraded_search,
                 "live_effective": live_effective,
                 "strict_effective": strict_effective,
+                "offline": offline,
             },
             "note": "No search results",
-            "answered_at": time.time(),
-            "elapsed_ms": int((time.time() - started_at) * 1000),
+            "answered_at": now,
+            "elapsed_ms": 0 if offline else int((time.time() - started_at) * 1000),
         }
         if debug and provider_debug is not None:
             out["search"]["provider_debug"] = provider_debug
@@ -639,7 +638,7 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
         except Exception:
             retrieved_at_f = None
 
-        # 2) net.fetch (retry on truncation)
+        # 2) net.fetch
         try:
             fetch_data = _fetch_with_retry(
                 registry,
@@ -648,26 +647,22 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
                 url=url,
                 max_bytes=fetch_max_bytes,
                 timeout_s=int(timeout_s),
+                offline=offline,
             )
         except Exception:
             continue
 
         content_type = fetch_data.get("content_type", "text/plain")
         content = fetch_data.get("content", "")
-
-        # net.fetch should return text, but if something goes wrong, skip non-str deterministically
         if not isinstance(content, str):
             continue
 
-        # 3) net.sanitize
+        # 3) net.sanitize (propagate offline)
         try:
-            sanitize_data = _run_tool(
-                registry,
-                name="net.sanitize",
-                role=role,
-                deps=deps,
-                args={"url": url, "content_type": content_type, "content": content, "max_bytes": fetch_max_bytes},
-            )
+            sanitize_args = {"url": url, "content_type": content_type, "content": content, "max_bytes": fetch_max_bytes}
+            if offline:
+                sanitize_args["offline"] = True
+            sanitize_data = _run_tool(registry, name="net.sanitize", role=role, deps=deps, args=sanitize_args)
         except Exception:
             continue
 
@@ -677,7 +672,7 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
         docs_for_ranker.append({"url": url, "title": title, "clean_text": clean_text})
 
-        # 4) net.cite (pass query for better relevance)
+        # 4) net.cite (propagate offline for deterministic captured_at)
         try:
             cite_args: Dict[str, Any] = {
                 "url": url,
@@ -689,17 +684,12 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
                 "max_quotes": max_quotes,
                 "quote_len": quote_len,
             }
-            # IMPORTANT: do not fake epoch 0; only pass if we have a real timestamp
+            if offline:
+                cite_args["offline"] = True
             if retrieved_at_f is not None:
                 cite_args["retrieved_at"] = retrieved_at_f
 
-            cite_data = _run_tool(
-                registry,
-                name="net.cite",
-                role=role,
-                deps=deps,
-                args=cite_args,
-            )
+            cite_data = _run_tool(registry, name="net.cite", role=role, deps=deps, args=cite_args)
             citations = cite_data.get("citations", [])
             if isinstance(citations, list):
                 all_citations.extend([c for c in citations if isinstance(c, dict)])
@@ -716,7 +706,8 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
             }
         )
 
-    # If we failed to fetch/sanitize anything usable
+    now = 0.0 if offline else time.time()
+
     if not docs_for_ranker:
         out = {
             "query": query,
@@ -732,16 +723,16 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
                 "degraded": bool(degraded_search),
                 "live_effective": live_effective,
                 "strict_effective": strict_effective,
+                "offline": offline,
             },
             "note": "No usable fetched/sanitized documents",
-            "answered_at": time.time(),
-            "elapsed_ms": int((time.time() - started_at) * 1000),
+            "answered_at": now,
+            "elapsed_ms": 0 if offline else int((time.time() - started_at) * 1000),
         }
         if debug and provider_debug is not None:
             out["search"]["provider_debug"] = provider_debug
         return out
 
-    # Sentence-ranked answer
     ranker_out = _rank_sentences(query, docs_for_ranker, max_answer_chars=max_answer_chars)
     answer_text = str(ranker_out.get("answer") or "").strip()
     answer_truncated = bool(ranker_out.get("truncated", False))
@@ -753,7 +744,6 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
     citations_deduped = _dedupe_citations(all_citations)
 
-    # Prefer citations from URLs that contributed sentences to the answer.
     selected = ranker_out.get("selected", [])
     prefer_urls: List[str] = []
     if isinstance(selected, list):
@@ -782,9 +772,10 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
             "degraded": bool(degraded_search),
             "live_effective": live_effective,
             "strict_effective": strict_effective,
+            "offline": offline,
         },
-        "answered_at": time.time(),
-        "elapsed_ms": int((time.time() - started_at) * 1000),
+        "answered_at": now,
+        "elapsed_ms": 0 if offline else int((time.time() - started_at) * 1000),
         "note": "research.answer (Phase 7.3, composed, deterministic sentence-ranked + citation relevance, read-only)",
     }
 
@@ -798,9 +789,9 @@ def research_answer_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[
 
 RESEARCH_ANSWER_T = ToolSpec(
     name="research.answer",
-    description="Answer a query using composed net.* pipeline (read-only, OWNER-only).",
-    required_role="OWNER",
-    allowed_roles=("OWNER",),
+    description="Answer a query using composed net.* pipeline (read-only, deterministic, safe).",
+    required_role="GUEST",
+    allowed_roles=("OWNER", "GUEST"),
     state_changing=False,
     external_effect=True,
     public=False,
@@ -819,13 +810,13 @@ RESEARCH_ANSWER_T = ToolSpec(
         "preferred_provider": {"type": "string", "required": False, "description": "Optional preferred net.search provider"},
         "min_results": {"type": "integer", "required": False, "description": "Try providers until at least this many raw results are collected"},
         "debug": {"type": "boolean", "required": False, "description": "Include provider_debug (and selected_sentences) for diagnostics"},
+        "offline": {"type": "boolean", "required": False, "description": "Force deterministic offline simulation (tests/FrontDoor)"},
+        "allow_guest_research": {"type": "boolean", "required": False, "description": "Internal override for direct tool tests"},
+        "context": {"type": "object", "required": False, "description": "Optional context passthrough (allow_tools/allow_research)"},
     },
     handler=research_answer_handler,
 )
 
 
 def register_research_tools(registry: Any) -> None:
-    """
-    Explicit registration hook for builtin_tools.py.
-    """
     registry.register(RESEARCH_ANSWER_T)

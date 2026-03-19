@@ -451,6 +451,61 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
+    # System & time helpers (lightweight Jarvis utils)
+    # =========================================================
+    def system_time_now(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        import datetime
+
+        now = datetime.datetime.now().astimezone()
+        return {
+            "iso": now.isoformat(),
+            "date": now.date().isoformat(),
+            "time": now.time().isoformat(timespec="seconds"),
+            "tz": str(now.tzinfo),
+        }
+
+    reg.register(
+        ToolSpec(
+            name="system.time.now",
+            description="Return current local date/time (OWNER-only, read-only).",
+            required_role="OWNER",
+            allowed_roles=("OWNER",),
+            public=False,
+            state_changing=False,
+            external_effect=False,
+            max_calls_per_minute=300,
+            input_schema={},
+            handler=system_time_now,
+        )
+    )
+
+    def system_info(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+        import platform
+        import sys
+
+        return {
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "system": platform.system(),
+            "machine": platform.machine(),
+        }
+
+    reg.register(
+        ToolSpec(
+            name="system.info",
+            description="Basic system/runtime info (OWNER-only, read-only).",
+            required_role="OWNER",
+            allowed_roles=("OWNER",),
+            public=False,
+            state_changing=False,
+            external_effect=False,
+            max_calls_per_minute=60,
+            input_schema={},
+            handler=system_info,
+        )
+    )
+
+    # =========================================================
     # Identity
     # =========================================================
     from ssn.tools.identity_tools import identity_view_tool, identity_enroll_tool

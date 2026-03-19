@@ -14,6 +14,11 @@ SensorType = Literal[
     "lidar_scan",
     "event_camera",
     "cctv_frame",
+    # Extended human-like modalities (V10):
+    "touch_map",           # somatosensory / touch surface
+    "olfactory_sample",    # smell / chemical sensor array
+    "gustatory_sample",    # taste / chemical sensor (oral)
+    "interoceptive_state", # internal body state (heart rate, etc.)
     "custom",
 ]
 

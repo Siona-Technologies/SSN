@@ -1,7 +1,11 @@
 # /workspaces/SSN/ssn/policy/policy_engine.py
 
 import os
+from typing import Any, Dict, List, Optional
+
 import yaml
+
+from ssn.policy.law_paths import home_law_path, system_law_path, world_law_path
 
 
 class PolicyEngine:
@@ -51,21 +55,52 @@ class PolicyEngine:
         "net.cite",
     }
 
-    def __init__(self):
-        self.world_law = self._load_yaml("world_law.yaml")
-        self.system_law = self._load_yaml("system_law.yaml")
-        self.home_law = self._load_yaml("home_law_samson.yaml")
+    def __init__(
+        self,
+        *,
+        world_law_path_override: Optional[str] = None,
+        system_law_path_override: Optional[str] = None,
+        home_law_path_override: Optional[str] = None,
+    ):
+        self.world_law_path = world_law_path(world_law_path_override)
+        self.system_law_path = system_law_path(system_law_path_override)
+        self.home_law_path = home_law_path(home_law_path_override)
 
-    def _load_yaml(self, filename):
-        """Load YAML file from the same directory as this script."""
-        base_dir = os.path.dirname(__file__)
-        path = os.path.join(base_dir, filename)
+        self.world_law = self._load_yaml_path(self.world_law_path)
+        self.system_law = self._load_yaml_path(self.system_law_path)
+        self.home_law = self._load_yaml_path(self.home_law_path)
 
+    def _load_yaml_path(self, path: str) -> Any:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Policy file missing: {path}")
-
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
+
+    def _load_yaml(self, filename):
+        """Legacy loader — resolves filename in policy package directory."""
+        base_dir = os.path.dirname(__file__)
+        path = os.path.join(base_dir, filename)
+        return self._load_yaml_path(path)
+
+    def _owner_authority_mode(self) -> str:
+        mode = (self.home_law or {}).get("owner_authority")
+        if isinstance(mode, str) and mode.strip().lower() in ("ultimate", "bounded"):
+            return mode.strip().lower()
+        return "ultimate"
+
+    def _owner_allowed_actions(self) -> List[str]:
+        perms = (self.home_law or {}).get("permissions") or {}
+        actions = perms.get("allowed_actions") or []
+        if not isinstance(actions, list):
+            return []
+        return [str(a) for a in actions if isinstance(a, str)]
+
+    def _guest_allowed_actions(self) -> List[str]:
+        gp = (self.home_law or {}).get("guest_permissions") or {}
+        actions = gp.get("allowed_actions") or []
+        if not isinstance(actions, list):
+            return []
+        return [str(a) for a in actions if isinstance(a, str)]
 
     # ------------------------------------------------------------
     #  COMPATIBILITY METHODS FOR ORCHESTRATOR + INTERFACES
@@ -195,12 +230,14 @@ class PolicyEngine:
         role = (identity_role or "").strip().upper()
         act = (action or "").strip()
 
-        # OWNER: HOME LAW ULTIMATE POWER - OVERRIDES EVERYTHING
+        # OWNER: HOME LAW — ultimate (Samson default) or bounded (tenant deployments)
         if role == "OWNER":
-            home_allowed = ((self.home_law or {}).get("permissions") or {}).get("allowed_actions", [])
-            if act in home_allowed:
+            allowed = self._owner_allowed_actions()
+            if act in allowed:
                 return {"status": "allow", "reason": "Explicitly allowed in HOME LAW"}
-            return {"status": "allow", "reason": "HOME LAW ULTIMATE OVERRIDE - All restrictions bypassed"}
+            if self._owner_authority_mode() == "ultimate":
+                return {"status": "allow", "reason": "HOME LAW ULTIMATE OVERRIDE - All restrictions bypassed"}
+            return {"status": "deny", "reason": f"Action '{act}' not permitted by bounded HOME LAW"}
 
         # NON-OWNERS: subject to World Law + limited allowed actions
         world_rules = ((self.world_law or {}).get("world_law") or {})
@@ -219,6 +256,11 @@ class PolicyEngine:
             word in action_lower for word in ["leak", "expose_secret"]
         ):
             return {"status": "deny", "reason": "Blocked by WORLD LAW: No data leaks"}
+
+        # Tenant/org guest allowlist (optional in home law YAML)
+        guest_allowed = self._guest_allowed_actions()
+        if guest_allowed and act in guest_allowed:
+            return {"status": "allow", "reason": "Guest action permitted by HOME LAW guest_permissions"}
 
         # NEW (minimal): allow research/tool actions only if explicitly enabled by context
         if self._is_research_or_tool_action(act):

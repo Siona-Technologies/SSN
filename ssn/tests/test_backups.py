@@ -4,26 +4,28 @@ from ssn.memory.personal_profile import PersonalProfile
 from ssn.memory.backups import BackupManager
 
 # Populate some data
-semantic = SemanticStore()
-semantic.set("samson.favorite_language", "Python")
 
-episodic = EpisodicMemory()
-episodic.record_event("test", "Samson", {"message": "backup test event"})
+if __name__ == "__main__":
+    semantic = SemanticStore()
+    semantic.set("samson.favorite_language", "Python")
 
-profile = PersonalProfile()
-profile.set_preference("theme", "dark")
+    episodic = EpisodicMemory()
+    episodic.record_event("test", "Samson", {"message": "backup test event"})
 
-# Create backup
-manager = BackupManager()
-backup_path = manager.create_backup(label="test")
+    profile = PersonalProfile()
+    profile.set_preference("theme", "dark")
 
-print("Backup created at:", backup_path)
-print("Available backups:", manager.list_backups())
+    # Create backup
+    manager = BackupManager()
+    backup_path = manager.create_backup(label="test")
 
-# Load last backup content
-backups = manager.list_backups()
-if backups:
-    last = backups[-1]
-    snapshot = manager.load_backup(last)
-    print("Loaded snapshot label:", snapshot["label"])
-    print("Semantic in snapshot:", snapshot["semantic"])
+    print("Backup created at:", backup_path)
+    print("Available backups:", manager.list_backups())
+
+    # Load last backup content
+    backups = manager.list_backups()
+    if backups:
+        last = backups[-1]
+        snapshot = manager.load_backup(last)
+        print("Loaded snapshot label:", snapshot["label"])
+        print("Semantic in snapshot:", snapshot["semantic"])

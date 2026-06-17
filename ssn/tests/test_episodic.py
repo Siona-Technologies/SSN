@@ -1,13 +1,15 @@
 from ssn.memory.episodic_memory import EpisodicMemory
 
-mem = EpisodicMemory()
 
-print("Recording event...")
-e = mem.record_event("test_event", "Samson", {"note": "first memory entry"})
-print(e)
+if __name__ == "__main__":
+    mem = EpisodicMemory()
 
-print("\nRecent events:")
-print(mem.get_recent(1))
+    print("Recording event...")
+    e = mem.record_event("test_event", "Samson", {"note": "first memory entry"})
+    print(e)
 
-print("\nSearching for 'first':")
-print(mem.search("first"))
+    print("\nRecent events:")
+    print(mem.get_recent(1))
+
+    print("\nSearching for 'first':")
+    print(mem.search("first"))

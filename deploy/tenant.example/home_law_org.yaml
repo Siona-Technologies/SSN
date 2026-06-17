@@ -1,0 +1,36 @@
+# deploy/tenant.example/home_law_org.yaml
+# Example organization HOME LAW — bounded OWNER authority (not ultimate).
+
+owner_identity:
+  full_name: "Example Organization"
+  role: "OWNER"
+  priority: "organization_admin"
+
+# bounded = OWNER must be in permissions.allowed_actions (platform tenant mode)
+owner_authority: bounded
+
+permissions:
+  allowed_actions:
+    - interact
+    - ask_question
+    - tools.public_list
+    - access_full_memory
+
+  restricted_actions:
+    - unlock_secret_vault
+    - update_home_law
+    - trigger_model_training
+
+guest_permissions:
+  allowed_actions:
+    - ask_question
+    - interact
+    - tools.public_list
+
+behavior_rules:
+  communication:
+    tone:
+      - professional
+      - respectful
+
+overrides: []

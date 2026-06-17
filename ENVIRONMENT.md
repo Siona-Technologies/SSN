@@ -80,6 +80,85 @@ Optional tuning:
 
 ---
 
+## LLM Provider (Phase 1)
+
+### `SSN_LLM_PROVIDER`
+- Values: `dummy` (default) | `http`
+- `dummy` → `LocalDummyLLMProvider` (offline, deterministic)
+- `http` → `HttpLLMProvider` (local/remote inference server)
+
+### `SSN_LLM_ENDPOINT`
+- Required when `SSN_LLM_PROVIDER=http`
+- Example: `http://127.0.0.1:8000/generate`
+- Mock dev server: `python scripts/mock_llm_server.py`
+
+### `SSN_LLM_ENDPOINT_FAST` / `SSN_LLM_ENDPOINT_DEEP` (planned)
+- Optional mode-specific endpoints for BrainRouter fast/deep modes
+- Fallback: `SSN_LLM_ENDPOINT`
+
+See `LLM_STRATEGY_V10.md` for the HTTP JSON contract.
+
+---
+
+## Identity (OWNER)
+
+### `SSN_MASTER_KEY`
+- Master key for OWNER verification in CLI/HTTP (local dev)
+- Must never be committed, traced, or stored in memory
+
+---
+
+## Knowledge Store
+
+### `SSN_KNOWLEDGE_PATH`
+- Path to curated knowledge JSONL (default: `ssn/knowledge/knowledge.jsonl`)
+
+---
+
+## Law configuration (Phase 3)
+
+### `SSN_HOME_LAW_PATH`
+- Path to OWNER home law YAML (default: `ssn/policy/home_law_samson.yaml`)
+
+### `SSN_WORLD_LAW_PATH`
+- Path to world law YAML (default: `ssn/policy/world_law.yaml`)
+
+### `SSN_SYSTEM_LAW_PATH`
+- Path to system law YAML (default: `ssn/policy/system_law.yaml`)
+
+### `SSN_TENANT_ID`
+- Optional default tenant id for HTTP deployments
+
+See `deploy/README.md` for multi-tenant layout examples.
+
+---
+
+## HTTP Front Door (Phase 2)
+
+### `SSN_HTTP_HOST` / `SSN_HTTP_PORT`
+- Bind address for `python -m ssn.runtime.http_server` (default: `127.0.0.1:8080`)
+
+### `SSN_HTTP_QUIET`
+- Set to `1` to suppress HTTP access logs
+
+Start server:
+```bash
+SSN_OFFLINE=1 python -m ssn.runtime.http_server --port 8080
+```
+
+Chat request:
+```bash
+curl -X POST http://127.0.0.1:8080/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hello","role":"GUEST","offline":true}'
+```
+
+OWNER auth header: `X-SSN-Master-Key: <your-key>` (never commit).
+
+Sessions persist under `${SSN_STATE_DIR}/sessions/`.
+
+---
+
 ## Recommended Configurations
 
 ### CI (Deterministic)

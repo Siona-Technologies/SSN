@@ -46,18 +46,39 @@ class DummyMemoryHub:
 class DummyOrchestratorIdentityAuthority:
     """
     Deterministic orchestrator that enforces identity authority:
-    - OWNER only if master_key is a non-empty string
+    - OWNER only if master_key is a non-empty string (not role names)
     """
+
     def __init__(self):
         self.calls = 0
         self.last = {}
 
-    def run(self, master_key, user_input, context=None):
+    def run(self, master_key=None, user_input=None, context=None, **kwargs):
         self.calls += 1
+        mk: Optional[str] = None
+        ui = user_input
         ctx = context if isinstance(context, dict) else {}
-        self.last = {"master_key": master_key, "user_input": user_input, "context": ctx}
-        role = "OWNER" if (isinstance(master_key, str) and master_key.strip()) else "GUEST"
-        return {"identity_verified": role == "OWNER", "role": role, "allowed": True, "final_result": "EXECUTED"}
+
+        # _call_compat may pass (role, user_input, context) positionally
+        if master_key in ("OWNER", "GUEST") and isinstance(user_input, str):
+            ui = user_input
+            ctx = context if isinstance(context, dict) else {}
+        elif isinstance(kwargs.get("role"), str) and kwargs["role"] in ("OWNER", "GUEST"):
+            ui = kwargs.get("user_input", user_input)
+            ctx = kwargs.get("context") if isinstance(kwargs.get("context"), dict) else ctx
+        elif isinstance(master_key, str) and master_key.strip() and master_key not in ("OWNER", "GUEST"):
+            mk = master_key.strip()
+            ui = user_input
+            ctx = context if isinstance(context, dict) else {}
+
+        self.last = {"master_key": mk, "user_input": ui, "context": ctx}
+        role = "OWNER" if mk else "GUEST"
+        return {
+            "identity_verified": role == "OWNER",
+            "role": role,
+            "allowed": True,
+            "final_result": "EXECUTED",
+        }
 
 
 # ----------------------------
@@ -212,4 +233,19 @@ def build_default_eval_gateway() -> Dict[str, Any]:
         "tool_bus": bus,
         "memory_hub": mh,
         "orchestrator": orch,
+    }
+
+
+def build_production_eval_gateway() -> Dict[str, Any]:
+    """
+    Full runtime gateway via SSNRuntimeBuilder (create_siona bootstrap path).
+    """
+    from ssn.runtime.runtime_builder import SSNRuntimeBuilder
+
+    rt = SSNRuntimeBuilder.build_default(default_role="GUEST")
+    return {
+        "gateway": rt.gateway,
+        "runtime": rt,
+        "orchestrator": rt.orchestrator,
+        "tool_registry": rt.tool_registry,
     }

@@ -1,18 +1,20 @@
 from ssn.memory.semantic_store import SemanticStore
 
-store = SemanticStore()
 
-print("Setting fact...")
-store.set("samson.favorite_color", "blue")
+if __name__ == "__main__":
+    store = SemanticStore()
 
-print("Reading fact...")
-print(store.get("samson.favorite_color"))
+    print("Setting fact...")
+    store.set("samson.favorite_color", "blue")
 
-print("All facts:")
-print(store.all())
+    print("Reading fact...")
+    print(store.get("samson.favorite_color"))
 
-print("Deleting...")
-store.delete("samson.favorite_color")
+    print("All facts:")
+    print(store.all())
 
-print("After delete:")
-print(store.get("samson.favorite_color"))
+    print("Deleting...")
+    store.delete("samson.favorite_color")
+
+    print("After delete:")
+    print(store.get("samson.favorite_color"))

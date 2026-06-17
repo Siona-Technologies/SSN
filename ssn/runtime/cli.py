@@ -10,6 +10,12 @@ from typing import Any, Dict, Optional
 from ssn.runtime.runtime_builder import SSNRuntimeBuilder
 from ssn.interfaces.front_door import handle_user_message
 from ssn.interfaces.contracts import InterfaceRequest
+from ssn.runtime.frontdoor_context import (
+    forced_offline,
+    get_env_master_key,
+    mk_frontdoor_context,
+    safe_context,
+)
 
 
 # -----------------------------
@@ -17,13 +23,6 @@ from ssn.interfaces.contracts import InterfaceRequest
 # -----------------------------
 def _print_json(obj: Any) -> None:
     print(json.dumps(obj, indent=2, ensure_ascii=False, default=str))
-
-
-def _get_env_master_key() -> Optional[str]:
-    env = os.environ.get("SSN_MASTER_KEY")
-    if isinstance(env, str) and env.strip():
-        return env.strip()
-    return None
 
 
 def _parse_json_dict(s: str) -> dict:
@@ -40,75 +39,6 @@ def _parse_json_list(s: str) -> list:
         return out if isinstance(out, list) else []
     except Exception:
         return []
-
-
-def _forced_offline() -> bool:
-    return os.getenv("SSN_OFFLINE") == "1"
-
-
-def _safe_ctx(base: Optional[dict] = None, *, keep_meta_master_key: bool = False) -> dict:
-    """
-    Safety rule:
-      - never carry master_key at top-level
-      - generally scrub auth.master_key too
-      - BUT for FrontDoor, we intentionally allow meta.master_key so FrontDoor can
-        verify OWNER then scrub immediately inside FrontDoor.
-    """
-    ctx = dict(base or {})
-    ctx.pop("master_key", None)
-    ctx.pop("ssn_master_key", None)
-
-    # auth is never allowed to carry secrets
-    auth = ctx.get("auth")
-    if isinstance(auth, dict):
-        auth2 = dict(auth)
-        auth2.pop("master_key", None)
-        auth2.pop("ssn_master_key", None)
-        ctx["auth"] = auth2
-
-    # meta: keep master_key ONLY when explicitly requested (FrontDoor path)
-    meta = ctx.get("meta")
-    if isinstance(meta, dict):
-        meta2 = dict(meta)
-        if not keep_meta_master_key:
-            meta2.pop("master_key", None)
-            meta2.pop("ssn_master_key", None)
-        else:
-            # still ensure only canonical key name is present
-            meta2.pop("ssn_master_key", None)
-        ctx["meta"] = meta2
-
-    return ctx
-
-
-def _mk_frontdoor_context(
-    *,
-    session_id: str,
-    turn_id: int,
-    role: str,
-    offline: bool,
-    strict: bool,
-    allow_tools: bool,
-    allow_research: bool,
-    master_key: Optional[str],
-) -> dict:
-    ctx: Dict[str, Any] = {
-        "session_id": session_id,
-        "turn_id": str(turn_id),
-        "offline": bool(offline),
-        "strict": bool(strict),
-        "allow_tools": bool(allow_tools),
-        "allow_research": bool(allow_research),
-        # role is re-derived by FrontDoor from master_key verification (do not trust caller),
-        # but we still carry it for UI visibility/debug.
-        "role": role,
-    }
-
-    # Pass secrets ONLY via meta (FrontDoor extracts then scrubs)
-    if role == "OWNER" and master_key:
-        ctx["meta"] = {"master_key": master_key}
-
-    return _safe_ctx(ctx, keep_meta_master_key=True)
 
 
 def _render_frontdoor_output(out: dict) -> None:
@@ -166,14 +96,14 @@ def _run_console(*, runtime, master_key: Optional[str], role_default: str, offli
     turn_id = 0
 
     role = role_default if role_default in ("OWNER", "GUEST") else "GUEST"
-    offline = bool(offline_default) or _forced_offline()
+    offline = bool(offline_default) or forced_offline()
     strict = bool(strict_default)
 
     allow_tools = True
     allow_research = True
 
     def show_status() -> None:
-        forced = _forced_offline()
+        forced = forced_offline()
         eff_offline = offline or forced
         mk_loaded = bool(master_key)
         print(
@@ -288,7 +218,7 @@ def _run_console(*, runtime, master_key: Optional[str], role_default: str, offli
 
         # Regular turn
         turn_id += 1
-        ctx = _mk_frontdoor_context(
+        ctx = mk_frontdoor_context(
             session_id=session_id,
             turn_id=turn_id,
             role=role,
@@ -324,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(mk, str) and mk.strip():
         mk = mk.strip()
     else:
-        mk = _get_env_master_key()
+        mk = get_env_master_key()
 
     parser = argparse.ArgumentParser(
         prog="ssn-cli",
@@ -418,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
         return out
 
     def mk_context(base: dict | None = None) -> dict:
-        return _safe_ctx(base)
+        return safe_context(base)
 
     # These assume your runtime has rt.shell with handle_event (kept for compatibility)
     if args.cmd == "chat":

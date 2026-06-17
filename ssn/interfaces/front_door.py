@@ -503,6 +503,8 @@ def _orch_call(
         lambda: orch.run(user_input=user_input, context=context),
         lambda: orch.run(role, user_input, context),
         lambda: orch.run(user_input, context),
+        lambda: orch.llm_route(role=role, user_input=user_input, context=context),
+        lambda: orch.handle_request(master_key=mk, user_input=user_input, context=context),
     )
     for attempt in attempts:
         try:

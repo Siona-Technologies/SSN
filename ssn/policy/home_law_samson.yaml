@@ -8,6 +8,9 @@ owner_identity:
   role: "OWNER"
   priority: "highest_human_role"
 
+# ultimate = OWNER has full override (deployment #1 / personal sovereign node)
+owner_authority: ultimate
+
 permissions:
   allowed_actions:
     - access_full_memory

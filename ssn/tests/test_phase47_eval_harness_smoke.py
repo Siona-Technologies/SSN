@@ -1,5 +1,6 @@
 # ssn/tests/test_phase47_eval_harness_smoke.py
 
+import os
 import unittest
 
 from ssn.eval.scenarios import default_eval_scenarios
@@ -7,6 +8,9 @@ from ssn.eval.runner import build_default_eval_gateway, EvalRunner
 
 
 class TestPhase47EvalHarnessSmoke(unittest.TestCase):
+
+    def setUp(self) -> None:
+        os.environ.pop("SSN_MASTER_KEY", None)
 
     def test_eval_harness_runs_and_passes(self):
         env = build_default_eval_gateway()

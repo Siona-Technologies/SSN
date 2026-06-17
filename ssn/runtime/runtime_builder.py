@@ -266,7 +266,7 @@ class SSNRuntimeBuilder:
                 return ph
 
         try:
-            from ssn.perception.perception_hub import PerceptionHub  # type: ignore
+            from ssn.senses.perception_hub import PerceptionHub  # type: ignore
 
             try:
                 return PerceptionHub(world_model=self.world_model, memory_hub=self.memory_hub)

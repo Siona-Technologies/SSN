@@ -1,12 +1,14 @@
 from ssn.core.fusion_engine import FusionEngine
 
-fusion = FusionEngine()
 
-print("=== OWNER: Explain something ===")
-print(fusion.fuse("SSN, explain fusion.", role="OWNER"))
+if __name__ == "__main__":
+    fusion = FusionEngine()
 
-print("\n=== SENSOR INPUT: numeric ===")
-print(fusion.fuse(42, role="OWNER"))
+    print("=== OWNER: Explain something ===")
+    print(fusion.fuse("SSN, explain fusion.", role="OWNER"))
 
-print("\n=== GUEST user ===")
-print(fusion.fuse("Hello what can you do?", role="GUEST"))
+    print("\n=== SENSOR INPUT: numeric ===")
+    print(fusion.fuse(42, role="OWNER"))
+
+    print("\n=== GUEST user ===")
+    print(fusion.fuse("Hello what can you do?", role="GUEST"))

@@ -60,6 +60,7 @@ ssn/data/episodic_memory.json
 ssn/data/personal_profile.json
 ssn/data/profile_memory.json
 ssn/data/trace_memory.json
+*.vectors.json
 
 # ============================
 # OS JUNK FILES

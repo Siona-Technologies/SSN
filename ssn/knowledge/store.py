@@ -9,6 +9,14 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+from ssn.core.embedding_providers import (
+    EmbeddingProvider,
+    EmbeddingRequest,
+    cosine_similarity,
+    get_default_embedding_provider_from_env,
+)
+from ssn.knowledge.vector_index import VectorIndex, sidecar_path_for
+
 DEFAULT_KNOWLEDGE_PATH = "ssn/knowledge/knowledge.jsonl"
 
 _HARD_MAX_TEXT_CHARS = 200_000
@@ -61,25 +69,75 @@ def _tokenize(s: str) -> List[str]:
 
 class KnowledgeStore:
     """
-    Local, file-backed knowledge store.
+    Local, file-backed knowledge store with optional embedding retrieval (Phase 5).
 
     Storage format:
       JSON Lines (one record per line) at SSN_KNOWLEDGE_PATH or default.
-
-    Goals:
-    - deterministic, offline-safe
-    - no external deps
-    - bounded search (top_k, scan_limit)
+      Vector sidecar: {path}.vectors.json
     """
 
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        path: Optional[str] = None,
+        *,
+        embedding_provider: Optional[EmbeddingProvider] = None,
+    ) -> None:
         env_path = os.getenv("SSN_KNOWLEDGE_PATH")
         p = path or (env_path if isinstance(env_path, str) and env_path.strip() else DEFAULT_KNOWLEDGE_PATH)
         self.path = p
+        self._embedding_provider = embedding_provider
+
+    def _provider(self) -> EmbeddingProvider:
+        if self._embedding_provider is not None:
+            return self._embedding_provider
+        return get_default_embedding_provider_from_env()
 
     def _ensure_dir(self) -> None:
         d = os.path.dirname(self.path) or "."
         os.makedirs(d, exist_ok=True)
+
+    @staticmethod
+    def _record_document(rec: Dict[str, Any]) -> str:
+        title = _safe_str(rec.get("title"))
+        text = _safe_str(rec.get("text"))
+        tags = rec.get("tags") if isinstance(rec.get("tags"), list) else []
+        tag_s = " ".join(t for t in tags if isinstance(t, str))
+        return _normalize_text(f"{title}\n{text}\n{tag_s}")
+
+    @staticmethod
+    def _keyword_score(qtok: set[str], rec: Dict[str, Any]) -> float:
+        title = _safe_str(rec.get("title"))
+        text = _safe_str(rec.get("text"))
+        tags = rec.get("tags") if isinstance(rec.get("tags"), list) else []
+        hay = f"{title}\n{text}\n{' '.join([t for t in tags if isinstance(t, str)])}"
+        low = hay.lower()
+        overlap = sum(1 for t in qtok if t in low)
+        if overlap <= 0:
+            return 0.0
+        title_low = title.lower()
+        title_overlap = sum(1 for t in qtok if t in title_low)
+        return float(overlap) + (0.7 * float(title_overlap))
+
+    def _scan_records(self, scan_limit: int) -> Tuple[List[Dict[str, Any]], int]:
+        records: List[Dict[str, Any]] = []
+        scanned = 0
+        if not os.path.exists(self.path):
+            return records, scanned
+        with open(self.path, "r", encoding="utf-8") as f:
+            for line in f:
+                if scanned >= scan_limit:
+                    break
+                line = (line or "").strip()
+                if not line:
+                    continue
+                scanned += 1
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(rec, dict):
+                    records.append(rec)
+        return records, scanned
 
     def promote(
         self,
@@ -139,51 +197,128 @@ class KnowledgeStore:
 
         qtok = set(_tokenize(q))
         if not qtok:
-            qtok = set([t.lower() for t in q.split() if len(t) >= 3])
+            qtok = set(t.lower() for t in q.split() if len(t) >= 3)
 
-        scored: List[Tuple[float, Dict[str, Any]]] = []
-        scanned = 0
-
-        if not os.path.exists(self.path):
-            return {"ok": True, "results": [], "scanned": 0, "note": "No knowledge store file yet"}
+        provider = self._provider()
+        provider_name = getattr(provider, "name", "unknown")
+        use_http = provider_name.startswith("ssn-http")
 
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if scanned >= scan_limit:
-                        break
-                    line = (line or "").strip()
-                    if not line:
-                        continue
-                    scanned += 1
-                    try:
-                        rec = json.loads(line)
-                    except Exception:
-                        continue
-                    if not isinstance(rec, dict):
-                        continue
-
-                    title = _safe_str(rec.get("title"))
-                    text = _safe_str(rec.get("text"))
-                    tags = rec.get("tags") if isinstance(rec.get("tags"), list) else []
-
-                    hay = f"{title}\n{text}\n{' '.join([t for t in tags if isinstance(t, str)])}"
-                    low = hay.lower()
-
-                    # Simple deterministic scoring:
-                    # - token overlap
-                    # - title bonus
-                    overlap = sum(1 for t in qtok if t in low)
-                    if overlap <= 0:
-                        continue
-
-                    title_low = title.lower()
-                    title_overlap = sum(1 for t in qtok if t in title_low)
-
-                    score = float(overlap) + (0.7 * float(title_overlap))
-                    scored.append((score, rec))
+            records, scanned = self._scan_records(scan_limit)
         except Exception as e:
             return {"ok": False, "error": {"code": "STORE_READ_FAILED", "message": str(e)}}
+
+        if not records:
+            return {
+                "ok": True,
+                "results": [],
+                "scanned": scanned,
+                "search_mode": "embedding" if use_http else "deterministic_embedding",
+                "note": "No knowledge store file yet" if scanned == 0 else "No records matched",
+            }
+
+        try:
+            query_vec = provider.embed(EmbeddingRequest(text=q)).vector
+        except Exception as e:
+            return self._search_keyword_only(
+                q=q,
+                qtok=qtok,
+                records=records,
+                scanned=scanned,
+                top_k=top_k,
+                include_text=include_text,
+                snippet_chars=snippet_chars,
+                note=f"Embedding failed; keyword fallback ({str(e)[:120]})",
+            )
+
+        dim = len(query_vec)
+        sidecar = VectorIndex(
+            sidecar_path_for(self.path),
+            provider_name=provider_name,
+            dim=dim,
+        )
+        if not sidecar.provider_matches(provider_name) or sidecar.dim != dim:
+            sidecar = VectorIndex(sidecar_path_for(self.path), provider_name=provider_name, dim=dim)
+
+        rec_by_kid: Dict[str, Dict[str, Any]] = {}
+        scored: List[Tuple[float, float, float, Dict[str, Any]]] = []
+
+        for rec in records:
+            kid = _safe_str(rec.get("kid")) or f"row_{id(rec)}"
+            rec_by_kid[kid] = rec
+            doc = self._record_document(rec)
+            fp = VectorIndex.fingerprint_text(doc)
+
+            vec = sidecar.get(kid)
+            if vec is None or sidecar.needs_refresh(kid=kid, text_fingerprint=fp):
+                vec = provider.embed(EmbeddingRequest(text=doc)).vector
+                sidecar.put(kid=kid, vector=vec, text_fingerprint=fp)
+
+            embed_score = cosine_similarity(query_vec, vec)
+            kw_score = self._keyword_score(qtok, rec)
+
+            if use_http:
+                final = (0.85 * embed_score) + (0.15 * min(kw_score / 5.0, 1.0))
+            else:
+                final = (0.55 * embed_score) + (0.45 * min(kw_score / 5.0, 1.0))
+
+            if final <= 0.0 and kw_score <= 0.0 and embed_score <= 0.0:
+                continue
+
+            scored.append((final, embed_score, kw_score, rec))
+
+        try:
+            sidecar.persist()
+        except Exception:
+            pass
+
+        scored.sort(key=lambda x: (-x[0], -x[1], _safe_str(x[3].get("kid"))))
+
+        results: List[Dict[str, Any]] = []
+        for final, embed_score, kw_score, rec in scored[:top_k]:
+            title = _safe_str(rec.get("title"))
+            text = _safe_str(rec.get("text"))
+            snippet = _normalize_text(text)[:snippet_chars]
+            item = {
+                "kid": rec.get("kid"),
+                "score": round(final, 6),
+                "embedding_score": round(embed_score, 6),
+                "keyword_score": round(kw_score, 6),
+                "title": title,
+                "snippet": snippet,
+                "tags": rec.get("tags") if isinstance(rec.get("tags"), list) else [],
+                "created_at": rec.get("created_at"),
+            }
+            if include_text:
+                item["text"] = text
+            results.append(item)
+
+        return {
+            "ok": True,
+            "results": results,
+            "scanned": scanned,
+            "search_mode": "http_embedding" if use_http else "deterministic_embedding",
+            "provider": provider_name,
+        }
+
+    def _search_keyword_only(
+        self,
+        *,
+        q: str,
+        qtok: set[str],
+        records: List[Dict[str, Any]],
+        scanned: int,
+        top_k: int,
+        include_text: bool,
+        snippet_chars: int,
+        note: str,
+    ) -> Dict[str, Any]:
+        scored: List[Tuple[float, Dict[str, Any]]] = []
+        for rec in records:
+            kw = self._keyword_score(qtok, rec)
+            if kw <= 0.0:
+                continue
+            scored.append((kw, rec))
 
         scored.sort(key=lambda x: (-x[0], _safe_str(x[1].get("kid"))))
 
@@ -192,19 +327,24 @@ class KnowledgeStore:
             title = _safe_str(rec.get("title"))
             text = _safe_str(rec.get("text"))
             snippet = _normalize_text(text)[:snippet_chars]
-
             item = {
                 "kid": rec.get("kid"),
                 "score": score,
+                "embedding_score": 0.0,
+                "keyword_score": score,
                 "title": title,
                 "snippet": snippet,
                 "tags": rec.get("tags") if isinstance(rec.get("tags"), list) else [],
                 "created_at": rec.get("created_at"),
             }
-
             if include_text:
                 item["text"] = text
-
             results.append(item)
 
-        return {"ok": True, "results": results, "scanned": scanned}
+        return {
+            "ok": True,
+            "results": results,
+            "scanned": scanned,
+            "search_mode": "keyword_fallback",
+            "note": note,
+        }

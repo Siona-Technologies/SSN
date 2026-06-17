@@ -52,7 +52,7 @@ Long-term arc: personal Jarvis → deployable platform → regional sovereign AI
 | HTTP Front Door (REST API) | Phase 2 |
 | Configurable law paths (multi-tenant) | Phase 3 |
 | Real STT/TTS (speech tools stubbed) | Phase 4 ✅ |
-| Vector embeddings / semantic RAG | Phase 5 |
+| Vector embeddings / semantic RAG | Phase 5 ✅ |
 | systemd / production deploy layout | Phase 6 |
 | Local GPU models + fine-tuning | Phase 7 (hardware) |
 | GitHub Actions CI | Phase 0 |
@@ -98,8 +98,8 @@ These were found during codebase review. **Resolve or track each item in the pha
 | ID | Issue | Detail | Action |
 |----|-------|--------|--------|
 | **A-10** | Speech tools are stubs | `ssn/speech/backends.py`, wired STT/TTS tools, `voice-once` CLI | ✅ Phase 4 |
-| **A-11** | Knowledge search is keyword-only | `KnowledgeStore._tokenize` — no vectors | Phase 5: `EmbeddingProvider` |
-| **A-12** | Semantic memory is KV JSON | `ssn/memory/semantic_store.py` — no embeddings | Phase 5: optional vector index |
+| **A-11** | Knowledge search is keyword-only | `KnowledgeStore` + `embedding_providers.py` | ✅ Phase 5 |
+| **A-12** | Semantic memory is KV JSON | vector sidecar on knowledge store; semantic store unchanged | Phase 5 partial |
 | **A-13** | No session / tenant model | Only `SSN_STATE_DIR` partially isolates state | Phase 2: session store; Phase 3: tenant example layout |
 | **A-14** | No structured audit log export | Traces in memory hub; no JSON log sink | Phase 6: structured logging for deployments |
 | **A-15** | No packaging (`pyproject.toml`) | Manual `python -m` invocations | Phase 6: optional `pyproject.toml` + console entry points |
@@ -344,6 +344,8 @@ SSN_EMBEDDING_ENDPOINT=http://127.0.0.1:8002/embed
 
 **Exit criteria:** Knowledge search rank changes with semantic similarity in live mode; offline tests unchanged and deterministic.
 
+**Status:** ✅ Complete (2026-06-17) — embedding providers, vector sidecar, HTTP mock embed server, Phase 5 tests.
+
 **Hardware:** Normal PC (CPU embedder); GPU optional.
 
 ---
@@ -515,6 +517,7 @@ SSN/
 
 | Date | Change |
 |------|--------|
+| 2026-06-17 | Sprint 5: embedding providers, knowledge RAG sidecar, mock embed server, Phase 5 tests |
 | 2026-06-17 | Sprint 4: sense tick demo, offline speech backends, voice-once CLI, Phase 4 tests |
 | 2026-06-17 | Sprint 3: configurable law paths, tenant deploy layouts, bounded OWNER mode |
 | 2026-06-17 | Sprint 2: HTTP Front Door API, session store, 9 HTTP tests, CI smoke |
@@ -523,4 +526,4 @@ SSN/
 
 ---
 
-*Next step: Phase 5 — embeddings & knowledge RAG.*
+*Next step: Phase 6 — production shape (systemd, backup, structured logging).*

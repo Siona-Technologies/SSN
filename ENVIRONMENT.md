@@ -195,6 +195,33 @@ SSN_OFFLINE=1 python scripts/sense_tick_demo.py
 
 ---
 
+## Embeddings / knowledge RAG (Phase 5)
+
+### `SSN_EMBEDDING_PROVIDER`
+- Values: `deterministic` (default) | `http`
+- `deterministic` — hash-based pseudo-embeddings (CI-safe, repeatable)
+- `http` — POST to `SSN_EMBEDDING_ENDPOINT` for live semantic ranking
+
+### `SSN_EMBEDDING_ENDPOINT`
+- Example: `http://127.0.0.1:8002/embed`
+- Mock dev server: `python scripts/mock_embed_server.py`
+
+### `SSN_EMBEDDING_DIM`
+- Optional vector size for deterministic provider (default `64`)
+
+Knowledge vectors are cached in a JSON sidecar next to the store:
+`${SSN_KNOWLEDGE_PATH}.vectors.json`
+
+Example (mock embed server + HTTP search):
+```bash
+python scripts/mock_embed_server.py --port 8002
+SSN_EMBEDDING_PROVIDER=http SSN_EMBEDDING_ENDPOINT=http://127.0.0.1:8002/embed \
+  python -m ssn.runtime.cli run-tool --role OWNER --name knowledge.search \
+  --args '{"query":"programming language"}'
+```
+
+---
+
 ## Recommended Configurations
 
 ### CI (Deterministic)

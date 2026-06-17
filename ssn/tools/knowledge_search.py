@@ -57,7 +57,7 @@ def knowledge_search_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict
         "query": query.strip(),
         "results": sr.get("results", []),
         "scanned": sr.get("scanned", 0),
-        "note": "knowledge.search (Phase 7.4, local-only, deterministic, bounded)",
+        "note": "knowledge.search (Phase 5 RAG, local-only, bounded)",
     }
 
 

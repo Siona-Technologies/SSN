@@ -26,6 +26,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_front_door_gateway",
     "ssn.tests.test_http_front_door",
     "ssn.tests.test_phase3_tenant_law",
+    "ssn.tests.test_phase4_speech_and_senses",
     # Eval harness
     "ssn.tests.test_phase47_eval_harness_smoke",
     # Interface / runtime (stable subset)

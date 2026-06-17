@@ -159,6 +159,42 @@ Sessions persist under `${SSN_STATE_DIR}/sessions/`.
 
 ---
 
+## Voice / speech (Phase 4)
+
+Optional offline speech backends. CI uses dummy backends (no mic/speaker). Install optional deps from `requirements-voice.txt`.
+
+### `SSN_STT_BACKEND`
+- Values: `dummy` (default) | `text` | `whisper_cli` | `faster_whisper`
+- `dummy` — structured response, no microphone (CI-safe)
+- `text` — requires `--text`, tool `args.text`, or `SSN_STT_TEXT`
+- `whisper_cli` — whisper.cpp `main` binary; set `SSN_WHISPER_CLI` if not on PATH
+- `faster_whisper` — Python `faster-whisper` + `sounddevice` for mic capture
+
+### `SSN_STT_TEXT`
+- Optional fixed transcript for dev/CI when bypassing mic
+
+### `SSN_WHISPER_CLI` / `SSN_WHISPER_ARGS` / `SSN_WHISPER_MODEL`
+- whisper.cpp CLI path and args; model size for faster-whisper (default `base`)
+
+### `SSN_TTS_BACKEND`
+- Values: `dummy` (default) | `stdout` | `pyttsx3` | `piper_cli`
+- `stdout` — prints `[TTS:lang] text` (CI-safe simulation)
+- `pyttsx3` — local CPU TTS via SAPI/espeak
+- `piper_cli` — Piper neural TTS; set `SSN_PIPER_CLI` and `SSN_PIPER_MODEL`
+
+### CLI voice loop
+```bash
+SSN_OFFLINE=1 SSN_MASTER_KEY=dev-key SSN_TTS_BACKEND=stdout \
+  python -m ssn.runtime.cli voice-once --text "hello" --offline
+```
+
+Sense tick demo:
+```bash
+SSN_OFFLINE=1 python scripts/sense_tick_demo.py
+```
+
+---
+
 ## Recommended Configurations
 
 ### CI (Deterministic)

@@ -16,6 +16,7 @@ from ssn.runtime.frontdoor_context import (
     mk_frontdoor_context,
     safe_context,
 )
+from ssn.runtime.voice_once import run_voice_once
 
 
 # -----------------------------
@@ -308,6 +309,20 @@ def main(argv: list[str] | None = None) -> int:
     p_tool.add_argument("--name", required=True, help="Tool name, e.g., tools.list, tools.public_list, world.read")
     p_tool.add_argument("--args", default="{}", help='JSON dict of tool args, e.g. \'{"max_events":2}\'')
 
+    p_voice = sub.add_parser(
+        "voice-once",
+        help="One-shot voice loop: STT → Front Door → TTS (OWNER; requires SSN_MASTER_KEY).",
+    )
+    p_voice.add_argument(
+        "--text",
+        default=None,
+        help="Bypass microphone STT with this transcript (recommended for CI/dev without mic).",
+    )
+    p_voice.add_argument("--language", default="en", help="Language code for STT/TTS.")
+    p_voice.add_argument("--offline", action="store_true", help="Force offline Front Door context.")
+    p_voice.add_argument("--strict", action="store_true", help="Enable strict Front Door context.")
+    p_voice.add_argument("--no-speak", action="store_true", help="Skip TTS playback after response.")
+
     args = parser.parse_args(remaining)
 
     # =========================================================
@@ -425,6 +440,25 @@ def main(argv: list[str] | None = None) -> int:
         }
         _print_json(out)
         return 0
+
+    if args.cmd == "voice-once":
+        if not mk:
+            print("voice-once requires OWNER master key (SSN_MASTER_KEY or --master_key).", file=sys.stderr)
+            return 2
+        out = run_voice_once(
+            runtime=runtime,
+            master_key=mk,
+            text=args.text,
+            language=args.language,
+            offline=bool(args.offline) or forced_offline(),
+            speak=not bool(args.no_speak),
+            strict=bool(args.strict),
+        )
+        if out.get("ok"):
+            _render_frontdoor_output(out.get("front_door") or {"answer": out.get("answer")})
+        else:
+            _print_json(out)
+        return 0 if out.get("ok") else 1
 
     return 2
 

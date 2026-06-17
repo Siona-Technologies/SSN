@@ -51,7 +51,7 @@ Long-term arc: personal Jarvis → deployable platform → regional sovereign AI
 | Mock / real inference server | Phase 1 |
 | HTTP Front Door (REST API) | Phase 2 |
 | Configurable law paths (multi-tenant) | Phase 3 |
-| Real STT/TTS (speech tools stubbed) | Phase 4 |
+| Real STT/TTS (speech tools stubbed) | Phase 4 ✅ |
 | Vector embeddings / semantic RAG | Phase 5 |
 | systemd / production deploy layout | Phase 6 |
 | Local GPU models + fine-tuning | Phase 7 (hardware) |
@@ -97,7 +97,7 @@ These were found during codebase review. **Resolve or track each item in the pha
 
 | ID | Issue | Detail | Action |
 |----|-------|--------|--------|
-| **A-10** | Speech tools are stubs | `ssn/tools/speech_tools.py` — no mic/speaker I/O | Phase 4: optional deps + offline backends |
+| **A-10** | Speech tools are stubs | `ssn/speech/backends.py`, wired STT/TTS tools, `voice-once` CLI | ✅ Phase 4 |
 | **A-11** | Knowledge search is keyword-only | `KnowledgeStore._tokenize` — no vectors | Phase 5: `EmbeddingProvider` |
 | **A-12** | Semantic memory is KV JSON | `ssn/memory/semantic_store.py` — no embeddings | Phase 5: optional vector index |
 | **A-13** | No session / tenant model | Only `SSN_STATE_DIR` partially isolates state | Phase 2: session store; Phase 3: tenant example layout |
@@ -315,6 +315,8 @@ SSN_KNOWLEDGE_PATH=ssn/knowledge/knowledge.jsonl
 
 **Exit criteria:** OWNER push-to-talk works locally with optional deps installed; CI passes without voice deps.
 
+**Status:** ✅ Complete (2026-06-17) — `sense_tick_demo.py`, speech backends, `voice-once` CLI, `requirements-voice.txt`, Phase 4 tests.
+
 **Hardware:** Normal PC + microphone (local dev only).
 
 ---
@@ -513,6 +515,7 @@ SSN/
 
 | Date | Change |
 |------|--------|
+| 2026-06-17 | Sprint 4: sense tick demo, offline speech backends, voice-once CLI, Phase 4 tests |
 | 2026-06-17 | Sprint 3: configurable law paths, tenant deploy layouts, bounded OWNER mode |
 | 2026-06-17 | Sprint 2: HTTP Front Door API, session store, 9 HTTP tests, CI smoke |
 | 2026-06-17 | Sprint 1: mock LLM, CI, eval expansion, boot path doc, test triage (partial) |
@@ -520,4 +523,4 @@ SSN/
 
 ---
 
-*Next step: Phase 4 — senses demo + CPU speech skeleton.*
+*Next step: Phase 5 — embeddings & knowledge RAG.*

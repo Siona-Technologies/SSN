@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from ssn.speech.backends import stt_listen, tts_speak
 from ssn.tools.contracts import ToolSpec
 
 
@@ -15,30 +16,31 @@ def _safe_str(v: Any, *, max_len: int) -> str:
     return v.strip()[:max_len]
 
 
-# --------------------------------------------------
-# Handlers (stubbed – no real I/O yet)
-# --------------------------------------------------
-
 def _speech_stt_listen_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Read-only stub for speech-to-text.
-    No microphone access yet.
+    Offline speech-to-text (optional mic / whisper backends).
     """
-    lang = _safe_str(args.get("language", "en"), max_len=_MAX_LANG_LEN)
+    lang = _safe_str(args.get("language", "en"), max_len=_MAX_LANG_LEN) or "en"
+    text_bypass = _safe_str(args.get("text"), max_len=_MAX_TEXT_LEN) or None
+    audio_path = _safe_str(args.get("audio_path"), max_len=512) or None
 
-    return {
-        "ok": True,
-        "language": lang,
-        "transcript": None,
-        "note": "speech.stt.listen placeholder – microphone not wired yet",
-    }
+    record_seconds = args.get("record_seconds")
+    rs = None
+    if isinstance(record_seconds, (int, float)):
+        rs = float(record_seconds)
+
+    out = stt_listen(
+        language=lang,
+        text_override=text_bypass,
+        audio_path=audio_path,
+        record_seconds=rs,
+    )
+    return out
 
 
 def _speech_tts_speak_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Stub for text-to-speech.
-    This is treated as a state-changing external effect and
-    must be approval-gated by the tool execution layer.
+    Offline text-to-speech. External effect; approval-gated upstream.
     """
     text = _safe_str(args.get("text"), max_len=_MAX_TEXT_LEN)
     if not text:
@@ -47,29 +49,17 @@ def _speech_tts_speak_handler(deps: Dict[str, Any], args: Dict[str, Any]) -> Dic
             "error": {"code": "BAD_REQUEST", "message": "text is required"},
         }
 
-    voice = _safe_str(args.get("voice", "default"), max_len=32)
-    lang = _safe_str(args.get("language", "en"), max_len=_MAX_LANG_LEN)
+    voice = _safe_str(args.get("voice", "default"), max_len=32) or "default"
+    lang = _safe_str(args.get("language", "en"), max_len=_MAX_LANG_LEN) or "en"
 
-    return {
-        "ok": True,
-        "spoken": False,
-        "text": text,
-        "voice": voice,
-        "language": lang,
-        "note": "speech.tts.speak placeholder – audio output disabled",
-    }
+    return tts_speak(text=text, voice=voice, language=lang)
 
-
-# --------------------------------------------------
-# Registration
-# --------------------------------------------------
 
 def register_speech_tools(registry) -> None:
-    # Read-only STT
     registry.register(
         ToolSpec(
             name="speech.stt.listen",
-            description="Listen and transcribe speech (read-only stub).",
+            description="Listen and transcribe speech (offline backends; optional deps).",
             required_role="OWNER",
             allowed_roles=("OWNER",),
             public=False,
@@ -77,20 +67,23 @@ def register_speech_tools(registry) -> None:
             max_calls_per_minute=10,
             input_schema={
                 "language": {"type": "string", "required": False, "max_length": _MAX_LANG_LEN},
+                "text": {"type": "string", "required": False, "max_length": _MAX_TEXT_LEN},
+                "audio_path": {"type": "string", "required": False},
+                "record_seconds": {"type": "number", "required": False},
             },
             handler=_speech_stt_listen_handler,
         )
     )
 
-    # Approval-gated TTS (state-changing)
     registry.register(
         ToolSpec(
             name="speech.tts.speak",
-            description="Speak text aloud (approval-gated; stub).",
+            description="Speak text aloud (approval-gated; offline TTS backends).",
             required_role="OWNER",
             allowed_roles=("OWNER",),
             public=False,
-            state_changing=True,   # ← THIS is what triggers approval upstream
+            state_changing=True,
+            external_effect=True,
             max_calls_per_minute=5,
             input_schema={
                 "text": {"type": "string", "required": True, "max_length": _MAX_TEXT_LEN},

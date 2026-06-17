@@ -1,0 +1,15 @@
+# Optional voice dependencies for Phase 4 (not required for CI).
+#
+# Install:
+#   pip install -r requirements-voice.txt
+#
+# Backends (see ENVIRONMENT.md):
+#   STT: faster-whisper + sounddevice (mic capture)
+#   STT: whisper.cpp CLI via SSN_WHISPER_CLI
+#   TTS: pyttsx3 (cross-platform, CPU)
+#   TTS: piper CLI via SSN_PIPER_CLI
+
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+pyttsx3>=2.90

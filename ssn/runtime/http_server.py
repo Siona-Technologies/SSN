@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple, Type
 from urllib.parse import urlparse
@@ -31,6 +32,7 @@ from ssn.runtime.frontdoor_context import (
 )
 from ssn.runtime.runtime_builder import SSNRuntime, SSNRuntimeBuilder
 from ssn.runtime.session_store import SessionStore
+from ssn.runtime.structured_logging import emit_audit, emit_http_access, emit_log, structured_logging_enabled
 from ssn.runtime.tenant_config import load_tenant_config, resolve_tenant_id
 
 _MAX_BODY_BYTES = 256_000
@@ -282,6 +284,8 @@ def make_handler(state: SionaHTTPServerState) -> Type[BaseHTTPRequestHandler]:
         def log_message(self, fmt: str, *args: Any) -> None:
             if os.getenv("SSN_HTTP_QUIET") == "1":
                 return
+            if structured_logging_enabled():
+                return
             super().log_message(fmt, *args)
 
         def _send_json(self, status: int, obj: Dict[str, Any]) -> None:
@@ -292,7 +296,20 @@ def make_handler(state: SionaHTTPServerState) -> Type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
+        def _log_access(self, *, status: int, started: float, extra: Optional[Dict[str, Any]] = None) -> None:
+            path = urlparse(self.path).path
+            emit_http_access(
+                method=self.command,
+                path=path,
+                status=status,
+                duration_ms=(time.time() - started) * 1000.0,
+                tenant_id=(extra or {}).get("tenant_id"),
+                session_id=(extra or {}).get("session_id"),
+                extra={k: v for k, v in (extra or {}).items() if k not in ("tenant_id", "session_id")},
+            )
+
         def do_GET(self) -> None:
+            started = time.time()
             path = urlparse(self.path).path
             if path in ("/v1/health", "/health", "/healthz"):
                 self._send_json(
@@ -303,27 +320,71 @@ def make_handler(state: SionaHTTPServerState) -> Type[BaseHTTPRequestHandler]:
                         "offline": forced_offline(),
                     },
                 )
+                self._log_access(status=200, started=started)
                 return
             self._send_json(404, {"ok": False, "error": {"code": "NOT_FOUND", "message": "unknown path"}})
+            self._log_access(status=404, started=started)
 
         def do_POST(self) -> None:
+            started = time.time()
             path = urlparse(self.path).path
             ok, body, err = _read_json_body(self)
             if not ok:
                 self._send_json(400, {"ok": False, "error": {"code": "BAD_REQUEST", "message": err}})
+                self._log_access(status=400, started=started, extra={"route": path})
                 return
 
             if path == "/v1/chat":
                 status, out = _chat_response(state=state, body=body, headers=self.headers)
                 self._send_json(status, out)
+                self._log_access(
+                    status=status,
+                    started=started,
+                    extra={
+                        "tenant_id": out.get("tenant_id"),
+                        "session_id": out.get("session_id"),
+                        "route": "/v1/chat",
+                    },
+                )
+                emit_audit(
+                    action="chat",
+                    ok=bool(out.get("ok")) and status < 400,
+                    role=str(body.get("role") or "GUEST"),
+                    tenant_id=out.get("tenant_id") if isinstance(out.get("tenant_id"), str) else None,
+                    session_id=out.get("session_id") if isinstance(out.get("session_id"), str) else None,
+                    turn_id=out.get("turn_id") if isinstance(out.get("turn_id"), int) else None,
+                    degraded=bool(out.get("degraded", False)),
+                    extra={"status": status},
+                )
                 return
 
             if path == "/v1/tool/run":
                 status, out = _tool_response(state=state, body=body, headers=self.headers)
                 self._send_json(status, out)
+                self._log_access(
+                    status=status,
+                    started=started,
+                    extra={
+                        "tenant_id": out.get("tenant_id"),
+                        "session_id": out.get("session_id"),
+                        "route": "/v1/tool/run",
+                    },
+                )
+                data = out.get("data") if isinstance(out.get("data"), dict) else {}
+                emit_audit(
+                    action="run_tool",
+                    ok=bool(out.get("ok")) and status < 400,
+                    role=str(out.get("role") or body.get("role") or "GUEST"),
+                    tenant_id=out.get("tenant_id") if isinstance(out.get("tenant_id"), str) else None,
+                    session_id=out.get("session_id") if isinstance(out.get("session_id"), str) else None,
+                    turn_id=out.get("turn_id") if isinstance(out.get("turn_id"), int) else None,
+                    tool_name=str(body.get("tool_name") or ""),
+                    extra={"status": status, "allowed": data.get("allowed")},
+                )
                 return
 
             self._send_json(404, {"ok": False, "error": {"code": "NOT_FOUND", "message": "unknown path"}})
+            self._log_access(status=404, started=started, extra={"route": path})
 
     return SionaHTTPHandler
 
@@ -332,6 +393,7 @@ def serve(host: str = "127.0.0.1", port: int = 8080) -> None:
     state = SionaHTTPServerState()
     handler = make_handler(state)
     server = ThreadingHTTPServer((host, port), handler)
+    emit_log("service.start", host=host, port=port, offline=forced_offline())
     print(f"SIONA HTTP Front Door listening on http://{host}:{port}")
     print("  GET  /v1/health")
     print("  POST /v1/chat")

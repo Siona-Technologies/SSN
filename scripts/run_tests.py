@@ -28,6 +28,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase3_tenant_law",
     "ssn.tests.test_phase4_speech_and_senses",
     "ssn.tests.test_phase5_embedding_and_knowledge_rag",
+    "ssn.tests.test_phase6_production_shape",
     # Eval harness
     "ssn.tests.test_phase47_eval_harness_smoke",
     # Interface / runtime (stable subset)

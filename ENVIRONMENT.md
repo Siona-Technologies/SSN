@@ -222,6 +222,20 @@ SSN_EMBEDDING_PROVIDER=http SSN_EMBEDDING_ENDPOINT=http://127.0.0.1:8002/embed \
 
 ---
 
+## Production logging (Phase 6)
+
+### `SSN_STRUCTURED_LOG` / `SSN_HTTP_STRUCTURED_LOG`
+- Values: `0` or `1`
+- When `1`, HTTP server emits JSON lines to stdout:
+  - `service.start` — process boot
+  - `http.access` — request path, status, duration
+  - `audit` — chat/tool actions (secrets redacted)
+- Recommended for systemd/journald and CloudWatch agents
+
+Install reference: `deploy/README.md` (systemd unit, backup/restore).
+
+---
+
 ## Recommended Configurations
 
 ### CI (Deterministic)

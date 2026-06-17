@@ -62,6 +62,9 @@ ssn/data/profile_memory.json
 ssn/data/trace_memory.json
 *.vectors.json
 
+backups/
+backups/**
+
 # ============================
 # OS JUNK FILES
 # ============================

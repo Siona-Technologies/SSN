@@ -101,8 +101,8 @@ These were found during codebase review. **Resolve or track each item in the pha
 | **A-11** | Knowledge search is keyword-only | `KnowledgeStore` + `embedding_providers.py` | ✅ Phase 5 |
 | **A-12** | Semantic memory is KV JSON | vector sidecar on knowledge store; semantic store unchanged | Phase 5 partial |
 | **A-13** | No session / tenant model | Only `SSN_STATE_DIR` partially isolates state | Phase 2: session store; Phase 3: tenant example layout |
-| **A-14** | No structured audit log export | Traces in memory hub; no JSON log sink | Phase 6: structured logging for deployments |
-| **A-15** | No packaging (`pyproject.toml`) | Manual `python -m` invocations | Phase 6: optional `pyproject.toml` + console entry points |
+| **A-14** | No structured audit log export | `ssn/runtime/structured_logging.py` wired to HTTP | ✅ Phase 6 |
+| **A-15** | No packaging (`pyproject.toml`) | `pyproject.toml` + `siona-cli` / `siona-http` scripts | ✅ Phase 6 |
 | **A-16** | WorldModel test API drift | Tests expect `WorldModelConfig` / `apply_delta`; implementation uses `apply_update` | Phase 5 world model sync or update tests |
 | **A-17** | Guest tool policy gap | `tools.public_list` denied for GUEST at policy layer | Phase 3: allowlist guest-safe introspection tools in policy |
 
@@ -368,6 +368,8 @@ SSN_EMBEDDING_ENDPOINT=http://127.0.0.1:8002/embed
 
 **Exit criteria:** Service starts on Ubuntu; `/v1/health` returns OK; backup/restore documented.
 
+**Status:** ✅ Complete (2026-06-17) — systemd unit, backup script, structured logging, pyproject entry points.
+
 **Hardware:** Test on PC; full always-on on dedicated box later.
 
 ---
@@ -517,6 +519,7 @@ SSN/
 
 | Date | Change |
 |------|--------|
+| 2026-06-17 | Sprint 6: systemd unit, backup script, structured JSON logging, pyproject entry points |
 | 2026-06-17 | Sprint 5: embedding providers, knowledge RAG sidecar, mock embed server, Phase 5 tests |
 | 2026-06-17 | Sprint 4: sense tick demo, offline speech backends, voice-once CLI, Phase 4 tests |
 | 2026-06-17 | Sprint 3: configurable law paths, tenant deploy layouts, bounded OWNER mode |
@@ -526,4 +529,4 @@ SSN/
 
 ---
 
-*Next step: Phase 6 — production shape (systemd, backup, structured logging).*
+*Next step: Phase 7 — real mind (GPU inference, hardware-funded).*

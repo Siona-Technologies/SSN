@@ -1,0 +1,24 @@
+[Unit]
+Description=SIONA HTTP Front Door (law-bound cognitive runtime)
+Documentation=file:///opt/siona/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=siona
+Group=siona
+WorkingDirectory=/opt/siona
+EnvironmentFile=-/etc/siona/siona.env
+ExecStart=/opt/siona/.venv/bin/python -m ssn.runtime.http_server --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+# Hardening (adjust if your layout differs)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/siona
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

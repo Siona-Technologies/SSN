@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "siona"
+version = "0.1.0"
+description = "SIONA — law-bound, owner-controlled hybrid brain platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Samson Sibona Njaji" }]
+dependencies = [
+  "python-dotenv>=1.0",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+voice = [
+  "faster-whisper>=1.0.0",
+  "sounddevice>=0.4.6",
+  "numpy>=1.24.0",
+  "pyttsx3>=2.90",
+]
+
+[project.scripts]
+siona-cli = "ssn.runtime.cli:main"
+siona-http = "ssn.runtime.http_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ssn*"]

@@ -40,19 +40,23 @@
 - **Pluggable LLM layer:** `LanguageEngine` + `LLMProvider` abstraction; env-driven selection (`SSN_LLM_PROVIDER`, `SSN_LLM_ENDPOINT`); HTTP provider with safe fallback
 - **Senses pipeline:** Encoders (vision, audio, IMU, LiDAR, event camera; plus touch, olfaction, gustation, interoception); `PerceptionHub` → world deltas
 - **CLI Front Door:** Interactive console (`ssn.runtime.cli console`) with OWNER/GUEST, offline/strict/tools/research toggles
-- **Documentation:** `README.md`, `ENVIRONMENT.md`, `LLM_STRATEGY_V10.md`, `.env.example`
+- **HTTP Front Door (Phase 2):** `GET /v1/health`, `POST /v1/chat`, `POST /v1/tool/run`; multi-tenant session isolation
+- **Voice skeleton (Phase 4):** STT/TTS tool backends, `voice-once` CLI, optional voice deps
+- **Knowledge RAG (Phase 5):** Embedding providers (deterministic + HTTP), vector sidecar on `KnowledgeStore`
+- **Production shape (Phase 6):** `deploy/siona.service` systemd unit, `scripts/backup_state.sh`, structured JSON logging, `pyproject.toml` entry points (`siona-cli`, `siona-http`)
+- **Documentation:** `README.md`, `ENVIRONMENT.md`, `LLM_STRATEGY_V10.md`, `deploy/README.md`, `.env.example`
 - **Source control:** Project maintained on GitHub (`main` branch)
 
 ### 3.2 Not yet built (explicit roadmap items)
 
 | Capability | Status |
 |------------|--------|
-| Production GPU LLM (real model server) | Architecture ready; model + hosting TBD |
-| Always-on systemd / K8s service | CLI only today |
-| Voice Jarvis (STT/TTS + hotword) | Tool hooks planned; full loop pending |
+| Production GPU LLM (real model server) | Architecture ready; wire `SSN_LLM_PROVIDER=http` to Ollama/vLLM |
+| Always-on systemd service | ✅ `deploy/siona.service` + install guide |
+| Voice Jarvis (STT/TTS + hotword) | Phase 4 skeleton; optional deps for mic/speaker |
 | Face recognition / vision intelligence | Perception pipeline ready; models not wired |
-| Multi-tenant cloud scale | Designed in V10 blueprint; not deployed |
-| Web/dashboard UI | Future layer on same Front Door |
+| Multi-tenant cloud scale | Law paths + tenant state dirs; AWS deployment guide in this doc |
+| Web/dashboard UI | HTTP Front Door live; dashboard UI future |
 
 ---
 
@@ -61,7 +65,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  INTERFACES                                                  │
-│  CLI (today) · HTTP/WebSocket (planned) · Voice (planned)   │
+│  CLI · HTTP Front Door (/v1/*) · Voice CLI (Phase 4)         │
 └────────────────────────────┬────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -160,7 +164,7 @@ SIONA is designed as a **deployable cognitive runtime**, not a desktop-only scri
 | Secrets | Secrets Manager / Parameter Store (never in traces) |
 | Encryption | KMS for vault/backups |
 | Network | VPC, private subnets, security groups |
-| Observability | CloudWatch logs/metrics; structured tool traces |
+| Observability | CloudWatch logs/metrics; **structured JSON** HTTP audit/access logs (`SSN_STRUCTURED_LOG=1`) |
 
 **Local-first by design; cloud-ready by architecture.** The same codebase can run on a Jarvis workstation or scale on AWS when elastic GPU and multi-tenant isolation are required.
 
@@ -171,14 +175,14 @@ SIONA is designed as a **deployable cognitive runtime**, not a desktop-only scri
 ### Phase A — Demo-ready (weeks)
 
 1. Deploy **one real LLM** behind `HttpLLMProvider` (open-weight model on GPU VM or EC2).
-2. Expose **HTTP Front Door** (stateless) with session backing store.
-3. CI: deterministic offline test suite (`SSN_OFFLINE=1`).
+2. ~~Expose **HTTP Front Door** (stateless) with session backing store.~~ ✅ Done (Phase 2).
+3. CI: deterministic offline test suite (`SSN_OFFLINE=1`). ✅ Done.
 
 ### Phase B — Jarvis workstation
 
-4. **Ubuntu LTS** dedicated machine; systemd always-on service.
+4. ~~**Ubuntu LTS** dedicated machine; systemd always-on service.~~ ✅ Unit + docs (Phase 6).
 5. **Sleep/wake** modes (service runs; interaction gated by owner command).
-6. **STT/TTS** tools + minimal UI (push-to-talk).
+6. ~~**STT/TTS** tools + minimal UI (push-to-talk).~~ Skeleton done (Phase 4); hotword UI pending.
 
 ### Phase C — AWS production shape
 
@@ -202,7 +206,7 @@ We are seeking guidance on:
 ## 9. FAQ (anticipated questions)
 
 **Q: Is SIONA production-ready today?**  
-A: Core runtime, policy, tools, and research pipeline are production-oriented. Real LLM, voice, and cloud deployment are the next integration layers.
+A: Core runtime, policy, tools, HTTP Front Door, structured logging, and backup paths are production-oriented. Real GPU LLM weights and always-on voice UI are the next integration layers.
 
 **Q: Why not use only Amazon Bedrock?**  
 A: Provider abstraction allows Bedrock as one backend later; priority is owner-controlled weights and local/offline operation where required.
@@ -228,6 +232,7 @@ A: Runs on a developer laptop today (dummy LLM). Jarvis-class experience require
 | `README.md` | Project overview, senses, CLI, LLM providers |
 | `ENVIRONMENT.md` | Offline/live flags, state dir, secrets policy |
 | `LLM_STRATEGY_V10.md` | LLM provider abstraction and upgrade path |
+| `deploy/README.md` | Production install, systemd, backup/restore |
 | `.env.example` | Safe environment template |
 | `ssn/policy/home_law_samson.yaml` | Owner law and overrides |
 | `ssn/bootstrap.py` | Canonical runtime initialization |
@@ -236,4 +241,4 @@ A: Runs on a developer laptop today (dummy LLM). Jarvis-class experience require
 
 ---
 
-*Document version: 1.0 · For AWS architecture showcase*
+*Document version: 1.1 · Phases 0–6 built · Phase 7 GPU mind pending*

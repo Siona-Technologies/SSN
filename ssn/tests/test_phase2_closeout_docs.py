@@ -119,14 +119,39 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
             encoding="utf-8"
         )
-        # Research must contain completed comparisons, not only unresolved placeholders.
-        self.assertIn("Provisional runtime recommendation", research)
-        self.assertIn("PROVISIONAL — REQUIRES OWNER APPROVAL BEFORE INSTALLATION", research)
-        self.assertIn("PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED", research)
+        # Research must contain completed comparisons and historical/current status.
+        self.assertIn("## Runtime recommendation history and current status", research)
+        self.assertIn("## First-model recommendation history and current status", research)
+        self.assertIn("Historical selection status", research)
+        self.assertIn("Current status", research)
+        self.assertIn(
+            "PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION",
+            research,
+        )
+        self.assertIn(
+            "PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED AT THE RESEARCH GATE",
+            research,
+        )
+        self.assertIn(
+            "OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED",
+            research,
+        )
+        self.assertIn("ARTIFACT-VERIFIED LOCALLY", research)
+        self.assertIn("RUNTIME CURRENTLY STOPPED", research)
+        self.assertIn("PROVIDER INTEGRATION PENDING", research)
+        self.assertIn("Capabilities remain unverified beyond the basic probe", research)
         self.assertIn("llama.cpp native Windows", research)
         self.assertIn("Qwen3-1.7B", research)
         self.assertNotIn(
             "Do not fill unstable facts from memory",
+            research,
+        )
+        self.assertNotIn(
+            "No model download is authorized. No weights have been downloaded.",
+            research,
+        )
+        self.assertNotIn(
+            "**Status: PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED**",
             research,
         )
         # Ensure the document is not still the empty template form.
@@ -173,7 +198,14 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
         self.assertIn("Proposed", status_block)
         self.assertNotIn("Accepted", status_block)
-        self.assertIn("PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED", research)
+        self.assertIn("### Historical pre-install runtime direction", adr)
+        self.assertIn("### Historical pre-install model direction", adr)
+        self.assertIn("Current local evidence", adr)
+        self.assertIn("Provider integration", adr)
+        self.assertNotIn(
+            "### Provisional model direction (not approved / not downloaded)",
+            adr,
+        )
         self.assertIn("installation", research.lower())
         self.assertIn("provider integration", research.lower())
 

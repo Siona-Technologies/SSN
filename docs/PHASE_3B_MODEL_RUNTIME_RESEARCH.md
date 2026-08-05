@@ -87,12 +87,14 @@ Selection notes:
 - Publisher Q8_0 remains a possible later comparison.
 - Qwen3-4B and Granite remain later comparison candidates.
 - The first baseline is replaceable behind `ModelGateway`.
-- No runtime or model capability has been verified.
-- No model download or runtime installation is authorized.
+- Broad runtime/model capability remains unverified beyond the limited
+  loopback probe.
+- SIONA provider integration and additional inference campaigns still require
+  separate authorization.
 
 This is **not** SIONA's permanent reasoning model, a final production model, a
-SIONA-native model, a capability-approved model, an installed model, or a
-downloaded model.
+SIONA-native model, or a capability-approved model. The selected baseline is
+locally installed and artifact-verified; the runtime is currently stopped.
 
 ## Preserved later candidates (not authorized)
 
@@ -164,7 +166,7 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 | Iris Xe path | NOT APPLICABLE (CPU baseline) |
 | Risks | Endpoint schema drift vs SIONA transport; no tokens/s claim |
 | Unresolved questions | Confirm exact `--help` flags on the extracted b9968 CPU binary before any install approval |
-| Selection status | **PROVISIONAL primary baseline — not installed / not approved** |
+| Selection status | **Historical provisional primary baseline at research gate; now locally installed/verified (runtime stopped)** |
 
 ### 2. llama.cpp Windows SYCL
 
@@ -476,22 +478,28 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 | Unresolved questions | Whether Phi-4 ONNX path should be a separate later track |
 | Selection status | **Deferred — not first GGUF baseline** |
 
-## Provisional runtime recommendation
+## Runtime recommendation history and current status
 
-**Status: PROVISIONAL — REQUIRES OWNER APPROVAL BEFORE INSTALLATION**
+**Historical selection status:** PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION
+
+**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED; PROVIDER INTEGRATION PENDING
 
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
 
-The owner has recorded this as the first baseline for
-**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**, and local operator
-evidence now shows install + limited loopback execution completed (runtime
-currently stopped). SIONA provider integration remains pending.
+The historical recommendation remains useful as decision provenance. It is
+**not** the current installation state. Installation occurred later under
+separate explicit owner authorization. Local operator evidence records
+artifact verification and a limited loopback probe; the runtime is currently
+stopped. Further execution campaigns and SIONA provider integration still
+require separate authorization.
+
+**Historical owner-selection gate wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
 Later experiment: **llama.cpp SYCL**. Convenience comparison: **Ollama**.
 Alternative research path: **OpenVINO GenAI**.
 
-No runtime is installed or finally approved.
+No final production runtime approval is issued by ADR 0003 (still Proposed).
 
 ---
 
@@ -544,7 +552,7 @@ No runtime is installed or finally approved.
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
 | Local evaluation status | Not evaluated locally — no real-model benchmark completed |
-| Selection status | **OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY — no download authorized; quantizer = ggml-org** |
+| Selection status | **OWNER-AUTHORIZED locally installed baseline (runtime currently stopped); provider integration pending** |
 
 ### Candidate B — Qwen3-4B
 
@@ -744,20 +752,36 @@ No runtime is installed or finally approved.
 | Runtime-maturity risk | Higher — newer multimodal architecture |
 | Local evaluation status | Not evaluated |
 | Selection status | **Research-only — rejected for first integration gate** |
-## Provisional first-model recommendation
+## First-model recommendation history and current status
 
-**Status: PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED**
+**Historical selection status:** PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED AT THE RESEARCH GATE
 
-Primary family remains **Qwen3-1.7B**. The owner selected
-`Qwen3-1.7B-Q4_K_M.gguf` from `ggml-org/Qwen3-1.7B-GGUF` revision
-`daeb8e2d528a760970442092f6bf1e55c3b659eb` as the
-**OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION VERIFICATION**.
+**Subsequent authorized outcome:** `Qwen3-1.7B-Q4_K_M.gguf` was downloaded under
+explicit owner authorization, verified locally at the pinned size
+(1282439264 bytes) and SHA256
+`d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`, loaded for
+a limited loopback probe, and retained on disk with the runtime stopped.
+
+Primary family remains **Qwen3-1.7B** from `ggml-org/Qwen3-1.7B-GGUF` revision
+`daeb8e2d528a760970442092f6bf1e55c3b659eb`.
+
+**Historical owner-selection gate wording:** OWNER-APPROVED FIRST BASELINE FOR
+PRE-INSTALLATION VERIFICATION
 
 Publisher Q8_0 remains a possible later comparison. Second: Qwen3-4B Q4_K_M.
 Comparison: Granite 4.0 Micro Q4_K_M.
 
-No model download is authorized. No weights have been downloaded. No real-model
-benchmark has been completed. Capabilities remain unverified.
+**Current restrictions:**
+
+- SIONA provider integration not authorized by this documentation PR
+- Model registry remains inactive
+- Additional inference campaigns require separate authorization
+- Capabilities remain unverified beyond the basic probe
+- ADR 0003 remains Proposed
+- Phase 3B remains in progress
+- Phase 4 remains not started
+
+No real-model production evaluation suite has been completed.
 
 ---
 

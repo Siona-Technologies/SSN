@@ -109,20 +109,22 @@ Sources examined: ggml-org/llama.cpp (build, SYCL, LICENSE, release b9968);
                   Qwen/Qwen3-1.7B (+ GGUF); ggml-org/Qwen3-1.7B-GGUF;
                   Qwen/Qwen3-4B-GGUF; ibm-granite/granite-4.0-micro(+GGUF);
                   microsoft/Phi-4-mini-instruct; Qwen/Qwen3.5-2B
-Result: official-source matrix completed after coverage and
-        traceability correction (full 7-runtime / 5-model field sets;
-        pinned HF revisions; source traceability appendix);
-        provisional runtime = llama.cpp Windows CPU baseline (b9968);
+Result: HISTORICAL research-gate outcome — official-source matrix completed
+        after coverage and traceability correction;
+        provisional runtime direction = llama.cpp Windows CPU baseline (b9968);
         provisional first model family = Qwen3-1.7B
-        (publisher Q8_0 or ggml-org Q4_K_M — owner choice pending);
+        (publisher Q8_0 or ggml-org Q4_K_M — owner choice then pending);
         second candidate = Qwen3-4B Q4_K_M; comparison = Granite 4.0 Micro Q4_K_M;
         Phi-4 community GGUF and Qwen3.5-2B deferred/rejected for first gate;
-        provisional recommendation remains pending owner approval
-Outstanding approval gates: runtime install; model download; local benchmark
-Limitations: no runtime installed; no weights downloaded; no benchmark metrics;
-             installation not authorized; model download not authorized;
-             ADR 0003 remains Proposed; Phase 3B remains in progress;
-             Phase 4 not started
+        provisional recommendation then pending owner approval
+Outstanding approval gates at research gate: runtime install; model download;
+        local benchmark
+Limitations at research gate (historical; superseded by later owner
+             authorization and EXP-3B-003): no runtime then installed;
+             no weights then downloaded; no benchmark metrics;
+             installation then not authorized; model download then not
+             authorized; ADR 0003 remains Proposed; Phase 3B remains in
+             progress; Phase 4 not started
 Artifact references: docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
                       docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       docs/adr/0003-first-local-model-strategy.md,
@@ -159,14 +161,15 @@ Licence: Apache License 2.0
 Result: documentation-only recording of owner-approved first baseline;
         purpose limited to transport/integration/safety/provenance/rollback/
         baseline-performance validation after later explicit install authorization
-Outstanding authorization gates: read-only pre-install checklist;
-        runtime archive SHA verification; install/download authorization;
-        execution; capability verification; real-model evaluation
-Limitations: no runtime downloaded; no runtime installed; no model downloaded;
-             no weights downloaded; no runtime executed; no inference;
-             no benchmark metrics; capabilities unverified;
-             ADR 0003 remains Proposed; Phase 3B remains in progress;
-             Phase 4 not started
+Outstanding authorization gates at selection gate: read-only pre-install
+        checklist; runtime archive SHA verification; install/download
+        authorization; execution; capability verification; real-model evaluation
+Limitations at selection gate (historical; superseded by EXP-3B-003):
+             no runtime then downloaded; no runtime then installed;
+             no model then downloaded; no weights then downloaded;
+             no runtime then executed; no inference; no benchmark metrics;
+             capabilities unverified; ADR 0003 remains Proposed;
+             Phase 3B remains in progress; Phase 4 not started
 Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
                       docs/adr/0003-first-local-model-strategy.md,

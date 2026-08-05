@@ -36,7 +36,10 @@ SIONA does not currently own a trained foundation model.
 Research recorded in
 [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](../PHASE_3B_MODEL_RUNTIME_RESEARCH.md).
 
-### Provisional runtime direction (not approved)
+### Historical pre-install runtime direction
+
+*(State at the official-source research gate, before owner download/install
+authorization.)*
 
 - **Primary first baseline:** llama.cpp native Windows x64 CPU build
 - **Later experiment only:** llama.cpp SYCL on Intel Iris Xe (no speed claim)
@@ -48,7 +51,10 @@ preserves exact binary + model-file control. SYCL remains experimental until
 local benchmark. A background service is not preferred for the first controlled
 baseline.
 
-### Provisional model direction (not approved / not downloaded)
+### Historical pre-install model direction
+
+*(State at the official-source research gate, before owner download/install
+authorization.)*
 
 - **Primary first integration candidate:** Qwen3-1.7B (transport/integration gate)
   - Publisher GGUF currently publishes **Q8_0** (not Q4_K_M)
@@ -61,9 +67,17 @@ model claim is made.
 
 ## Owner-approved Phase 3B baseline
 
-The owner approved the first controlled baseline for **pre-installation
-verification only**. This selection does **not** constitute ADR acceptance.
-ADR status remains **Proposed**.
+**Historical owner-selection gate:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
+
+**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED
+
+These subsections above describe the state at the official-source research gate.
+The owner subsequently issued explicit download/install/execution authorization.
+The selected baseline is now locally installed and artifact-verified. Limited
+loopback execution completed and the runtime is stopped. This later
+authorization does **not** constitute ADR acceptance. Provider integration,
+registry activation, governed real-runtime evaluation, security testing and
+rollback/fallback validation remain pending. ADR status remains **Proposed**.
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -142,13 +156,19 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 ## Consequences
 
-- Planning and research may proceed without installing software.
-- Installation requires the staged approvals in
+- Historical research/planning could proceed without installing software; that
+  was the research-gate posture, not the current operator state.
+- The portable baseline is now **locally installed and artifact-verified** under
+  explicit owner authorization; the runtime is currently **stopped**.
+- Further governed integration (SIONA provider wiring, registry activation,
+  real-runtime evaluation, security and rollback/fallback validation) still
+  requires staged approvals in
   [PHASE_3B_INSTALLATION_RUNBOOK.md](../PHASE_3B_INSTALLATION_RUNBOOK.md).
 - CI remains deterministic; real models stay out of hosted gates unless a later
   ADR explicitly changes that policy.
 - Capability claims remain conservative until artefact and behavioural
-  verification are both recorded.
+  verification are both recorded; the limited loopback probe is not sufficient
+  for production capability approval.
 
 ## Ownership boundaries
 

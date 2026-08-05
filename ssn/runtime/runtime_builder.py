@@ -31,6 +31,8 @@ class SSNRuntime:
     tool_registry: Any = None
     # Phase-1 cognitive foundation (additive; does not replace Orchestrator)
     cognitive_runtime: Any = None
+    # Phase-2 integration facade (observation / experimental)
+    integration: Any = None
 
 
 class _DummyPerceptionHub:
@@ -357,18 +359,65 @@ class SSNRuntimeBuilder:
         # Additive cognitive foundation (event bus / workspace / gateways).
         # Does not replace Orchestrator, BrainRouter, policy, or owner-control paths.
         cognitive_runtime = None
+        integration = None
         try:
             from ssn.cognition.loop import CognitiveRuntime  # type: ignore
+            from ssn.cognition.model_gateway import ModelGateway  # type: ignore
+            from ssn.integration.facade import IntegrationFacade  # type: ignore
+            from ssn.integration.runtime_modes import get_runtime_mode  # type: ignore
 
+            # Reuse a single model gateway instance for the cognitive path.
+            shared_gateway = ModelGateway.for_tests()
             cognitive_runtime = CognitiveRuntime.create(
                 memory_hub=self.memory_hub,
                 world_model=self.world_model,
+                model_gateway=shared_gateway,
+            )
+            # Ensure memory/world boundaries point at orchestrator-owned backends.
+            cognitive_runtime.memory._hub = self.memory_hub
+            cognitive_runtime.world._world = self.world_model
+
+            integration = IntegrationFacade.create(
+                cognitive_runtime=cognitive_runtime,
+                orchestrator=self.orchestrator,
+                mode=get_runtime_mode().value,
             )
             _safe_setattr(self.orchestrator, "cognitive_runtime", cognitive_runtime)
+            _safe_setattr(self.orchestrator, "integration", integration)
+
+            # Soft BrainRouter observation hook (does not change route outputs).
+            if self.brain_router is not None:
+                try:
+                    def _router_observer(payload: dict) -> None:
+                        try:
+                            from ssn.integration.trace_context import TraceContext
+
+                            tr = TraceContext(
+                                role=str(payload.get("role") or "GUEST"),
+                                runtime_mode=integration.mode.value,
+                                source="brain_router",
+                            )
+                            integration.model.on_routing_selected(
+                                mode=str(payload.get("mode") or ""),
+                                role=tr.role,
+                                note=str(payload.get("note") or ""),
+                                trace=tr,
+                            )
+                        except Exception:
+                            pass
+
+                    setattr(self.brain_router, "integration_observer", _router_observer)
+                except Exception:
+                    pass
+
             if isinstance(deps, dict):
                 deps["cognitive_runtime"] = cognitive_runtime
+                deps["integration"] = integration
+                deps["cognitive_mode"] = integration.mode.value
+                deps["model_gateway"] = shared_gateway
         except Exception:
             cognitive_runtime = None
+            integration = None
 
         shell = AgentShell(gateway=gateway, default_role=self.default_role)
 
@@ -387,4 +436,5 @@ class SSNRuntimeBuilder:
             perception_hub=self.perception_hub,
             tool_registry=self.tool_registry,
             cognitive_runtime=cognitive_runtime,
+            integration=integration,
         )

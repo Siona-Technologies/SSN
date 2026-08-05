@@ -167,6 +167,7 @@ def handle_sense_tick(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
     max_events = max(0, min(max_events, 50))
     evs = _coerce_events(ctx, max_events=max_events)
 
+    out: Dict[str, Any] = {}
     try:
         if perception_hub is None:
             out = _synthetic_tick(world_model=world_model, events=evs)
@@ -243,6 +244,38 @@ def handle_sense_tick(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
                 report["trace_written"] = True
             except Exception:
                 pass
+
+    # Phase 2 observation (non-authoritative; does not change tick result)
+    try:
+        integration = depsd.get("integration")
+        if integration is not None:
+            from ssn.integration.trace_context import TraceContext
+            from ssn.integration.runtime_modes import get_runtime_mode
+
+            mode = get_runtime_mode()
+            if mode.value != "legacy":
+                tr = TraceContext(
+                    role=resp_role,
+                    runtime_mode=mode.value,
+                    source="sense_tick",
+                    tenant_id=str((req.context or {}).get("tenant_id") or "default")
+                    if isinstance(req.context, dict)
+                    else "default",
+                    session_id=str((req.context or {}).get("session_id") or "")
+                    if isinstance(req.context, dict)
+                    else "",
+                )
+                tick_payload = dict(report)
+                if isinstance(out, dict) and isinstance(out.get("world_update"), dict):
+                    tick_payload["world_update"] = out.get("world_update")
+                fallback = "Fallback synthetic" in str(report.get("note") or "") or perception_hub is None
+                integration.observe_sense_tick(
+                    tick_result=tick_payload,
+                    trace=tr,
+                    fallback=bool(fallback),
+                )
+    except Exception:
+        pass
 
     return InterfaceResponse(
         ok=bool(report["ok"]),

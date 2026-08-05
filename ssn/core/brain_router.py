@@ -123,7 +123,7 @@ class BrainRouter:
                 }
             )
 
-            return {
+            out = {
                 "role": "OWNER",
                 "mode": current_mode,
                 "mode_locked": mode_locked,
@@ -131,18 +131,47 @@ class BrainRouter:
                 "mode_damping": mode_damping_info,
                 "result": result,
             }
+            observer = getattr(self, "integration_observer", None)
+            if callable(observer):
+                try:
+                    observer(
+                        {
+                            "role": "OWNER",
+                            "mode": current_mode,
+                            "note": result.get("note"),
+                            "engine": result.get("engine"),
+                        }
+                    )
+                except Exception:
+                    pass
+            return out
 
         # --------------------------------------------------------
         # GUEST routing
         # --------------------------------------------------------
-        return {
+        guest_result = self._route_guest(user_input)
+        guest_out = {
             "role": "GUEST",
             "mode": "hybrid (restricted)",
             "mode_locked": False,
             "auto_message": auto_note,
             "mode_damping": None,
-            "result": self._route_guest(user_input),
+            "result": guest_result,
         }
+        observer = getattr(self, "integration_observer", None)
+        if callable(observer):
+            try:
+                observer(
+                    {
+                        "role": "GUEST",
+                        "mode": "hybrid (restricted)",
+                        "note": guest_result.get("note"),
+                        "engine": guest_result.get("engine"),
+                    }
+                )
+            except Exception:
+                pass
+        return guest_out
 
     # ------------------------------------------------------------
     # OWNER ROUTING

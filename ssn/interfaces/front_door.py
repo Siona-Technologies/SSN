@@ -784,6 +784,9 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
     # -------------------------
     # LLM-only path (cognition)
     # -------------------------
+    import time as _time
+
+    _t0 = _time.time()
     routed = _orch_call(orch, master_key=master_key, role=role, user_input=user_input, context=ctx)
 
     final_msg = _extract_text(routed)
@@ -799,9 +802,123 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             "note": _clip(f"FrontDoor could not extract text from output. top_keys={debug_keys}", MAX_NOTE_CHARS),
         }
 
-    return {
+    response = {
         "answer": _clip(str(final_msg), MAX_ANSWER_CHARS),
         "degraded": degraded,
         "used_tools": used_tools[:MAX_USED_TOOLS],
         "session_state": _safe_session_state(ctx),
     }
+
+    # Phase 2: observe / experimental attachment (never changes owner/policy decisions)
+    try:
+        response = _phase2_attach(
+            deps=deps,
+            user_input=user_input,
+            role=role,
+            ctx=ctx,
+            response=response,
+            routed=routed if isinstance(routed, dict) else {},
+            started_at=_t0,
+            identity_verified=_is_owner(role),
+        )
+    except Exception:
+        response["runtime_mode"] = response.get("runtime_mode") or "legacy"
+
+    return response
+
+
+def _phase2_attach(
+    *,
+    deps: dict,
+    user_input: str,
+    role: str,
+    ctx: dict,
+    response: dict,
+    routed: dict,
+    started_at: float,
+    identity_verified: bool,
+) -> dict:
+    """
+    Additive Phase 2 integration. Does not alter authoritative answer text.
+    """
+    from ssn.integration.runtime_modes import RuntimeMode, get_runtime_mode
+    from ssn.integration.trace_context import TraceContext
+
+    integration = deps.get("integration") or getattr(deps.get("orchestrator"), "integration", None)
+    mode = get_runtime_mode()
+    if integration is not None:
+        try:
+            mode = integration.refresh_mode()
+        except Exception:
+            mode = get_runtime_mode()
+
+    response = dict(response)
+    response["runtime_mode"] = mode.value
+
+    if integration is None:
+        return response
+
+    trace = TraceContext.from_request(
+        context=ctx,
+        role=role,
+        session_id=str(ctx.get("session_id") or ""),
+        tenant_id=str(ctx.get("tenant_id") or "default"),
+        source="front_door",
+        runtime_mode=mode.value,
+    )
+    response["trace_id"] = trace.trace_id
+
+    # Flatten router result for observation
+    router_result = {}
+    if isinstance(routed, dict):
+        router_result = {
+            "mode": routed.get("mode"),
+            "note": (routed.get("result") or {}).get("note") if isinstance(routed.get("result"), dict) else None,
+            "engine": (routed.get("result") or {}).get("engine") if isinstance(routed.get("result"), dict) else None,
+            "reply": response.get("answer"),
+            "meta": {},
+        }
+        res = routed.get("result")
+        if isinstance(res, dict):
+            llm = res.get("llm")
+            if isinstance(llm, dict):
+                router_result["engine"] = llm.get("engine") or router_result.get("engine")
+                router_result["meta"] = {"engine": llm.get("engine")}
+
+    if mode in (RuntimeMode.SHADOW, RuntimeMode.COGNITIVE_EXPERIMENTAL):
+        obs = integration.observe_authoritative_chat(
+            user_input=user_input,
+            role=role,
+            context=ctx,
+            result=response,
+            trace=trace,
+            started_at=started_at,
+            identity_verified=identity_verified,
+            router_result=router_result,
+        )
+        response["integration"] = {
+            "duplicate_model_call": False,
+            "authoritative": True,
+            **{k: obs.get(k) for k in ("attention", "cognitive_side_effects") if k in obs},
+        }
+
+    if mode == RuntimeMode.COGNITIVE_EXPERIMENTAL:
+        exp = integration.run_experimental_loop(
+            text=user_input,
+            role=role,
+            session_id=trace.session_id,
+            tenant_id=trace.tenant_id,
+            context=ctx,
+            trace=trace,
+        )
+        response["cognitive_experimental"] = {
+            "label": "cognitive_experimental",
+            "reply": exp.get("reply"),
+            "proposals": exp.get("proposals") or [],
+            "engine": exp.get("engine"),
+            "note": "Experimental proposals only; Front Door answer remains authoritative.",
+        }
+        # Authoritative answer unchanged
+        response["experimental"] = True
+
+    return response

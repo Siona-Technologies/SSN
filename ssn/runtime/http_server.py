@@ -312,12 +312,19 @@ def make_handler(state: SionaHTTPServerState) -> Type[BaseHTTPRequestHandler]:
             started = time.time()
             path = urlparse(self.path).path
             if path in ("/v1/health", "/health", "/healthz"):
+                try:
+                    from ssn.integration.runtime_modes import get_runtime_mode
+
+                    cog_mode = get_runtime_mode().value
+                except Exception:
+                    cog_mode = "legacy"
                 self._send_json(
                     200,
                     {
                         "ok": True,
                         "service": "siona-http-front-door",
                         "offline": forced_offline(),
+                        "cognitive_mode": cog_mode,
                     },
                 )
                 self._log_access(status=200, started=started)

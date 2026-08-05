@@ -51,6 +51,8 @@ CI_TEST_MODULES = [
     # Cognitive runtime foundation (Phase 1 neuromorphic architecture)
     "ssn.tests.test_cognitive_runtime_v1",
     "ssn.tests.test_cognitive_runtime_hardening",
+    # Phase 2 runtime integration
+    "ssn.tests.test_phase2_runtime_integration",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

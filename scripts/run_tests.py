@@ -64,6 +64,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase3a_provider_eval",
     "ssn.tests.test_phase3a_security_gate",
     "ssn.tests.test_phase3b_openai_chat_transport",
+    "ssn.tests.test_identity_information_governance",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

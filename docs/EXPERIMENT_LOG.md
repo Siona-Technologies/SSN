@@ -87,3 +87,40 @@ Artifact references: docs/PHASE_3B_HARDWARE_INVENTORY.md,
                       docs/adr/0003-first-local-model-strategy.md
 Reproduction command: n/a (documentation/planning entry)
 ```
+
+### EXP-3B-001 — Official-source runtime and model research
+
+```text
+Experiment ID: EXP-3B-001
+Date: 2026-08-05
+Git commit: (Phase 3B research branch tip)
+Runtime mode: n/a — documentation/research only
+Dataset: n/a
+Model/provider: none installed; none downloaded
+Neuromorphic backend: n/a
+Hardware: unchanged inventory baseline (i7-1165G7 / Iris Xe / ~16 GiB / no CUDA)
+Configuration: no runtime; no weights; official-source research only
+Metrics: none (no inference; no token/s fabricated)
+Sources examined: ggml-org/llama.cpp (build, SYCL, LICENSE, release b9968);
+                  docs.ollama.com/windows; ollama/ollama MIT;
+                  LM Studio developer server docs;
+                  OpenVINO GenAI 2026 docs;
+                  ONNX Runtime GenAI / DirectML path notes;
+                  Qwen/Qwen3-1.7B (+ GGUF); ggml-org/Qwen3-1.7B-GGUF;
+                  Qwen/Qwen3-4B-GGUF; ibm-granite/granite-4.0-micro(+GGUF);
+                  microsoft/Phi-4-mini-instruct; Qwen/Qwen3.5-2B
+Result: official-source matrix completed;
+        provisional runtime = llama.cpp Windows CPU baseline;
+        provisional first model family = Qwen3-1.7B
+        (publisher Q8_0 or ggml-org Q4_K_M — owner choice pending);
+        second candidate = Qwen3-4B Q4_K_M; comparison = Granite 4.0 Micro Q4_K_M;
+        Phi-4 community GGUF and Qwen3.5-2B deferred/rejected for first gate
+Outstanding approval gates: runtime install; model download; local benchmark
+Limitations: no runtime installed; no weights downloaded; no benchmark metrics;
+             ADR 0003 remains Proposed
+Artifact references: docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
+                      docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
+                      docs/adr/0003-first-local-model-strategy.md,
+                      docs/PHASE_STATUS.md
+Reproduction command: n/a (documentation/research entry)
+```

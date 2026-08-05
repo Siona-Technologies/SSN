@@ -34,6 +34,29 @@ These defaults are **provisional**, not final production certification:
 - CPU-first baseline
 - No model used in CI
 
+## Unapproved selection placeholders
+
+Fill only after owner approval. Current values are placeholders.
+
+| Placeholder | Value | Approval status |
+|-------------|-------|-----------------|
+| Exact selected runtime version | `UNAPPROVED — e.g. llama.cpp bXXXX` | Not approved |
+| Runtime download artefact | `UNAPPROVED — e.g. llama-bXXXX-bin-win-cpu-x64.zip` | Not approved |
+| Official runtime SHA256 | `UNAPPROVED` | Not approved |
+| Runtime controlled installation directory | `UNAPPROVED — e.g. C:\Users\njaji\Tools\llama.cpp-bXXXX` | Not approved |
+| Exact selected model repository | `UNAPPROVED — e.g. Qwen/Qwen3-1.7B-GGUF or ggml-org/Qwen3-1.7B-GGUF` | Not approved |
+| Exact GGUF filename | `UNAPPROVED` | Not approved |
+| Model SHA256 | `UNAPPROVED` | Not approved |
+| Model storage directory | `UNAPPROVED — on C: capacity-approved path` | Not approved |
+| Initial server host and port | `UNAPPROVED — provisional intent 127.0.0.1:8080` | Not approved |
+| Initial context size | `UNAPPROVED — provisional intent 2048 or 4096` | Not approved |
+| Initial maximum output tokens | `UNAPPROVED — provisional intent bounded (e.g. 256–512)` | Not approved |
+| CPU thread count | `UNAPPROVED — provisional intent ≤8` | Not approved |
+| GPU-layer count | `UNAPPROVED — provisional intent 0 for CPU baseline` | Not approved |
+| Rollback commands | `UNAPPROVED — stop process; delete runtime dir; delete GGUF; restore registry mock` | Not approved |
+
+**No commands in this table may be executed until owner approval is recorded.**
+
 ## Stages
 
 ### 1. Verify disk and RAM

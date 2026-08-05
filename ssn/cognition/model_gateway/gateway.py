@@ -48,6 +48,64 @@ def _cancel_requested(request: ModelRequest) -> bool:
     return False
 
 
+def _parse_structured_json(text: str) -> tuple[Optional[Dict[str, Any]], str]:
+    """
+    Strictly parse JSON object text via json.loads (never eval).
+
+    Returns (dict_or_none, reason). Only dictionaries are accepted by default.
+    """
+    import json
+
+    raw = (text or "").strip()
+    if not raw:
+        return None, "empty_json_text"
+    try:
+        parsed = json.loads(raw)
+    except Exception as exc:
+        return None, f"json_parse_error:{exc}"
+    if not isinstance(parsed, dict):
+        return None, f"json_not_object:{type(parsed).__name__}"
+    return parsed, ""
+
+
+def _normalize_json_response(
+    resp: ModelResponse,
+    request: ModelRequest,
+) -> tuple[Optional[ModelResponse], str]:
+    """
+    For response_format == json:
+      - Accept structured only if it is a dict.
+      - Else parse text with json.loads and require a dict.
+      - Attach parsed dict as structured on success.
+    """
+    if request.response_format != "json":
+        return resp, ""
+
+    if isinstance(resp.structured, dict):
+        return resp, ""
+
+    parsed, reason = _parse_structured_json(resp.text if isinstance(resp.text, str) else "")
+    if parsed is None:
+        return None, reason or "missing_structured_json"
+
+    return (
+        ModelResponse(
+            text=resp.text,
+            provider=resp.provider,
+            messages=list(resp.messages),
+            tool_calls=list(resp.tool_calls),
+            structured=parsed,
+            usage=resp.usage,
+            finish_reason=resp.finish_reason,
+            healthy=resp.healthy,
+            fallback_used=resp.fallback_used,
+            fallback_reason=resp.fallback_reason,
+            meta={**dict(resp.meta), "structured_parsed_from_text": True},
+        ),
+        "",
+    )
+
+
 def _response_usable(resp: ModelResponse, request: ModelRequest) -> tuple[bool, str]:
     """
     Decide whether a provider response is usable or should fall through.
@@ -63,13 +121,14 @@ def _response_usable(resp: ModelResponse, request: ModelRequest) -> tuple[bool, 
         return False, f"provider_fallback_stub:{resp.fallback_reason}"
     text = resp.text if isinstance(resp.text, str) else ""
     if request.response_format == "json":
-        if not isinstance(resp.structured, dict):
-            # Allow JSON string body without structured field only if parseable-looking.
-            if not text.strip().startswith("{"):
-                return False, "missing_structured_json"
-    else:
-        if not text.strip() and not resp.tool_calls:
-            return False, "empty_content"
+        if isinstance(resp.structured, dict):
+            return True, ""
+        parsed, reason = _parse_structured_json(text)
+        if parsed is None:
+            return False, reason or "missing_structured_json"
+        return True, ""
+    if not text.strip() and not resp.tool_calls:
+        return False, "empty_content"
     return True, ""
 
 
@@ -190,6 +249,19 @@ class ModelGateway:
                     reason,
                 )
                 continue
+
+            normalized, norm_reason = _normalize_json_response(resp, request)
+            if normalized is None:
+                errors.append(
+                    f"{getattr(provider, 'name', 'provider')}: unusable:{norm_reason}"
+                )
+                logger.warning(
+                    "model provider JSON normalize failed (%s): %s",
+                    getattr(provider, "name", "provider"),
+                    norm_reason,
+                )
+                continue
+            resp = normalized
 
             elapsed_ms = (time.monotonic() - started) * 1000.0
             usage = resp.usage

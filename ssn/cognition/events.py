@@ -3,6 +3,13 @@ Typed cognitive event contract for SIONA.
 
 Designed for local in-process use now, with fields that support a future
 transport adapter (without requiring Kafka/RabbitMQ in this phase).
+
+Expiration semantics:
+  - `expires_at` (wall-clock) is the portable TTL representation for transport.
+  - `monotonic_timestamp` is local receipt time for in-process scheduling only
+    and must NOT be treated as portable across processes/machines.
+  - `ttl_ms` remains for local convenience; when set without `expires_at`,
+    `expires_at` is derived from wall `timestamp`.
 """
 
 from __future__ import annotations
@@ -15,8 +22,6 @@ from enum import IntEnum
 from typing import Any, Dict, Mapping, Optional
 
 
-# Soft bound on serialized payload size (bytes of JSON). Oversized
-# nested structures are truncated rather than accepted unbounded.
 DEFAULT_MAX_PAYLOAD_BYTES = 64_000
 DEFAULT_MAX_METADATA_KEYS = 64
 
@@ -91,7 +96,6 @@ def _bound_mapping(
         raise ValueError(f"{label} is not JSON-serializable: {exc}") from exc
 
     if len(raw.encode("utf-8")) > max_bytes:
-        # Keep a truncated string representation rather than unbounded data.
         truncated = {
             "__truncated__": True,
             "__original_bytes__": len(raw.encode("utf-8")),
@@ -128,6 +132,8 @@ class CognitiveEvent:
 
     privacy_class: str = PrivacyClass.INTERNAL
     ttl_ms: Optional[int] = None
+    # Portable wall-clock expiry (preferred across process/machine boundaries).
+    expires_at: Optional[float] = None
     requires_attention: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -145,6 +151,16 @@ class CognitiveEvent:
         if self.ttl_ms is not None:
             if not isinstance(self.ttl_ms, int) or self.ttl_ms < 0:
                 raise ValueError("ttl_ms must be a non-negative int or None")
+
+        # Derive portable expires_at from ttl_ms when not explicitly provided.
+        if self.expires_at is None and self.ttl_ms is not None:
+            object.__setattr__(
+                self,
+                "expires_at",
+                float(self.timestamp) + (float(self.ttl_ms) / 1000.0),
+            )
+        if self.expires_at is not None:
+            object.__setattr__(self, "expires_at", float(self.expires_at))
 
         bounded_payload = _bound_mapping(
             self.payload,
@@ -167,9 +183,24 @@ class CognitiveEvent:
         if not self.correlation_id:
             object.__setattr__(self, "correlation_id", self.trace_id)
 
-    def is_expired(self, *, now_mono: Optional[float] = None) -> bool:
+    def is_expired(
+        self,
+        *,
+        now_wall: Optional[float] = None,
+        now_mono: Optional[float] = None,
+    ) -> bool:
+        """
+        Prefer portable wall-clock `expires_at` when present.
+        Fall back to local monotonic age from receipt for in-process-only events
+        that still use ttl_ms without expires_at (legacy local path).
+        """
+        if self.expires_at is not None:
+            now = _wall_time() if now_wall is None else float(now_wall)
+            return now > float(self.expires_at)
+
         if self.ttl_ms is None:
             return False
+        # Legacy local-only path — monotonic is not portable.
         now = _monotonic() if now_mono is None else float(now_mono)
         age_ms = (now - self.monotonic_timestamp) * 1000.0
         return age_ms > float(self.ttl_ms)
@@ -182,6 +213,8 @@ class CognitiveEvent:
         """Deterministic serialization (sorted keys via json helper)."""
         d = asdict(self)
         d["priority"] = int(self.priority)
+        # Document that monotonic_timestamp is local-only on wire.
+        d["monotonic_portable"] = False
         return d
 
     def to_json(self) -> str:
@@ -189,6 +222,12 @@ class CognitiveEvent:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "CognitiveEvent":
+        """
+        Reconstruct an event after transport-like serialization.
+
+        - `expires_at` (or ttl_ms + timestamp) preserves portable TTL.
+        - `monotonic_timestamp` is reset to local receipt time (not portable).
+        """
         if not isinstance(data, Mapping):
             raise TypeError("from_dict expects a mapping")
         priority = data.get("priority", EventPriority.NORMAL)
@@ -196,13 +235,26 @@ class CognitiveEvent:
             pri = priority
         else:
             pri = EventPriority(int(priority))
+
+        ttl_ms = data.get("ttl_ms")
+        if ttl_ms is not None:
+            ttl_ms = int(ttl_ms)
+
+        expires_at = data.get("expires_at")
+        if expires_at is not None:
+            expires_at = float(expires_at)
+
+        timestamp = float(data.get("timestamp") or _wall_time())
+        # Refresh local receipt monotonic clock on reconstruction.
+        receipt_mono = _monotonic()
+
         return cls(
             event_type=str(data["event_type"]),
             source=str(data["source"]),
             payload=dict(data.get("payload") or {}),
             event_id=str(data.get("event_id") or _new_id()),
-            timestamp=float(data.get("timestamp") or _wall_time()),
-            monotonic_timestamp=float(data.get("monotonic_timestamp") or _monotonic()),
+            timestamp=timestamp,
+            monotonic_timestamp=receipt_mono,
             priority=pri,
             confidence=float(data.get("confidence", 1.0)),
             trace_id=str(data.get("trace_id") or ""),
@@ -210,7 +262,8 @@ class CognitiveEvent:
             tenant_id=str(data.get("tenant_id") or "default"),
             session_id=str(data.get("session_id") or ""),
             privacy_class=str(data.get("privacy_class") or PrivacyClass.INTERNAL),
-            ttl_ms=data.get("ttl_ms"),
+            ttl_ms=ttl_ms,
+            expires_at=expires_at,
             requires_attention=bool(data.get("requires_attention", False)),
             metadata=dict(data.get("metadata") or {}),
         )

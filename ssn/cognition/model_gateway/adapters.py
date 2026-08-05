@@ -26,7 +26,10 @@ from ssn.core.llm_providers import (
 class LegacyLLMProviderAdapter:
     """
     Wraps an existing LLMProvider (flat prompt) as a ModelProvider.
-    Preserves LocalDummyLLMProvider / HttpLLMProvider behaviour.
+
+    Standalone LocalDummyLLMProvider / HttpLLMProvider behaviour is preserved
+    at the legacy layer. Inside the ModelGateway, HTTP stub/fallback responses
+    are marked unhealthy so the gateway can fall through to the next provider.
     """
 
     def __init__(self, legacy: LLMProvider) -> None:
@@ -49,7 +52,6 @@ class LegacyLLMProviderAdapter:
         return {"ok": True, "provider": self.name, "adapter": True}
 
     def generate(self, request: ModelRequest) -> ModelResponse:
-        prompt = request.flat_prompt() if len(request.messages) != 1 else request.messages[0].content
         if len(request.messages) == 1 and not request.system:
             prompt = request.messages[0].content
         else:
@@ -62,23 +64,28 @@ class LegacyLLMProviderAdapter:
         )
         legacy_resp: LLMResponse = self._legacy.generate(legacy_req)
         meta = dict(legacy_resp.meta or {})
+        fallback_reason = str(meta.get("fallback_reason") or "")
+        is_stub = bool(fallback_reason) or bool(meta.get("fallback_used"))
+
+        # Gateway semantics: stub/fallback is not a healthy real-model result.
+        # Legacy providers themselves remain unchanged for direct callers.
         return ModelResponse(
             text=legacy_resp.text,
             provider=self.name,
             messages=[ModelMessage(role=MessageRole.ASSISTANT, content=legacy_resp.text)],
             usage=ModelUsage(),
-            finish_reason="stop",
-            healthy=True,
-            fallback_used="fallback_reason" in meta,
-            fallback_reason=str(meta.get("fallback_reason") or ""),
+            finish_reason="error" if is_stub else "stop",
+            healthy=not is_stub,
+            fallback_used=is_stub,
+            fallback_reason=fallback_reason,
             meta={
                 **meta,
                 "engine": meta.get("engine", self.name),
                 "role": meta.get("role", request.role),
                 "used_context": bool(meta.get("used_context", bool(request.context))),
+                "gateway_marks_stub_unhealthy": is_stub,
             },
         )
-
 
 class ModelGatewayAsLLMProvider:
     """

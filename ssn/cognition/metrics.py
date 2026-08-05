@@ -28,9 +28,9 @@ class CognitionMetrics:
     model_requests: int = 0
     model_failures: int = 0
     model_fallbacks: int = 0
+    model_timeouts: int = 0
     model_tokens_in: int = 0
     model_tokens_out: int = 0
-
     neuromorphic_events: int = 0
     spike_count: int = 0
 
@@ -51,6 +51,9 @@ class CognitionMetrics:
         self.event_rejected = int(bus_metrics.get("rejected", self.event_rejected))
         self.max_queue_depth = int(bus_metrics.get("max_queue_depth", self.max_queue_depth))
         self.event_latency_ms_last = float(bus_metrics.get("last_latency_ms", self.event_latency_ms_last))
+        self.extras["incoming_rejected"] = int(bus_metrics.get("incoming_rejected", 0))
+        self.extras["queued_evicted"] = int(bus_metrics.get("queued_evicted", 0))
+        self.extras["expired_rejected"] = int(bus_metrics.get("expired_rejected", 0))
 
     def snapshot(self) -> Dict[str, Any]:
         return {
@@ -68,6 +71,7 @@ class CognitionMetrics:
             "model_requests": self.model_requests,
             "model_failures": self.model_failures,
             "model_fallbacks": self.model_fallbacks,
+            "model_timeouts": self.model_timeouts,
             "model_tokens_in": self.model_tokens_in,
             "model_tokens_out": self.model_tokens_out,
             "neuromorphic_events": self.neuromorphic_events,

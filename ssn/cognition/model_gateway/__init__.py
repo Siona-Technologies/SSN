@@ -13,8 +13,12 @@ from ssn.cognition.model_gateway.contracts import (
     ToolCallProposal,
 )
 from ssn.cognition.model_gateway.deterministic import (
+    CancelToken,
     DeterministicModelProvider,
     FailingModelProvider,
+    MalformedModelProvider,
+    SlowModelProvider,
+    UnhealthyModelProvider,
 )
 from ssn.cognition.model_gateway.adapters import (
     LegacyLLMProviderAdapter,
@@ -33,6 +37,10 @@ __all__ = [
     "ToolCallProposal",
     "DeterministicModelProvider",
     "FailingModelProvider",
+    "SlowModelProvider",
+    "UnhealthyModelProvider",
+    "MalformedModelProvider",
+    "CancelToken",
     "LegacyLLMProviderAdapter",
     "ModelGatewayAsLLMProvider",
     "ModelGateway",

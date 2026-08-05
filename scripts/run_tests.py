@@ -50,6 +50,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase39_mode_damper",
     # Cognitive runtime foundation (Phase 1 neuromorphic architecture)
     "ssn.tests.test_cognitive_runtime_v1",
+    "ssn.tests.test_cognitive_runtime_hardening",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

@@ -3,14 +3,24 @@ In-process asynchronous cognitive event bus.
 
 Features:
 - publish / subscribe with event-type filtering
-- priority-aware dequeue
-- bounded queues + backpressure (drop or reject)
+- priority-aware dequeue and backpressure
+- bounded queues
 - handler timeouts and failure isolation
 - optional dead-letter recording
 - metrics counters
 - graceful shutdown
+- inline dispatch (no queue leak for request/response paths)
 
-No external broker. A transport adapter can wrap publish/subscribe later.
+Backpressure policy (when full):
+  1. Find oldest event at the lowest queued priority (FIFO within that priority).
+  2. If incoming priority is strictly higher, evict that queued event and admit.
+  3. Otherwise reject the incoming event (never evict equal/higher-value work).
+
+Filter semantics:
+  - "sensor.imu"  → exact match only
+  - "sensor.*"    → prefix match (startswith "sensor.")
+  - list/tuple/set → each element evaluated with the same rules
+  - regex / predicate unchanged
 """
 
 from __future__ import annotations
@@ -30,7 +40,6 @@ from typing import (
     Optional,
     Pattern,
     Sequence,
-    Set,
     Union,
 )
 
@@ -42,12 +51,32 @@ EventHandler = Callable[[CognitiveEvent], Union[None, Awaitable[None]]]
 EventFilter = Union[str, Sequence[str], Pattern[str], Callable[[CognitiveEvent], bool], None]
 
 
+def match_event_type(pattern: str, event_type: str) -> bool:
+    """
+    Match an event_type against a string pattern.
+
+    - Exact match unless pattern ends with '*'.
+    - Trailing '*' means prefix match on the stem (e.g. "sensor.*" → "sensor.").
+    """
+    if not isinstance(pattern, str) or not pattern:
+        return False
+    if pattern.endswith("*"):
+        prefix = pattern[:-1]
+        return event_type.startswith(prefix)
+    return event_type == pattern
+
+
 @dataclass
 class EventBusMetrics:
     published: int = 0
     delivered: int = 0
+    # Legacy aggregate (incoming rejected under backpressure + other rejects)
     dropped: int = 0
     rejected: int = 0
+    # Hardening counters (explicit)
+    incoming_rejected: int = 0
+    queued_evicted: int = 0
+    expired_rejected: int = 0
     handler_errors: int = 0
     handler_timeouts: int = 0
     dead_letters: int = 0
@@ -73,6 +102,9 @@ class EventBusMetrics:
             "delivered": self.delivered,
             "dropped": self.dropped,
             "rejected": self.rejected,
+            "incoming_rejected": self.incoming_rejected,
+            "queued_evicted": self.queued_evicted,
+            "expired_rejected": self.expired_rejected,
             "handler_errors": self.handler_errors,
             "handler_timeouts": self.handler_timeouts,
             "dead_letters": self.dead_letters,
@@ -102,9 +134,9 @@ class _Subscription:
         if f is None:
             return True
         if isinstance(f, str):
-            return event.event_type == f or event.event_type.startswith(f.rstrip("*"))
+            return match_event_type(f, event.event_type)
         if isinstance(f, (list, tuple, set)):
-            return event.event_type in f
+            return any(match_event_type(str(p), event.event_type) for p in f)
         if hasattr(f, "search"):  # compiled regex
             try:
                 return bool(f.search(event.event_type))  # type: ignore[union-attr]
@@ -119,9 +151,7 @@ class _Subscription:
 
 
 class AsyncEventBus:
-    """
-    Priority asyncio event bus for local cognitive runtime use.
-    """
+    """Priority asyncio event bus for local cognitive runtime use."""
 
     def __init__(
         self,
@@ -176,9 +206,19 @@ class AsyncEventBus:
     ) -> Callable[[], None]:
         """
         Register a handler. Returns an unsubscribe callable.
-        Filtering: exact type, prefix with trailing '*', list, regex, or predicate.
+
+        Filtering:
+          - exact type string
+          - prefix with trailing '*' (e.g. "sensor.*")
+          - list/tuple/set of patterns (each element uses the same rules)
+          - compiled regex
+          - predicate callable
         """
-        sub = _Subscription(handler=handler, event_filter=event_type, name=name or getattr(handler, "__name__", ""))
+        sub = _Subscription(
+            handler=handler,
+            event_filter=event_type,
+            name=name or getattr(handler, "__name__", ""),
+        )
         self._subs.append(sub)
 
         def _unsub() -> None:
@@ -225,87 +265,129 @@ class AsyncEventBus:
             self._worker = None
         self._closed = True
 
-    async def publish(self, event: CognitiveEvent) -> bool:
+    def _reject_expired(self, event: CognitiveEvent, reason: str) -> None:
+        self._record_dead_letter(event, reason)
+        self._metrics.expired_rejected += 1
+        self._metrics.rejected += 1
+
+    def _reject_incoming(self, event: CognitiveEvent, reason: str) -> None:
+        self._record_dead_letter(event, reason)
+        self._metrics.incoming_rejected += 1
+        self._metrics.rejected += 1
+        self._metrics.dropped += 1
+
+    def _evict_queued(self, event: CognitiveEvent, reason: str) -> None:
+        self._record_dead_letter(event, reason)
+        self._metrics.queued_evicted += 1
+        self._metrics.dropped += 1
+
+    def _peek_oldest_lowest_priority(self) -> Optional[tuple[EventPriority, CognitiveEvent]]:
+        for priority in sorted(EventPriority):
+            q = self._queues[priority]
+            if q:
+                return priority, q[0]
+        return None
+
+    def _try_admit_locked(self, event: CognitiveEvent) -> bool:
         """
-        Enqueue an event. Returns False if rejected/dropped under backpressure.
+        Admit event under backpressure policy. Caller holds lock when applicable.
+        Returns True if admitted into a priority queue.
         """
-        if self._closed:
-            self._metrics.rejected += 1
-            return False
-        if not isinstance(event, CognitiveEvent):
-            raise TypeError("publish expects CognitiveEvent")
-        if event.is_expired():
-            self._record_dead_letter(event, "expired_before_publish")
-            self._metrics.rejected += 1
-            return False
-
-        if self._cond is None:
-            # Lazy start support for sync-friendly tests that only call publish after start.
-            self._cond = asyncio.Condition()
-
-        async with self._cond:
-            if self._depth >= self.max_queue_size:
-                if self.drop_on_full:
-                    dropped = self._drop_lowest_priority_locked()
-                    if dropped is not None:
-                        self._metrics.dropped += 1
-                        self._record_dead_letter(dropped, "backpressure_drop")
-                    else:
-                        self._metrics.rejected += 1
-                        return False
-                else:
-                    self._metrics.rejected += 1
-                    return False
-
+        if self._depth < self.max_queue_size:
             self._queues[event.priority].append(event)
             self._depth += 1
             self._metrics.published += 1
             if self._depth > self._metrics.max_queue_depth:
                 self._metrics.max_queue_depth = self._depth
-            self._cond.notify()
             return True
 
+        if not self.drop_on_full:
+            self._reject_incoming(event, "backpressure_reject_no_drop")
+            return False
+
+        victim = self._peek_oldest_lowest_priority()
+        if victim is None:
+            self._reject_incoming(event, "backpressure_empty_but_full")
+            return False
+
+        victim_priority, victim_event = victim
+        if int(event.priority) > int(victim_priority):
+            # Evict oldest at lowest priority (FIFO within that priority).
+            evicted = self._queues[victim_priority].popleft()
+            self._depth = max(0, self._depth - 1)
+            self._evict_queued(evicted, "backpressure_evicted_for_higher_priority")
+            self._queues[event.priority].append(event)
+            self._depth += 1
+            self._metrics.published += 1
+            if self._depth > self._metrics.max_queue_depth:
+                self._metrics.max_queue_depth = self._depth
+            return True
+
+        # Equal or lower priority must not displace queued work.
+        self._reject_incoming(event, "backpressure_incoming_not_higher_priority")
+        return False
+
+    async def publish(self, event: CognitiveEvent) -> bool:
+        """Enqueue an event. Returns False if rejected under backpressure/expiry."""
+        if self._closed:
+            self._reject_incoming(event, "bus_closed")
+            return False
+        if not isinstance(event, CognitiveEvent):
+            raise TypeError("publish expects CognitiveEvent")
+        if event.is_expired():
+            self._reject_expired(event, "expired_before_publish")
+            return False
+
+        if self._cond is None:
+            self._cond = asyncio.Condition()
+
+        async with self._cond:
+            ok = self._try_admit_locked(event)
+            if ok:
+                self._cond.notify()
+            return ok
+
     def publish_nowait(self, event: CognitiveEvent) -> bool:
+        """Synchronous enqueue helper (does not dispatch)."""
+        if self._closed:
+            self._reject_incoming(event, "bus_closed")
+            return False
+        if not isinstance(event, CognitiveEvent):
+            raise TypeError("publish_nowait expects CognitiveEvent")
+        if event.is_expired():
+            self._reject_expired(event, "expired_before_publish")
+            return False
+        return self._try_admit_locked(event)
+
+    async def dispatch_inline(self, event: CognitiveEvent) -> bool:
         """
-        Synchronous enqueue helper for sync contexts.
-        Caller must ensure an event loop is running if workers are active.
+        Process an event immediately without enqueueing.
+
+        Used by request/response cognitive-loop paths so completed requests
+        never leave unconsumed queued events.
         """
         if self._closed:
-            self._metrics.rejected += 1
+            self._reject_incoming(event, "bus_closed")
             return False
+        if not isinstance(event, CognitiveEvent):
+            raise TypeError("dispatch_inline expects CognitiveEvent")
         if event.is_expired():
-            self._record_dead_letter(event, "expired_before_publish")
-            self._metrics.rejected += 1
+            self._reject_expired(event, "expired_before_dispatch")
             return False
-        if self._depth >= self.max_queue_size:
-            if self.drop_on_full:
-                dropped = self._drop_lowest_priority_locked()
-                if dropped is not None:
-                    self._metrics.dropped += 1
-                    self._record_dead_letter(dropped, "backpressure_drop")
-                else:
-                    self._metrics.rejected += 1
-                    return False
-            else:
-                self._metrics.rejected += 1
-                return False
-        self._queues[event.priority].append(event)
-        self._depth += 1
         self._metrics.published += 1
-        if self._depth > self._metrics.max_queue_depth:
-            self._metrics.max_queue_depth = self._depth
+        await self._dispatch(event)
         return True
 
-    async def publish_and_dispatch(self, event: CognitiveEvent) -> None:
-        """Publish then immediately dispatch to matching handlers (no worker required)."""
+    async def publish_and_dispatch(self, event: CognitiveEvent) -> bool:
+        """Enqueue then immediately pull and dispatch the same event (no residual)."""
         ok = await self.publish(event)
         if not ok:
-            return
-        # Pull the just-published event if still at head of its priority queue.
+            return False
         popped = self._pop_event_by_id(event.event_id)
         if popped is None:
-            return
+            return False
         await self._dispatch(popped)
+        return True
 
     def _pop_event_by_id(self, event_id: str) -> Optional[CognitiveEvent]:
         for priority in sorted(EventPriority, reverse=True):
@@ -317,15 +399,6 @@ class AsyncEventBus:
                     return ev
         return None
 
-    def _drop_lowest_priority_locked(self) -> Optional[CognitiveEvent]:
-        for priority in sorted(EventPriority):
-            q = self._queues[priority]
-            if q:
-                ev = q.popleft()
-                self._depth = max(0, self._depth - 1)
-                return ev
-        return None
-
     def _pop_highest_priority(self) -> Optional[CognitiveEvent]:
         for priority in sorted(EventPriority, reverse=True):
             q = self._queues[priority]
@@ -333,6 +406,15 @@ class AsyncEventBus:
                 self._depth = max(0, self._depth - 1)
                 return q.popleft()
         return None
+
+    def queued_event_ids(self, priority: Optional[EventPriority] = None) -> List[str]:
+        """Test helper: FIFO order of queued event ids (optionally one priority)."""
+        if priority is not None:
+            return [e.event_id for e in self._queues[priority]]
+        out: List[str] = []
+        for p in sorted(EventPriority, reverse=True):
+            out.extend(e.event_id for e in self._queues[p])
+        return out
 
     async def _run_loop(self) -> None:
         assert self._cond is not None
@@ -349,8 +431,7 @@ class AsyncEventBus:
 
     async def _dispatch(self, event: CognitiveEvent) -> None:
         if event.is_expired():
-            self._record_dead_letter(event, "expired_before_dispatch")
-            self._metrics.rejected += 1
+            self._reject_expired(event, "expired_before_dispatch")
             return
 
         start = time.monotonic()
@@ -388,7 +469,6 @@ class AsyncEventBus:
         if matched > 0:
             self._metrics.delivered += 1
         else:
-            # No subscribers — keep as informational dead-letter only if attention required.
             if event.requires_attention:
                 self._record_dead_letter(event, "no_subscribers")
 

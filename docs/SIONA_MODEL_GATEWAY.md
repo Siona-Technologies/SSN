@@ -17,9 +17,25 @@ Anthropic, Ollama, vLLM, or llama.cpp.
 
 ## Gateway behaviour
 
-`ModelGateway.complete()` tries providers in order, records usage/metrics, and
-returns a structured failure response if all fail. `stream()` uses the first
-provider that supports streaming, else chunks a complete response.
+`ModelGateway.complete()` tries providers in order with:
+
+- enforced `timeout_s` for sync providers via a **bounded shared thread pool**
+  (max 4 workers; no unbounded thread growth)
+- cancellation checks before execution and between fallback attempts
+- usability checks: unhealthy / `finish_reason=error` / empty content /
+  missing structured JSON / provider stub (`fallback_reason`) all trigger fallback
+- usage / timeout / fallback metrics
+
+**Timeout limitation:** after a timeout, the abandoned synchronous call may
+continue until its underlying transport terminates. The gateway stops waiting
+and tries the next provider; it does not forcibly kill the worker thread.
+
+`stream()` checks cancellation between chunks where possible.
+
+Legacy HTTP stub responses are marked unhealthy by `LegacyLLMProviderAdapter`
+when used inside the gateway, so they do not masquerade as real inference.
+Standalone `HttpLLMProvider` / `LocalDummyLLMProvider` behaviour is unchanged
+for direct callers.
 
 ## Deterministic test provider
 

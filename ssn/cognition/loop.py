@@ -16,7 +16,6 @@ continue to use Orchestrator / Front Door for authoritative identity+policy.
 from __future__ import annotations
 
 import asyncio
-import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -33,9 +32,17 @@ from ssn.cognition.neuromorphic.providers import (
     DeterministicNeuromorphicProvider,
     data_to_neuromorphic_event,
 )
-from ssn.cognition.workspace import GlobalCognitiveWorkspace, TaskState
+from ssn.cognition.workspace import (
+    GlobalCognitiveWorkspace,
+    TaskState,
+    WorkspaceRegistry,
+)
 from ssn.cognition.world.contracts import WorldModelServiceBoundary
 from ssn.embodiment.mock_adapter import MockEmbodimentAdapter
+
+
+class CognitiveLoopSyncInAsyncContextError(RuntimeError):
+    """Raised when process_text() is called while an event loop is running."""
 
 
 @dataclass
@@ -43,13 +50,21 @@ class CognitiveRuntime:
     """Bundled foundation components for DI / tests / optional wiring."""
 
     bus: AsyncEventBus = field(default_factory=AsyncEventBus)
-    workspace: GlobalCognitiveWorkspace = field(default_factory=GlobalCognitiveWorkspace)
+    workspaces: WorkspaceRegistry = field(default_factory=WorkspaceRegistry)
     model_gateway: ModelGateway = field(default_factory=ModelGateway.for_tests)
     neuromorphic: Any = field(default_factory=DeterministicNeuromorphicProvider)
     memory: MemoryServiceBoundary = field(default_factory=MemoryServiceBoundary)
     world: WorldModelServiceBoundary = field(default_factory=WorldModelServiceBoundary)
     embodiment: MockEmbodimentAdapter = field(default_factory=MockEmbodimentAdapter)
     metrics: CognitionMetrics = field(default_factory=CognitionMetrics)
+
+    @property
+    def workspace(self) -> GlobalCognitiveWorkspace:
+        """
+        Backward-compatible default workspace (default tenant / anon session).
+        Prefer workspaces.get(tenant_id, session_id) for scoped access.
+        """
+        return self.workspaces.get("default", "")
 
     @classmethod
     def create(
@@ -58,8 +73,10 @@ class CognitiveRuntime:
         memory_hub: Any = None,
         world_model: Any = None,
         model_gateway: Optional[ModelGateway] = None,
+        max_workspaces: int = 128,
     ) -> "CognitiveRuntime":
         return cls(
+            workspaces=WorkspaceRegistry(max_workspaces=max_workspaces),
             memory=MemoryServiceBoundary(memory_hub),
             world=WorldModelServiceBoundary(world_model),
             model_gateway=model_gateway or ModelGateway.for_tests(),
@@ -71,8 +88,8 @@ class CognitiveLoop:
     High-level orchestration skeleton.
 
     `process_text` mirrors LanguageEngine-style request/response while
-    publishing events and updating the workspace. Tool/embodiment actions
-    remain proposals only.
+    publishing events and updating the scoped workspace. Tool/embodiment
+    actions remain proposals only.
     """
 
     def __init__(self, runtime: Optional[CognitiveRuntime] = None) -> None:
@@ -93,7 +110,9 @@ class CognitiveLoop:
         proposals: List[CognitiveProposal] = []
         events_published = 0
 
-        # 1) Input event
+        workspace = self.rt.workspaces.get(tenant_id, session_id)
+
+        # 1) Input event — always inline-dispatch (never leave queued residue).
         event = CognitiveEvent.text_input(
             text,
             role=role,
@@ -102,11 +121,7 @@ class CognitiveLoop:
             priority=EventPriority.HIGH if role == "OWNER" else EventPriority.NORMAL,
             trace_id=trace_id,
         )
-        if not self.rt.bus.is_running:
-            # Direct dispatch path for loop without long-lived worker
-            ok = self.rt.bus.publish_nowait(event)
-        else:
-            ok = await self.rt.bus.publish(event)
+        ok = await self.rt.bus.dispatch_inline(event)
         if ok:
             events_published += 1
 
@@ -139,34 +154,36 @@ class CognitiveLoop:
                     )
                 )
 
-        # 3) Workspace update
-        self.rt.workspace.ingest_event(
+        # 3) Scoped workspace update
+        workspace.ingest_event(
             event,
             salience=salience,
             novelty=novelty,
             anomaly=anomaly,
         )
-        self.rt.workspace.set_task(
+        workspace.set_task(
             TaskState(task_id=trace_id, name="process_text", status="running", progress=0.3)
         )
-        self.rt.workspace.update_context(
+        workspace.update_context(
             {
                 "role": role,
-                "session_id": session_id,
+                "session_id": workspace.session_id,
+                "tenant_id": workspace.tenant_id,
                 "last_user_text": text[:500],
                 **{k: ctx[k] for k in list(ctx.keys())[:16]},
             }
         )
 
-        # Memory / world refs (read-only context)
         for fact in self.rt.memory.recall_facts()[:5]:
             key = str(fact.get("key") or fact.get("id") or fact)[:64]
-            self.rt.workspace.add_memory_ref(f"semantic:{key}")
-        world_snap = self.rt.world.snapshot(include_events=False) if self.rt.world.world_model else {}
+            workspace.add_memory_ref(f"semantic:{key}")
+        world_snap = (
+            self.rt.world.snapshot(include_events=False) if self.rt.world.world_model else {}
+        )
         if world_snap:
-            self.rt.workspace.add_world_ref("world:snapshot")
+            workspace.add_world_ref("world:snapshot")
 
-        decision: AttentionDecision = self.rt.workspace.select_attention()
+        decision: AttentionDecision = workspace.select_attention()
         if decision.selected is not None:
             self.rt.metrics.attention_selections += 1
         else:
@@ -218,19 +235,20 @@ class CognitiveLoop:
         self.rt.metrics.memory_proposals += 1
 
         # 6) Workspace finalize
-        self.rt.workspace.add_tool_observation(
+        workspace.add_tool_observation(
             {
                 "type": "model_response",
                 "provider": model_resp.provider,
                 "fallback_used": model_resp.fallback_used,
             }
         )
-        self.rt.workspace.set_task(
+        workspace.set_task(
             TaskState(task_id=trace_id, name="process_text", status="done", progress=1.0)
         )
-        snap = self.rt.workspace.snapshot()
+        snap = workspace.snapshot()
         self.rt.metrics.workspace_active_events = snap.capacity.get("active_events", 0)
         self.rt.metrics.workspace_capacity = snap.capacity.get("max_active_events", 0)
+        self.rt.metrics.queue_depth = self.rt.bus.queue_depth
         self.rt.metrics.merge_bus(self.rt.bus.metrics.snapshot())
 
         return CognitiveLoopResult(
@@ -246,6 +264,10 @@ class CognitiveLoop:
                 "model_provider": model_resp.provider,
                 "fallback_used": model_resp.fallback_used,
                 "neuromorphic": use_neuromorphic,
+                "tenant_id": workspace.tenant_id,
+                "session_id": workspace.session_id,
+                "scope_key": workspace.scope_key,
+                "queue_depth": self.rt.bus.queue_depth,
                 "note": "Proposals require existing policy/tool validation before side effects.",
             },
         )
@@ -260,30 +282,31 @@ class CognitiveLoop:
         tenant_id: str = "default",
         use_neuromorphic: bool = True,
     ) -> Dict[str, Any]:
-        """Sync wrapper returning a LanguageEngine-compatible dict plus extras."""
+        """
+        Sync wrapper for CLI and non-async callers.
+
+        Must not be called from within a running event loop — use
+        `process_text_async()` instead to avoid blocking the loop.
+        """
         try:
             asyncio.get_running_loop()
-            running = True
         except RuntimeError:
-            running = False
+            result = asyncio.run(
+                self.process_text_async(
+                    text,
+                    role=role,
+                    context=context,
+                    session_id=session_id,
+                    tenant_id=tenant_id,
+                    use_neuromorphic=use_neuromorphic,
+                )
+            )
+            data = result.to_dict()
+            data["used_context"] = bool(context)
+            return data
 
-        coro = self.process_text_async(
-            text,
-            role=role,
-            context=context,
-            session_id=session_id,
-            tenant_id=tenant_id,
-            use_neuromorphic=use_neuromorphic,
+        raise CognitiveLoopSyncInAsyncContextError(
+            "CognitiveLoop.process_text() cannot be called while an event loop "
+            "is running (would block the loop). Use await "
+            "CognitiveLoop.process_text_async(...) instead."
         )
-        if running:
-            # Called from within a running loop (rare for CLI); use a dedicated thread.
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                result = pool.submit(asyncio.run, coro).result()
-        else:
-            result = asyncio.run(coro)
-
-        data = result.to_dict()
-        data["used_context"] = bool(context)
-        return data

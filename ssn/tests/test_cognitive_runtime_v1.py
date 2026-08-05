@@ -65,7 +65,8 @@ class TestCognitiveEvent(unittest.TestCase):
             event_type="timer",
             source="test",
             ttl_ms=1,
-            monotonic_timestamp=time.monotonic() - 1.0,
+            timestamp=time.time() - 10.0,
+            expires_at=time.time() - 5.0,
         )
         self.assertTrue(ev.is_expired())
 
@@ -85,8 +86,6 @@ class TestAsyncEventBus(unittest.TestCase):
                 seen.append(ev.event_type)
 
             bus.subscribe(handler, event_type="sensor.*")
-            # prefix filter: our matcher uses startswith on rstrip('*')
-            bus.subscribe(handler, event_type="sensor.")
             await bus.start()
             await bus.publish(
                 CognitiveEvent(event_type="sensor.imu", source="t", priority=EventPriority.LOW)
@@ -109,7 +108,7 @@ class TestAsyncEventBus(unittest.TestCase):
         ok3 = bus.publish_nowait(CognitiveEvent(event_type="c", source="t", priority=EventPriority.HIGH))
         self.assertTrue(ok1 and ok2 and ok3)
         self.assertEqual(bus.queue_depth, 2)
-        self.assertGreaterEqual(bus.metrics.dropped, 1)
+        self.assertGreaterEqual(bus.metrics.queued_evicted, 1)
 
     def test_handler_failure_isolation(self):
         async def _run():
@@ -176,7 +175,8 @@ class TestWorkspaceAndAttention(unittest.TestCase):
             event_type="old",
             source="t",
             ttl_ms=1,
-            monotonic_timestamp=time.monotonic() - 5,
+            timestamp=time.time() - 10.0,
+            expires_at=time.time() - 1.0,
         )
         self.assertFalse(ws.ingest_event(expired))
         for i in range(10):
@@ -184,6 +184,7 @@ class TestWorkspaceAndAttention(unittest.TestCase):
         self.assertLessEqual(len(ws.candidates()), 3)
         snap = ws.snapshot()
         self.assertIn("capacity", snap.to_dict())
+        self.assertIn("tenant_id", snap.to_dict())
 
     def test_attention_scores_stable(self):
         arb = AttentionArbiter()

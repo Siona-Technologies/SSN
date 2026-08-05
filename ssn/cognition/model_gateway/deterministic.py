@@ -153,3 +153,94 @@ class FailingModelProvider:
 
     def generate(self, request: ModelRequest) -> ModelResponse:
         raise RuntimeError("intentional_provider_failure")
+
+
+class SlowModelProvider:
+    """Sleeps longer than typical timeouts — for timeout fallback tests."""
+
+    name = "siona-slow-model-v1"
+
+    def __init__(self, *, sleep_s: float = 2.0) -> None:
+        self.sleep_s = float(sleep_s)
+
+    def capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(provider_name=self.name)
+
+    def health(self) -> Dict[str, Any]:
+        return {"ok": True, "provider": self.name}
+
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        import time as _time
+
+        _time.sleep(self.sleep_s)
+        return ModelResponse(
+            text="slow-ok",
+            provider=self.name,
+            finish_reason="stop",
+            healthy=True,
+        )
+
+
+class UnhealthyModelProvider:
+    """Returns an unhealthy / error finish_reason response."""
+
+    name = "siona-unhealthy-model-v1"
+
+    def capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(provider_name=self.name)
+
+    def health(self) -> Dict[str, Any]:
+        return {"ok": False, "provider": self.name}
+
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            text="should-not-use",
+            provider=self.name,
+            finish_reason="error",
+            healthy=False,
+            meta={"error": "intentional_unhealthy"},
+        )
+
+
+class MalformedModelProvider:
+    """Returns empty / invalid content for the requested format."""
+
+    name = "siona-malformed-model-v1"
+
+    def __init__(self, *, mode: str = "empty") -> None:
+        self.mode = mode
+
+    def capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(provider_name=self.name, structured_json=True)
+
+    def health(self) -> Dict[str, Any]:
+        return {"ok": True, "provider": self.name}
+
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        if self.mode == "bad_json":
+            return ModelResponse(
+                text="not-json",
+                provider=self.name,
+                structured=None,
+                finish_reason="stop",
+                healthy=True,
+            )
+        return ModelResponse(
+            text="",
+            provider=self.name,
+            finish_reason="stop",
+            healthy=True,
+        )
+
+
+class CancelToken:
+    """Simple cooperative cancellation token for ModelRequest."""
+
+    def __init__(self) -> None:
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def is_cancelled(self) -> bool:
+        return bool(self.cancelled)

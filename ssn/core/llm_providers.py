@@ -234,7 +234,13 @@ def get_default_provider_from_env() -> LLMProvider:
             local = LocalOpenWeightProvider()
             # Deterministic fallback remains available behind the local provider.
             gateway = ModelGateway(providers=[local, DeterministicModelProvider()])
-            return ModelGatewayAsLLMProvider(gateway, name="ssn-gateway-local-open-weight-v1")
+            # Align LanguageEngine/ModelGateway timeout with local HTTP transport
+            # (transport first; gateway outer bound = transport + 1s margin).
+            return ModelGatewayAsLLMProvider(
+                gateway,
+                name="ssn-gateway-local-open-weight-v1",
+                default_timeout_s=local.gateway_timeout_s,
+            )
         except Exception:
             return LocalDummyLLMProvider()
 

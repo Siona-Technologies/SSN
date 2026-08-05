@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — first runtime/model baseline installed and artifact-verified locally; limited loopback inference completed; provider integration and full evaluation pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat transport dialect implemented (mock-tested); real-runtime provider activation and registry still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -93,7 +93,8 @@ acceptance are **not** issued.
 
 ### Still pending
 
-- SIONA provider integration
+- Real-runtime SIONA provider activation against the stopped llama.cpp baseline
+  (`openai_chat` dialect is implemented and mock-tested; not auto-enabled)
 - Model registry record/activation
 - Real-provider security tests
 - Timeout and cancellation evaluation against real runtime
@@ -112,6 +113,7 @@ acceptance are **not** issued.
 - Port 8080 currently **not listening**
 - Capabilities remain **unverified** beyond basic transport/inference
 - ADR 0003 remains **Proposed**
+- Model registry remains **inactive** (no production entry activated)
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
 Phase 4 remains **not started**.
@@ -124,6 +126,8 @@ Phase 4 remains **not started**.
   (pre-network cancel only; mid-request cancel deferred to async transport)
 - Artefact verification is separate from behavioural capability verification
 - Default Front Door path remains the legacy dummy provider unless opted in
+- `openai_chat` dialect is opt-in via `SSN_LOCAL_MODEL_API_DIALECT`; default
+  remains `siona_generate` for CI mock compatibility
 - Owner-adjacent baseline failures remain technical debt
 - Preferred pre-inference free-RAM target is 6–8 GiB; measured free RAM may be lower
 

@@ -9,9 +9,11 @@ Only facts classified `PUBLIC_COMPANY` or `PUBLIC_PROFESSIONAL` with:
 
 - `approval_status = APPROVED`
 - `revocation_status` not revoked
-- review date not expired
-- intended uses that include public website and/or public response
+- review date not expired (invalid dates fail closed)
+- the exact requested public use present in intended uses
+  (`PUBLIC_WEBSITE` and/or `PUBLIC_RESPONSE` — not interchangeable)
 - no prohibited public use
+- structurally valid provenance fields
 
 Draft records remain non-public.
 

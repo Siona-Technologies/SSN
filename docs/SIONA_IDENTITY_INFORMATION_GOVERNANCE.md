@@ -39,7 +39,8 @@ This foundation does **not**:
 ## Core rules
 
 1. **Deny by default** when classification is missing.
-2. Public visibility requires **explicit approval**.
+2. Public visibility requires **explicit approval** and the exact requested public
+   use (`PUBLIC_WEBSITE` or `PUBLIC_RESPONSE`) in `intended_uses`.
 3. Personal information must be **purpose-limited**.
 4. **Subject consent** is required for private information.
 5. One co-founder **cannot** authorize another co-founder's private information.
@@ -58,6 +59,9 @@ This foundation does **not**:
 16. Owner authentication does **not** override another person's consent rights.
 17. No personal information may be used for **training or fine-tuning** without a
     separate explicit authorization record. Training use defaults to **denied**.
+18. Policy functions that authorize private, confidential, prompt, or approval
+    use require a trusted `PolicyContext` (`actor_authenticated` is mandatory).
+19. Malformed records, invalid dates, and unknown revocation status **fail closed**.
 
 ## Related documents
 

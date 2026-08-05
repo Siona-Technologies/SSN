@@ -13,7 +13,17 @@
 - Approved public contacts
 - Public press and announcements
 
-Public use requires `approval_status=APPROVED` and no revocation/expiry.
+Public use requires:
+
+- `approval_status=APPROVED`
+- no revocation/expiry
+- structurally valid record
+- the **exact** requested use (`PUBLIC_WEBSITE` or `PUBLIC_RESPONSE`) present in
+  `intended_uses`
+- that use not present in `prohibited_uses`
+
+A record intended only for `PUBLIC_WEBSITE` must not automatically be used in a
+`PUBLIC_RESPONSE`, and vice versa.
 
 ### 2. PUBLIC_PROFESSIONAL
 

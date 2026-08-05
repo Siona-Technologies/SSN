@@ -1,8 +1,10 @@
-"""Identity fact records and classification inheritance."""
+"""Identity fact records, validation, and classification inheritance."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional, Sequence, Tuple
 
 from ssn.governance.information_classes import (
@@ -27,6 +29,16 @@ REQUIRED_FACT_FIELDS = (
     "review_date",
     "revocation_status",
 )
+
+_ALLOWED_REVOCATION = frozenset({"none", "revoked"})
+_ISO_TS = re.compile(
+    r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$"
+)
+
+MAX_SUBJECT_LEN = 256
+MAX_STATEMENT_LEN = 4000
+MAX_SOURCE_LEN = 512
+MAX_NOTES_LEN = 1000
 
 
 @dataclass(frozen=True)
@@ -80,27 +92,90 @@ class IdentityFactRecord:
         }
 
 
+def parse_iso_date(value: str) -> Tuple[Optional[date], str]:
+    """Parse YYYY-MM-DD (optionally with time). Invalid → (None, reason)."""
+    text = (value or "").strip()
+    if not text:
+        return None, "empty_date"
+    if not _ISO_TS.match(text):
+        return None, "invalid_date_format"
+    try:
+        return date.fromisoformat(text[:10]), "ok"
+    except ValueError:
+        return None, "invalid_date_value"
+
+
+def parse_iso_timestamp(value: str) -> Tuple[bool, str]:
+    text = (value or "").strip()
+    if not text:
+        return False, "empty_timestamp"
+    if not _ISO_TS.match(text):
+        return False, "invalid_approval_timestamp"
+    # Accept date-only or datetime forms already matched by regex.
+    d, reason = parse_iso_date(text)
+    if d is None:
+        return False, "invalid_approval_timestamp"
+    return True, "ok"
+
+
 def validate_fact_record(record: IdentityFactRecord) -> Tuple[bool, str]:
     """Structural validation only — does not grant approval or consent."""
-    data = record.to_dict()
-    for key in REQUIRED_FACT_FIELDS:
-        if key not in data:
-            return False, f"missing_field:{key}"
-        if data[key] is None or data[key] == "":
-            if key in {"approved_by", "approval_timestamp", "review_date"} and record.approval_status in {
-                ApprovalStatus.DRAFT,
-                ApprovalStatus.REJECTED,
-            }:
-                continue
-            if key == "classification":
-                return False, "missing_classification"
-            return False, f"empty_field:{key}"
+    if record.classification is None:
+        return False, "missing_classification"
+
+    subject = (record.subject or "").strip()
+    statement = (record.statement or "").strip()
+    source_type = (record.source_type or "").strip()
+    source_reference = (record.source_reference or "").strip()
+    if not subject or not statement or not source_type or not source_reference:
+        return False, "deny_invalid_record"
+    if len(subject) > MAX_SUBJECT_LEN or len(statement) > MAX_STATEMENT_LEN:
+        return False, "deny_invalid_record"
+    if len(source_type) > MAX_SOURCE_LEN or len(source_reference) > MAX_SOURCE_LEN:
+        return False, "deny_invalid_record"
+    if len(record.notes or "") > MAX_NOTES_LEN:
+        return False, "deny_invalid_record"
+
+    rev = (record.revocation_status or "").strip().lower()
+    if rev not in _ALLOWED_REVOCATION:
+        return False, "invalid_revocation_status"
+
+    if not isinstance(record.intended_uses, tuple) or not isinstance(
+        record.prohibited_uses, tuple
+    ):
+        return False, "deny_invalid_record"
+    for use in list(record.intended_uses) + list(record.prohibited_uses):
+        if not isinstance(use, AllowedUse):
+            return False, "deny_invalid_record"
+
     if record.personal_email not in {"excluded", ""}:
         return False, "personal_email_must_be_excluded"
     if record.personal_phone not in {"excluded", ""}:
         return False, "personal_phone_must_be_excluded"
     if record.personal_address not in {"excluded", ""}:
         return False, "personal_address_must_be_excluded"
+
+    if record.approval_status == ApprovalStatus.APPROVED:
+        if not (record.approved_by or "").strip():
+            return False, "deny_invalid_record"
+        ok_ts, ts_reason = parse_iso_timestamp(record.approval_timestamp)
+        if not ok_ts:
+            return False, "invalid_approval_timestamp"
+        review, rev_reason = parse_iso_date(record.review_date)
+        if review is None:
+            return False, "invalid_review_date"
+
+    if record.approval_status in {ApprovalStatus.DRAFT, ApprovalStatus.REJECTED}:
+        # Draft/rejected may omit approval fields.
+        if record.review_date.strip():
+            review, rev_reason = parse_iso_date(record.review_date)
+            if review is None:
+                return False, "invalid_review_date"
+        if record.approval_timestamp.strip():
+            ok_ts, ts_reason = parse_iso_timestamp(record.approval_timestamp)
+            if not ok_ts:
+                return False, "invalid_approval_timestamp"
+
     return True, "ok"
 
 
@@ -109,7 +184,7 @@ def inherit_strictest_classification(
 ) -> Optional[InformationClass]:
     """
     Derived summaries inherit the strongest (strictest) classification of inputs.
-    Missing classification is treated as stricter than all known classes (deny-by-default).
+    Missing classification is treated as fail-closed (None).
     """
     if not classes:
         return None
@@ -123,6 +198,12 @@ def model_output_cannot_self_approve(record: IdentityFactRecord) -> bool:
     src = (record.source_type or "").strip().lower()
     if src in {"model_output", "llm", "generated", "self_approved"}:
         return True
-    if (record.approved_by or "").strip().lower() in {"model", "llm", "siona", "self"}:
+    if (record.approved_by or "").strip().lower() in {
+        "model",
+        "llm",
+        "siona",
+        "self",
+        "system",
+    }:
         return True
     return False

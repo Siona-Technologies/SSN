@@ -1,24 +1,22 @@
 """
 Model registry and provenance contracts (Phase 3A).
 
-Records metadata only. Does not claim ownership of third-party weights.
-CI fixtures use clearly labelled mock entries.
+Strict schema validation with transactional loading.
+CI fixtures use clearly labelled mock entries — never SIONA-native.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-
-REQUIRED_FIELDS = (
+ALLOWED_FIELDS: Set[str] = {
     "provider_id",
     "model_id",
-)
-
-OPTIONAL_NULLABLE = (
     "model_family",
     "model_version",
     "runtime",
@@ -30,12 +28,44 @@ OPTIONAL_NULLABLE = (
     "licence_ref",
     "checksum_algorithm",
     "artifact_checksum",
-    "classification",  # local | remote | unknown
+    "classification",
     "hardware_requirements",
     "added_date",
     "verification_status",
     "notes",
     "limitations",
+    "mock",
+    "siona_native",
+}
+
+CLASSIFICATIONS = frozenset({"local", "remote", "unknown"})
+VERIFICATION_STATUSES = frozenset({"unverified", "verified", "mock", "rejected", "unknown"})
+CHECKSUM_ALGORITHMS = {
+    "sha256": 64,
+    "sha512": 128,
+    "sha1": 40,
+    "blake2b": 128,
+}
+
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+MAX_STRING = 2_048
+MAX_NOTES = 4_096
+MAX_HW_KEYS = 16
+MAX_HW_DEPTH = 3
+
+_SECRET_KEYS = frozenset(
+    {
+        "api_key",
+        "master_key",
+        "password",
+        "token",
+        "secret",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "private_key",
+        "client_secret",
+    }
 )
 
 
@@ -65,70 +95,158 @@ class ModelRegistryEntry:
     notes: Optional[str] = None
     limitations: Optional[str] = None
     mock: bool = False
-    siona_native: bool = False  # must remain False for third-party open weights
+    siona_native: bool = False
+
+    def composite_key(self) -> Tuple[str, str]:
+        return (self.provider_id, self.model_id)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
-def _unknown_or_str(value: Any) -> Optional[str]:
+def _unknown_or_str(value: Any, *, max_len: int = MAX_STRING) -> Optional[str]:
     if value is None:
         return None
     if isinstance(value, str):
         s = value.strip()
-        if not s or s.lower() in {"unknown", "null", "none", "n/a"}:
-            return None if s.lower() in {"null", "none"} else (s if s else None)
+        if not s:
+            return None
+        if s.lower() in {"null", "none"}:
+            return None
+        if len(s) > max_len:
+            raise RegistryValidationError("string_too_long")
         return s
-    return str(value)
+    raise RegistryValidationError("expected_string")
+
+
+def _reject_secrets_recursive(obj: Any, *, depth: int = 0) -> None:
+    if depth > 8:
+        raise RegistryValidationError("depth_exceeded")
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = str(k).lower().replace("-", "_")
+            if key in _SECRET_KEYS or key.endswith("_secret") or key.endswith("_password"):
+                raise RegistryValidationError(f"secret_field_forbidden:{k}")
+            _reject_secrets_recursive(v, depth=depth + 1)
+    elif isinstance(obj, list):
+        for item in obj[:64]:
+            _reject_secrets_recursive(item, depth=depth + 1)
+
+
+def _validate_hw(hw: Any, *, depth: int = 0) -> Dict[str, Any]:
+    if not isinstance(hw, dict):
+        raise RegistryValidationError("hardware_requirements_not_object")
+    if depth > MAX_HW_DEPTH:
+        raise RegistryValidationError("hardware_requirements_depth")
+    if len(hw) > MAX_HW_KEYS:
+        raise RegistryValidationError("hardware_requirements_too_many_keys")
+    out: Dict[str, Any] = {}
+    for k, v in hw.items():
+        key = str(k)[:64]
+        if isinstance(v, dict):
+            out[key] = _validate_hw(v, depth=depth + 1)
+        elif isinstance(v, (str, int, float, bool)) or v is None:
+            if isinstance(v, str) and len(v) > MAX_STRING:
+                raise RegistryValidationError("hardware_requirements_string_too_long")
+            out[key] = v
+        else:
+            raise RegistryValidationError("hardware_requirements_invalid_value")
+    return out
+
+
+def _validate_added_date(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    s = value.strip()
+    if not s or s.lower() == "unknown":
+        return s if s.lower() == "unknown" else None
+    try:
+        if "T" in s:
+            datetime.fromisoformat(s.replace("Z", "+00:00"))
+        else:
+            date.fromisoformat(s)
+    except Exception as exc:
+        raise RegistryValidationError(f"invalid_added_date:{exc}") from exc
+    return s
 
 
 def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
     if not isinstance(data, dict):
         raise RegistryValidationError("entry_not_object")
-    for key in REQUIRED_FIELDS:
-        if not data.get(key) or not str(data.get(key)).strip():
-            raise RegistryValidationError(f"missing_required:{key}")
 
-    # Reject fabricated secret-looking fields
-    for banned in ("api_key", "master_key", "password", "token", "secret"):
-        if banned in data:
-            raise RegistryValidationError(f"secret_field_forbidden:{banned}")
+    unknown = set(data.keys()) - ALLOWED_FIELDS
+    if unknown:
+        raise RegistryValidationError(f"unknown_fields:{sorted(unknown)}")
 
-    checksum_alg = _unknown_or_str(data.get("checksum_algorithm"))
-    checksum_val = _unknown_or_str(data.get("artifact_checksum"))
-    if (checksum_alg and not checksum_val) or (checksum_val and not checksum_alg):
-        raise RegistryValidationError("checksum_incomplete")
+    _reject_secrets_recursive(data)
 
-    licence_id = _unknown_or_str(data.get("licence_id"))
-    licence_ref = _unknown_or_str(data.get("licence_ref"))
-    # Incomplete licence pair is allowed only if both unknown/null
-    # If one is fabricated empty string we already normalized.
+    provider_id = _unknown_or_str(data.get("provider_id"))
+    model_id = _unknown_or_str(data.get("model_id"))
+    if not provider_id or not ID_RE.match(provider_id):
+        raise RegistryValidationError("invalid_provider_id")
+    if not model_id or not ID_RE.match(model_id):
+        raise RegistryValidationError("invalid_model_id")
+
+    # siona_native forbidden for all Phase 3A entries including mocks
+    if data.get("siona_native") is True:
+        raise RegistryValidationError("siona_native_forbidden")
+
+    classification = _unknown_or_str(data.get("classification")) or "unknown"
+    if classification not in CLASSIFICATIONS:
+        raise RegistryValidationError(f"invalid_classification:{classification}")
+
+    verification_status = _unknown_or_str(data.get("verification_status")) or "unverified"
+    if verification_status not in VERIFICATION_STATUSES:
+        raise RegistryValidationError(f"invalid_verification_status:{verification_status}")
 
     ctx = data.get("context_window")
     context_window: Optional[int]
-    if ctx is None or ctx == "unknown":
+    if ctx is None or (isinstance(ctx, str) and ctx.strip().lower() in {"unknown", "null", "none", ""}):
         context_window = None
     else:
         try:
             context_window = int(ctx)
         except Exception as exc:
             raise RegistryValidationError(f"invalid_context_window:{exc}") from exc
+        if context_window <= 0:
+            raise RegistryValidationError("context_window_not_positive")
 
-    classification = _unknown_or_str(data.get("classification")) or "unknown"
-    if classification not in {"local", "remote", "unknown"}:
-        raise RegistryValidationError(f"invalid_classification:{classification}")
+    licence_id = _unknown_or_str(data.get("licence_id"))
+    licence_ref = _unknown_or_str(data.get("licence_ref"))
+    # Treat literal "unknown" as present unknown marker — pair rule:
+    # both present (including unknown) or both null.
+    lic_present = licence_id is not None
+    ref_present = licence_ref is not None
+    if lic_present != ref_present:
+        raise RegistryValidationError("licence_pair_incomplete")
+
+    checksum_alg = _unknown_or_str(data.get("checksum_algorithm"))
+    checksum_val = _unknown_or_str(data.get("artifact_checksum"))
+    if (checksum_alg is None) != (checksum_val is None):
+        raise RegistryValidationError("checksum_incomplete")
+    if checksum_alg is not None:
+        alg = checksum_alg.lower()
+        if alg not in CHECKSUM_ALGORITHMS:
+            raise RegistryValidationError(f"unsupported_checksum_algorithm:{checksum_alg}")
+        expected = CHECKSUM_ALGORITHMS[alg]
+        val = (checksum_val or "").lower()
+        if not re.fullmatch(r"[0-9a-f]+", val):
+            raise RegistryValidationError("checksum_encoding_invalid")
+        if len(val) != expected:
+            raise RegistryValidationError(f"checksum_length_invalid:{len(val)}!={expected}")
+        checksum_alg = alg
+        checksum_val = val
 
     hw = data.get("hardware_requirements")
-    if hw is not None and not isinstance(hw, dict):
-        raise RegistryValidationError("hardware_requirements_not_object")
+    hardware = _validate_hw(hw) if hw is not None else None
 
-    if data.get("siona_native") is True and not data.get("mock"):
-        # Third-party open weights must not be claimed as SIONA-native.
-        raise RegistryValidationError("siona_native_forbidden_for_third_party")
+    notes = _unknown_or_str(data.get("notes"), max_len=MAX_NOTES)
+    limitations = _unknown_or_str(data.get("limitations"), max_len=MAX_NOTES)
+    added_date = _validate_added_date(_unknown_or_str(data.get("added_date")))
 
     return ModelRegistryEntry(
-        provider_id=str(data["provider_id"]).strip(),
-        model_id=str(data["model_id"]).strip(),
+        provider_id=provider_id,
+        model_id=model_id,
         model_family=_unknown_or_str(data.get("model_family")),
         model_version=_unknown_or_str(data.get("model_version")),
         runtime=_unknown_or_str(data.get("runtime")),
@@ -141,35 +259,48 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
         checksum_algorithm=checksum_alg,
         artifact_checksum=checksum_val,
         classification=classification,
-        hardware_requirements=dict(hw) if isinstance(hw, dict) else None,
-        added_date=_unknown_or_str(data.get("added_date")),
-        verification_status=_unknown_or_str(data.get("verification_status")) or "unverified",
-        notes=_unknown_or_str(data.get("notes")),
-        limitations=_unknown_or_str(data.get("limitations")),
+        hardware_requirements=hardware,
+        added_date=added_date,
+        verification_status=verification_status,
+        notes=notes,
+        limitations=limitations,
         mock=bool(data.get("mock", False)),
-        siona_native=bool(data.get("siona_native", False)),
+        siona_native=False,
     )
 
 
 class ModelRegistry:
     def __init__(self) -> None:
-        self._by_id: Dict[str, ModelRegistryEntry] = {}
+        # Composite key: (provider_id, model_id)
+        self._by_key: Dict[Tuple[str, str], ModelRegistryEntry] = {}
 
     def __len__(self) -> int:
-        return len(self._by_id)
+        return len(self._by_key)
 
-    def get(self, model_id: str) -> Optional[ModelRegistryEntry]:
-        return self._by_id.get(model_id)
+    def get(self, model_id: str, *, provider_id: Optional[str] = None) -> Optional[ModelRegistryEntry]:
+        if provider_id:
+            return self._by_key.get((provider_id, model_id))
+        matches = [e for (p, m), e in self._by_key.items() if m == model_id]
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            return None
+        raise RegistryValidationError(f"ambiguous_model_id:{model_id}")
 
     def list_entries(self) -> List[ModelRegistryEntry]:
-        return list(self._by_id.values())
+        return list(self._by_key.values())
 
     def add(self, entry: ModelRegistryEntry, *, allow_duplicate: bool = False) -> None:
-        if entry.model_id in self._by_id and not allow_duplicate:
-            raise RegistryValidationError(f"duplicate_model_id:{entry.model_id}")
-        self._by_id[entry.model_id] = entry
+        key = entry.composite_key()
+        if key in self._by_key and not allow_duplicate:
+            raise RegistryValidationError(f"duplicate_model:{key[0]}/{key[1]}")
+        self._by_key[key] = entry
 
     def load_dict(self, payload: Dict[str, Any]) -> None:
+        """
+        Transactional load: validate all records and duplicates first,
+        then commit. On failure the existing registry is unchanged.
+        """
         if not isinstance(payload, dict):
             raise RegistryValidationError("registry_not_object")
         models = payload.get("models")
@@ -177,11 +308,21 @@ class ModelRegistry:
             raise RegistryValidationError("missing_models")
         if not isinstance(models, list):
             raise RegistryValidationError("models_not_list")
+
+        pending: List[ModelRegistryEntry] = []
+        seen: Set[Tuple[str, str]] = set()
         for i, item in enumerate(models):
             if not isinstance(item, dict):
                 raise RegistryValidationError(f"entry_not_object:{i}")
             entry = validate_entry_dict(item)
-            self.add(entry)
+            key = entry.composite_key()
+            if key in seen or key in self._by_key:
+                raise RegistryValidationError(f"duplicate_model:{key[0]}/{key[1]}")
+            seen.add(key)
+            pending.append(entry)
+
+        for entry in pending:
+            self._by_key[entry.composite_key()] = entry
 
     def load_json_file(self, path: str | Path) -> None:
         p = Path(path)

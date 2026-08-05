@@ -8,7 +8,6 @@ from typing import Optional, Tuple
 
 from ssn.governance.consent import (
     ConsentRecord,
-    can_person_approve,
     consent_revoked,
     delegation_allows,
     is_model_identity,
@@ -27,6 +26,7 @@ from ssn.governance.information_classes import (
 )
 
 _PUBLIC_USES = frozenset({AllowedUse.PUBLIC_WEBSITE, AllowedUse.PUBLIC_RESPONSE})
+_MAX_ACTOR_ID_LEN = 256
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,28 @@ class PolicyDecision:
     allowed: bool
     reason: str
     use: str = ""
+
+
+def validate_policy_context(ctx: PolicyContext) -> Tuple[bool, str]:
+    """
+    Deterministic PolicyContext runtime-type validation.
+
+    Do not use general truthiness for authentication or ownership flags.
+    """
+    if type(ctx.actor_id) is not str or not ctx.actor_id.strip():
+        return False, "deny_invalid_policy_context"
+    if len(ctx.actor_id) > _MAX_ACTOR_ID_LEN:
+        return False, "deny_invalid_policy_context"
+    if type(ctx.actor_authenticated) is not bool:
+        return False, "deny_invalid_policy_context"
+    if type(ctx.verified_owner) is not bool:
+        return False, "deny_invalid_policy_context"
+    if type(ctx.authorized_company_approver_ids) is not tuple:
+        return False, "deny_invalid_policy_context"
+    for aid in ctx.authorized_company_approver_ids:
+        if type(aid) is not str or not aid.strip() or len(aid) > _MAX_ACTOR_ID_LEN:
+            return False, "deny_invalid_policy_context"
+    return True, "ok"
 
 
 def _use_intended(record: IdentityFactRecord, use: AllowedUse) -> bool:
@@ -122,13 +144,75 @@ def _base_denial(
 
 
 def _require_auth(ctx: PolicyContext) -> Optional[PolicyDecision]:
-    if not ctx.actor_authenticated:
-        return PolicyDecision(False, "deny_unauthenticated")
-    if not (ctx.actor_id or "").strip():
+    ok, reason = validate_policy_context(ctx)
+    if not ok:
+        return PolicyDecision(False, reason)
+    # Exact bool check — never trust truthiness of non-bool values.
+    if ctx.actor_authenticated is not True:
         return PolicyDecision(False, "deny_unauthenticated")
     if is_model_identity(ctx.actor_id):
         return PolicyDecision(False, "deny_model_identity")
     return None
+
+
+def _actor_has_approval_authority(
+    *,
+    actor_id: str,
+    record: IdentityFactRecord,
+    authorized_company_approver_ids: Tuple[str, ...],
+    consent: Optional[ConsentRecord] = None,
+) -> bool:
+    """
+    Internal authority probe used only after decide_can_approve() validation.
+
+    Not a public policy boundary. Defensively refuses non-DRAFT / invalid /
+    SECRET / FORGET_DELETE / revoked / rejected / expired records so a direct
+    call cannot authorize merely because actor_id == subject_id.
+    """
+    ok, _reason = validate_fact_record(record)
+    if not ok:
+        return False
+    cls = record.classification
+    if cls is None or cls in {InformationClass.SECRET, InformationClass.FORGET_DELETE}:
+        return False
+    if (record.revocation_status or "").strip().lower() == "revoked":
+        return False
+    if record.approval_status in {
+        ApprovalStatus.REVOKED,
+        ApprovalStatus.REJECTED,
+        ApprovalStatus.EXPIRED,
+        ApprovalStatus.APPROVED,
+    }:
+        return False
+    if record.approval_status != ApprovalStatus.DRAFT:
+        return False
+    if model_output_cannot_self_approve(record):
+        return False
+
+    actor = (actor_id or "").strip()
+    if not actor or is_model_identity(actor):
+        return False
+    subject = (record.subject_id or "").strip()
+
+    if subject and actor == subject:
+        return True
+
+    if consent is not None:
+        ok_d, _ = delegation_allows(
+            consent, actor_id=actor, requested_use=AllowedUse.RECORD_APPROVAL
+        )
+        if ok_d and (consent.subject_id or "").strip() == subject:
+            return True
+
+    if cls in {
+        InformationClass.PUBLIC_COMPANY,
+        InformationClass.PUBLIC_PROFESSIONAL,
+        InformationClass.COMPANY_CONFIDENTIAL,
+        InformationClass.LEGAL_RESTRICTED,
+    }:
+        return actor in set(authorized_company_approver_ids or ())
+
+    return False
 
 
 def decide_public(
@@ -189,13 +273,13 @@ def decide_owner_assistance(
     today: Optional[date] = None,
 ) -> PolicyDecision:
     use = AllowedUse.OWNER_ASSISTANCE
-    denied = _base_denial(record, today=today)
-    if denied:
-        return PolicyDecision(denied.allowed, denied.reason, use.value)
-
     auth = _require_auth(ctx)
     if auth:
         return PolicyDecision(auth.allowed, auth.reason, use.value)
+
+    denied = _base_denial(record, today=today)
+    if denied:
+        return PolicyDecision(denied.allowed, denied.reason, use.value)
 
     cls = record.classification
     assert cls is not None
@@ -208,7 +292,7 @@ def decide_owner_assistance(
     if cls == InformationClass.OWNER_PRIVATE:
         if record.approval_status != ApprovalStatus.APPROVED:
             return PolicyDecision(False, "deny_not_approved", use.value)
-        if not ctx.verified_owner:
+        if ctx.verified_owner is not True:
             return PolicyDecision(False, "deny_guest_owner_private", use.value)
         if actor != subject:
             return PolicyDecision(False, "deny_wrong_owner_subject", use.value)
@@ -237,7 +321,10 @@ def decide_owner_assistance(
     if cls == InformationClass.COMPANY_CONFIDENTIAL:
         if record.approval_status != ApprovalStatus.APPROVED:
             return PolicyDecision(False, "deny_not_approved", use.value)
-        if not (ctx.verified_owner or actor in set(ctx.authorized_company_approver_ids)):
+        if not (
+            ctx.verified_owner is True
+            or actor in set(ctx.authorized_company_approver_ids)
+        ):
             return PolicyDecision(False, "deny_guest_confidential", use.value)
         if _use_prohibited(record, use):
             return PolicyDecision(False, "deny_prohibited_use", use.value)
@@ -246,7 +333,6 @@ def decide_owner_assistance(
         return PolicyDecision(True, "allow_owner_confidential", use.value)
 
     if cls in {InformationClass.PUBLIC_COMPANY, InformationClass.PUBLIC_PROFESSIONAL}:
-        # Assistance may surface approved public facts when PUBLIC_RESPONSE intended.
         pub = decide_public(record, requested_use=AllowedUse.PUBLIC_RESPONSE, today=today)
         if pub.allowed:
             return PolicyDecision(True, "allow_public_for_owner", use.value)
@@ -263,6 +349,11 @@ def decide_model_prompt(
     today: Optional[date] = None,
 ) -> PolicyDecision:
     use = AllowedUse.MODEL_PROMPT
+    # Validate context types before any authorization path.
+    ctx_ok, ctx_reason = validate_policy_context(ctx)
+    if not ctx_ok:
+        return PolicyDecision(False, ctx_reason, use.value)
+
     denied = _base_denial(record, today=today)
     if denied:
         return PolicyDecision(denied.allowed, denied.reason, use.value)
@@ -299,7 +390,7 @@ def decide_model_prompt(
         return PolicyDecision(False, "deny_not_approved_for_prompt", use.value)
 
     if cls == InformationClass.OWNER_PRIVATE:
-        if not ctx.verified_owner or actor != subject:
+        if ctx.verified_owner is not True or actor != subject:
             return PolicyDecision(False, "deny_owner_prompt_unauthorized", use.value)
         return PolicyDecision(True, "allow_owner_private_prompt", use.value)
 
@@ -315,7 +406,8 @@ def decide_model_prompt(
 
     if cls == InformationClass.COMPANY_CONFIDENTIAL:
         if not (
-            ctx.verified_owner or actor in set(ctx.authorized_company_approver_ids)
+            ctx.verified_owner is True
+            or actor in set(ctx.authorized_company_approver_ids)
         ):
             return PolicyDecision(False, "deny_confidential_prompt_unauthorized", use.value)
         return PolicyDecision(True, "allow_confidential_prompt", use.value)
@@ -412,11 +504,16 @@ def decide_can_approve(
     consent: Optional[ConsentRecord] = None,
 ) -> PolicyDecision:
     """
-    Approve a valid DRAFT record only.
+    Authoritative public approval decision.
 
-    Rejected, expired, or revoked records must be replaced by a new DRAFT
-    revision — this function never silently reactivates them.
+    Approve a valid DRAFT record only. Rejected, expired, or revoked records
+    must be replaced by a new DRAFT revision — this function never silently
+    reactivates them. Internal helpers are not policy boundaries.
     """
+    auth = _require_auth(ctx)
+    if auth:
+        return PolicyDecision(auth.allowed, auth.reason, "APPROVE")
+
     ok, reason = validate_fact_record(record)
     if not ok:
         if reason in {
@@ -455,10 +552,6 @@ def decide_can_approve(
     if record.approval_status != ApprovalStatus.DRAFT:
         return PolicyDecision(False, "deny_not_draft", "APPROVE")
 
-    auth = _require_auth(ctx)
-    if auth:
-        return PolicyDecision(auth.allowed, auth.reason, "APPROVE")
-
     actor = (ctx.actor_id or "").strip()
     subject = (record.subject_id or "").strip()
 
@@ -472,7 +565,7 @@ def decide_can_approve(
         InformationClass.PUBLIC_PROFESSIONAL,
         InformationClass.COMPANY_CONFIDENTIAL,
         InformationClass.LEGAL_RESTRICTED,
-    } and actor in set(ctx.authorized_company_approver_ids or ()):
+    } and actor in set(ctx.authorized_company_approver_ids):
         return PolicyDecision(True, "allow_company_approver", "APPROVE")
 
     # Delegated approval: RECORD_APPROVAL only (never assistance/prompt substitutes).
@@ -491,13 +584,11 @@ def decide_can_approve(
     if AllowedUse.RECORD_APPROVAL not in consent.allowed_uses:
         return PolicyDecision(False, "deny_approval_use_not_delegated", "APPROVE")
 
-    ok_auth = can_person_approve(
+    if _actor_has_approval_authority(
         actor_id=ctx.actor_id,
-        actor_authenticated=ctx.actor_authenticated,
         record=record,
         authorized_company_approver_ids=ctx.authorized_company_approver_ids,
         consent=consent,
-    )
-    if ok_auth:
+    ):
         return PolicyDecision(True, "allow_delegate_approve", "APPROVE")
     return PolicyDecision(False, "deny_approver", "APPROVE")

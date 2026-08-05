@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from ssn.governance.information_classes import AllowedUse, InformationClass
-from ssn.governance.identity_records import IdentityFactRecord, is_valid_iso_instant
+from ssn.governance.information_classes import AllowedUse
+from ssn.governance.identity_records import is_valid_iso_instant
 
 
 # Canonical subject IDs for co-founders (non-sensitive).
@@ -35,10 +35,16 @@ class ConsentRecord:
 def consent_revoked(consent: Optional[ConsentRecord]) -> bool:
     if consent is None:
         return False
-    return bool(consent.revoked) or not bool(consent.granted)
+    # Fail closed on non-bool fields (must not use general truthiness).
+    if type(consent.revoked) is not bool or type(consent.granted) is not bool:
+        return True
+    return consent.revoked or not consent.granted
 
 
 def validate_consent(consent: ConsentRecord) -> Tuple[bool, str]:
+    if type(consent.granted) is not bool or type(consent.revoked) is not bool:
+        return False, "invalid_consent_boolean"
+
     subject = (consent.subject_id or "").strip()
     grantee = (consent.grantee_id or "").strip()
     granted_by = (consent.granted_by or "").strip()
@@ -89,6 +95,9 @@ def delegation_allows(
         return False, reason
     if consent_revoked(consent):
         return False, "deny_consent_revoked"
+    # granted=False never authorizes (also covered by consent_revoked).
+    if consent.granted is not True:
+        return False, "deny_consent_revoked"
     actor = (actor_id or "").strip()
     if not actor or actor != consent.grantee_id:
         return False, "deny_delegate_mismatch"
@@ -113,60 +122,3 @@ def other_cofounder_cannot_approve_private(
     if actor not in cofounders or subject not in cofounders:
         return False
     return actor != subject
-
-
-def can_person_approve(
-    *,
-    actor_id: str,
-    actor_authenticated: bool,
-    record: IdentityFactRecord,
-    authorized_company_approver_ids: Tuple[str, ...] = (),
-    consent: Optional[ConsentRecord] = None,
-) -> bool:
-    """
-    Approval authority (authenticated actors only).
-
-    - Subject may approve their own record without prior delegation.
-    - Delegated approval requires exact RECORD_APPROVAL in allowed_uses.
-      OWNER_ASSISTANCE and MODEL_PROMPT never authorize approval.
-    - Company/public/legal: subject or exact authorized company approver.
-    - SECRET / FORGET_DELETE: never.
-    """
-    if not actor_authenticated:
-        return False
-    actor = (actor_id or "").strip()
-    if not actor or is_model_identity(actor):
-        return False
-
-    cls = record.classification
-    subject = (record.subject_id or "").strip()
-
-    if cls is None or cls in {InformationClass.SECRET, InformationClass.FORGET_DELETE}:
-        return False
-
-    # Subject self-approval of their own record.
-    if subject and actor == subject:
-        return True
-
-    # Exact delegated approval (subject-issued RECORD_APPROVAL only).
-    if consent is not None:
-        ok, _reason = delegation_allows(
-            consent, actor_id=actor, requested_use=AllowedUse.RECORD_APPROVAL
-        )
-        if ok and (consent.subject_id or "").strip() == subject:
-            return True
-
-    if cls in {
-        InformationClass.PUBLIC_COMPANY,
-        InformationClass.PUBLIC_PROFESSIONAL,
-        InformationClass.COMPANY_CONFIDENTIAL,
-        InformationClass.LEGAL_RESTRICTED,
-    }:
-        if actor in set(authorized_company_approver_ids or ()):
-            return True
-        return False
-
-    if cls in {InformationClass.OWNER_PRIVATE, InformationClass.COFOUNDER_PRIVATE}:
-        return False
-
-    return False

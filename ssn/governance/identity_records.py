@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, Sequence, Tuple
 
 from ssn.governance.information_classes import (
@@ -31,9 +30,6 @@ REQUIRED_FACT_FIELDS = (
 )
 
 _ALLOWED_REVOCATION = frozenset({"none", "revoked"})
-_ISO_TS = re.compile(
-    r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$"
-)
 
 MAX_SUBJECT_LEN = 256
 MAX_STATEMENT_LEN = 4000
@@ -92,30 +88,51 @@ class IdentityFactRecord:
         }
 
 
+def is_valid_iso_instant(value: str) -> Tuple[bool, str]:
+    """
+    Full ISO date/timestamp validation via stdlib parsing (no third-party deps).
+
+    Accepts YYYY-MM-DD, or datetime with optional fractional seconds and
+    Z / ±HH:MM offset. Rejects impossible calendar dates, clock times, and offsets.
+    """
+    text = (value or "").strip()
+    if not text:
+        return False, "empty_timestamp"
+
+    # Date-only form.
+    if "T" not in text and " " not in text:
+        try:
+            date.fromisoformat(text)
+            return True, "ok"
+        except ValueError:
+            return False, "invalid_timestamp_value"
+
+    # Datetime: normalize space separator and trailing Z.
+    normalized = text.replace(" ", "T", 1)
+    if normalized.endswith("Z") or normalized.endswith("z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    try:
+        datetime.fromisoformat(normalized)
+    except ValueError:
+        return False, "invalid_timestamp_value"
+    return True, "ok"
+
+
 def parse_iso_date(value: str) -> Tuple[Optional[date], str]:
-    """Parse YYYY-MM-DD (optionally with time). Invalid → (None, reason)."""
+    """Parse a governance date/timestamp; return calendar date or failure."""
     text = (value or "").strip()
     if not text:
         return None, "empty_date"
-    if not _ISO_TS.match(text):
-        return None, "invalid_date_format"
+    ok, reason = is_valid_iso_instant(text)
+    if not ok:
+        if reason == "empty_timestamp":
+            return None, "empty_date"
+        return None, "invalid_date_value"
     try:
         return date.fromisoformat(text[:10]), "ok"
     except ValueError:
         return None, "invalid_date_value"
-
-
-def is_valid_iso_instant(value: str) -> Tuple[bool, str]:
-    """Shared deterministic ISO date/timestamp check (no third-party deps)."""
-    text = (value or "").strip()
-    if not text:
-        return False, "empty_timestamp"
-    if not _ISO_TS.match(text):
-        return False, "invalid_timestamp_format"
-    d, _reason = parse_iso_date(text)
-    if d is None:
-        return False, "invalid_timestamp_value"
-    return True, "ok"
 
 
 def parse_iso_timestamp(value: str) -> Tuple[bool, str]:

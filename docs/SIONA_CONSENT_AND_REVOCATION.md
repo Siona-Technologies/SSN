@@ -24,6 +24,16 @@ Authorization uses an immutable context:
 
 Unauthenticated actors are denied even when `actor_id` equals a subject ID.
 
+`actor_authenticated` and `verified_owner` must be exact Python `bool` values.
+Strings, integers, and other truthy/falsy types are rejected
+(`deny_invalid_policy_context`).
+
+## Approval decision API
+
+`decide_can_approve()` is the **authoritative** public approval decision.
+Internal helpers such as `_actor_has_approval_authority` are not policy
+boundaries and must not be used as authorization APIs.
+
 ## Structured delegation (`ConsentRecord`)
 
 Delegation fields (exact matching only — no free-form scope substrings):
@@ -33,9 +43,12 @@ Delegation fields (exact matching only — no free-form scope substrings):
 - `allowed_uses` (exact `AllowedUse` enum values)
 - `granted`
 - `granted_by` (must equal `subject_id` for subject-issued delegation)
-- `timestamp` (valid ISO date or timestamp; invalid values fail closed)
+- `timestamp` (valid ISO date or full timestamp; impossible clock times and
+  offsets fail closed)
 - `revoked` / `revoked_at` (`revoked_at` required and valid when revoked;
   must be empty when not revoked)
+- `granted` and `revoked` must be exact Python `bool` values
+  (`invalid_consent_boolean` otherwise)
 
 Rules:
 

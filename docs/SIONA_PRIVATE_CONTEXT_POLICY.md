@@ -71,9 +71,12 @@ confidential records in model prompts.
 
 ## Record approval
 
-Normal approval (`decide_can_approve`) applies only to structurally valid
-`DRAFT` records. Rejected, expired, or revoked records must be replaced by a
-new DRAFT revision — they are not reactivated through approval.
+`decide_can_approve()` is the authoritative public approval decision. Internal
+helpers cannot be used as policy boundaries.
+
+Normal approval applies only to structurally valid `DRAFT` records. Rejected,
+expired, or revoked records must be replaced by a new DRAFT revision — they are
+not reactivated through approval.
 
 Delegated approval requires exact `RECORD_APPROVAL` in consent `allowed_uses`.
 `OWNER_ASSISTANCE` and `MODEL_PROMPT` never authorize approval. Permissions are

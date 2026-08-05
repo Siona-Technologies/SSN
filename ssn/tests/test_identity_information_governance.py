@@ -12,7 +12,6 @@ from ssn.governance.consent import (
     SUBJECT_JAMES,
     SUBJECT_SAMSON,
     ConsentRecord,
-    can_person_approve,
     delegation_allows,
     other_cofounder_cannot_approve_private,
     validate_consent,
@@ -20,6 +19,7 @@ from ssn.governance.consent import (
 from ssn.governance.identity_records import (
     IdentityFactRecord,
     inherit_strictest_classification,
+    is_valid_iso_instant,
     model_output_cannot_self_approve,
     validate_fact_record,
 )
@@ -31,6 +31,7 @@ from ssn.governance.information_classes import (
 )
 from ssn.governance.policy import (
     PolicyContext,
+    _actor_has_approval_authority,
     decide_can_approve,
     decide_delete_required,
     decide_draft_review,
@@ -40,7 +41,9 @@ from ssn.governance.policy import (
     decide_owner_assistance,
     decide_public,
     decide_training,
+    validate_policy_context,
 )
+import ssn.governance as governance_api
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "examples" / "governance" / "public_identity_records.example.json"
@@ -373,16 +376,159 @@ class TestIdentityInformationGovernance(unittest.TestCase):
             )
         )
         self.assertFalse(
-            can_person_approve(
+            _actor_has_approval_authority(
                 actor_id=SUBJECT_SAMSON,
-                actor_authenticated=True,
                 record=james_private,
+                authorized_company_approver_ids=(),
             )
         )
         decision = decide_can_approve(
             james_private, ctx=_ctx(SUBJECT_SAMSON, authenticated=True)
         )
         self.assertFalse(decision.allowed)
+
+    def test_public_api_does_not_export_unsafe_approval_helper(self):
+        self.assertNotIn("can_person_approve", governance_api.__all__)
+        self.assertFalse(hasattr(governance_api, "can_person_approve"))
+        self.assertIn("decide_can_approve", governance_api.__all__)
+
+    def test_direct_helper_cannot_approve_non_draft_or_malformed(self):
+        approved = _approved_public(subject_id=SUBJECT_SAMSON)
+        self.assertFalse(
+            _actor_has_approval_authority(
+                actor_id=SUBJECT_SAMSON,
+                record=approved,
+                authorized_company_approver_ids=(),
+            )
+        )
+        for status in (
+            ApprovalStatus.REJECTED,
+            ApprovalStatus.REVOKED,
+            ApprovalStatus.EXPIRED,
+        ):
+            rec = _fact(
+                subject_id=SUBJECT_SAMSON,
+                approval_status=status,
+                approved_by=SUBJECT_SAMSON,
+                approval_timestamp="2026-01-01T00:00:00Z",
+                review_date="2020-01-01",
+            )
+            self.assertFalse(
+                _actor_has_approval_authority(
+                    actor_id=SUBJECT_SAMSON,
+                    record=rec,
+                    authorized_company_approver_ids=(),
+                ),
+                status,
+            )
+        malformed = _fact(subject_id=SUBJECT_SAMSON, statement="")
+        self.assertFalse(
+            _actor_has_approval_authority(
+                actor_id=SUBJECT_SAMSON,
+                record=malformed,
+                authorized_company_approver_ids=(),
+            )
+        )
+
+    def test_non_boolean_policy_context_denied(self):
+        rec = _fact(
+            classification=InformationClass.OWNER_PRIVATE,
+            subject_id=SUBJECT_SAMSON,
+            approval_status=ApprovalStatus.APPROVED,
+            approved_by=SUBJECT_SAMSON,
+            approval_timestamp="2026-08-05T00:00:00Z",
+            intended_uses=(AllowedUse.OWNER_ASSISTANCE, AllowedUse.MODEL_PROMPT),
+        )
+        bad_auth = PolicyContext(
+            actor_id=SUBJECT_SAMSON,
+            actor_authenticated="false",  # type: ignore[arg-type]
+            verified_owner=True,
+        )
+        self.assertEqual(
+            validate_policy_context(bad_auth)[1], "deny_invalid_policy_context"
+        )
+        self.assertFalse(
+            decide_owner_assistance(rec, ctx=bad_auth).allowed
+        )
+        self.assertEqual(
+            decide_owner_assistance(rec, ctx=bad_auth).reason,
+            "deny_invalid_policy_context",
+        )
+        bad_int = PolicyContext(
+            actor_id=SUBJECT_SAMSON,
+            actor_authenticated=1,  # type: ignore[arg-type]
+            verified_owner=True,
+        )
+        self.assertFalse(decide_can_approve(_fact(subject_id=SUBJECT_SAMSON), ctx=bad_int).allowed)
+        self.assertEqual(
+            decide_can_approve(_fact(subject_id=SUBJECT_SAMSON), ctx=bad_int).reason,
+            "deny_invalid_policy_context",
+        )
+        bad_owner = PolicyContext(
+            actor_id=SUBJECT_SAMSON,
+            actor_authenticated=True,
+            verified_owner="false",  # type: ignore[arg-type]
+        )
+        self.assertFalse(decide_owner_assistance(rec, ctx=bad_owner).allowed)
+        self.assertEqual(
+            decide_owner_assistance(rec, ctx=bad_owner).reason,
+            "deny_invalid_policy_context",
+        )
+        bad_approvers = PolicyContext(
+            actor_id=SUBJECT_SAMSON,
+            actor_authenticated=True,
+            verified_owner=False,
+            authorized_company_approver_ids=["person:x"],  # type: ignore[arg-type]
+        )
+        company = _fact(
+            classification=InformationClass.PUBLIC_COMPANY,
+            subject_id="company:siona-technologies",
+        )
+        self.assertFalse(decide_can_approve(company, ctx=bad_approvers).allowed)
+        self.assertEqual(
+            decide_can_approve(company, ctx=bad_approvers).reason,
+            "deny_invalid_policy_context",
+        )
+
+    def test_consent_non_boolean_fields_invalid(self):
+        for granted, revoked in (("true", False), (1, False), (True, "false"), (True, 0)):
+            consent = ConsentRecord(
+                subject_id=SUBJECT_JAMES,
+                grantee_id=SUBJECT_SAMSON,
+                allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+                granted=granted,  # type: ignore[arg-type]
+                granted_by=SUBJECT_JAMES,
+                timestamp="2026-08-05T00:00:00Z",
+                revoked=revoked,  # type: ignore[arg-type]
+            )
+            ok, reason = validate_consent(consent)
+            self.assertFalse(ok)
+            self.assertEqual(reason, "invalid_consent_boolean")
+
+    def test_iso_impossible_clock_and_offset_rejected(self):
+        for value in (
+            "2026-08-05T25:00:00Z",
+            "2026-08-05T23:61:00Z",
+            "2026-08-05T23:59:61Z",
+            "2026-08-05T12:00:00+99:00",
+            "2026-02-30T12:00:00Z",
+        ):
+            ok, _ = is_valid_iso_instant(value)
+            self.assertFalse(ok, value)
+            rec = _approved_public(approval_timestamp=value)
+            self.assertFalse(
+                decide_public(rec, requested_use=AllowedUse.PUBLIC_RESPONSE).allowed,
+                value,
+            )
+
+    def test_iso_valid_date_and_timestamps_accepted(self):
+        self.assertTrue(is_valid_iso_instant("2026-08-05")[0])
+        self.assertTrue(is_valid_iso_instant("2026-08-05T00:00:00Z")[0])
+        self.assertTrue(is_valid_iso_instant("2026-08-05T12:00:00+02:00")[0])
+        rec = _approved_public(approval_timestamp="2026-08-05T12:00:00+02:00")
+        self.assertTrue(
+            decide_public(rec, requested_use=AllowedUse.PUBLIC_RESPONSE).allowed
+        )
 
     def test_owner_assistance_consent_cannot_authorize_approval(self):
         rec = _fact(
@@ -400,10 +546,10 @@ class TestIdentityInformationGovernance(unittest.TestCase):
             timestamp="2026-08-05T00:00:00Z",
         )
         self.assertFalse(
-            can_person_approve(
+            _actor_has_approval_authority(
                 actor_id=SUBJECT_SAMSON,
-                actor_authenticated=True,
                 record=rec,
+                authorized_company_approver_ids=(),
                 consent=consent,
             )
         )
@@ -870,6 +1016,8 @@ class TestIdentityGovernanceDocs(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("SIONA Technologies", identity)
+        self.assertIn("decide_can_approve", consent)
+        self.assertIn("authoritative", consent.lower())
         self.assertIn("PolicyContext", consent)
         self.assertIn("actor_authenticated", consent)
         self.assertIn("grantee_id", consent)
@@ -879,6 +1027,7 @@ class TestIdentityGovernanceDocs(unittest.TestCase):
         self.assertIn("personal_email: excluded", public)
         self.assertIn("APPROVED", private)
         self.assertIn("RECORD_APPROVAL", private)
+        self.assertIn("authoritative", private.lower())
         self.assertIn("Audit **sionaglobal.com** only", website)
         self.assertIn("in progress", status.lower())
         self.assertIn("Phase 4 remains **not started**", status)

@@ -7,7 +7,6 @@ from ssn.governance.consent import (
     SUBJECT_OWNER_DEFAULT,
     SUBJECT_SAMSON,
     ConsentRecord,
-    can_person_approve,
     consent_revoked,
     delegation_allows,
     other_cofounder_cannot_approve_private,
@@ -16,6 +15,7 @@ from ssn.governance.consent import (
 from ssn.governance.identity_records import (
     IdentityFactRecord,
     inherit_strictest_classification,
+    is_valid_iso_instant,
     validate_fact_record,
 )
 from ssn.governance.information_classes import (
@@ -37,6 +37,7 @@ from ssn.governance.policy import (
     decide_owner_assistance,
     decide_public,
     decide_training,
+    validate_policy_context,
 )
 
 __all__ = [
@@ -51,7 +52,6 @@ __all__ = [
     "SUBJECT_OWNER_DEFAULT",
     "SUBJECT_SAMSON",
     "SubjectType",
-    "can_person_approve",
     "classification_rank",
     "consent_revoked",
     "decide_can_approve",
@@ -65,7 +65,9 @@ __all__ = [
     "decide_training",
     "delegation_allows",
     "inherit_strictest_classification",
+    "is_valid_iso_instant",
     "other_cofounder_cannot_approve_private",
     "validate_consent",
     "validate_fact_record",
+    "validate_policy_context",
 ]

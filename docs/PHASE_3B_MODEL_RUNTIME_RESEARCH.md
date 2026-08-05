@@ -1,14 +1,18 @@
 # Phase 3B — Model and Runtime Research
 
 **Status:** Official-source research matrix completed; first baseline is
-**INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED**.
+**INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED**;
+`openai_chat` transport implemented; controlled real SIONA provider text path
+validated (EXP-3B-005); runtime currently **stopped**.
 
 **Source-access date:** 2026-08-05  
 **Hardware baseline:** HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe; ~15.73 GiB RAM; no CUDA  
 
-**Non-authorization:** No SIONA provider integration, model-registry activation,
-capability approval, ADR acceptance, or Phase 4 work is issued by this
-document. Additional inference campaigns require further owner authorization.
+**Non-authorization:** This document does **not** authorize model-registry
+activation, Gate E governed evaluation, broad capability approval, ADR
+acceptance, Phase 3B completion, or Phase 4. Further provider campaigns beyond
+the recorded limited text-transport gate still require explicit owner
+authorization.
 
 ## Research status
 
@@ -22,9 +26,18 @@ document. Additional inference campaigns require further owner authorization.
 | Model download | **Completed locally (operator evidence)** |
 | Local SHA256 verification | **MATCH for runtime archive and model** |
 | Limited loopback execution | **Completed; runtime currently stopped** |
+| openai_chat provider transport | **Implemented (merged)** |
+| Controlled real SIONA provider text path (EXP-3B-005) | **Validated; limited text-transport gate only** |
+| Exact `/v1/models` model-ID verification | **Succeeded** |
+| Direct provider text (no fallback) | **Succeeded** |
+| LanguageEngine → real local provider | **Succeeded** |
+| Deterministic fallback after shutdown | **Verified** |
+| Structured JSON probe | **Observed failure; capability remains unverified** |
+| Model registry | **Inactive** |
+| Gate E governed evaluation | **Pending** |
+| Broad security / timeout / streaming / adversarial / behavioral eval | **Pending** |
 | Real-model production evaluation | **Not started** |
-| SIONA provider integration | **Pending — not authorized by this update** |
-| Capabilities | **Unverified beyond basic transport/inference probe** |
+| Capabilities | **Limited/unverified beyond the specific observed text path** |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
@@ -35,7 +48,8 @@ document. Additional inference campaigns require further owner authorization.
 VERIFICATION ONLY
 
 **Current local-evidence wording:** INSTALLED AND ARTIFACT-VERIFIED LOCALLY;
-LIMITED LOOPBACK EXECUTION COMPLETED
+LIMITED LOOPBACK EXECUTION COMPLETED; CONTROLLED REAL-PROVIDER TEXT PATH
+VALIDATED (EXP-3B-005); RUNTIME CURRENTLY STOPPED
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -71,9 +85,19 @@ independently verified installation.
   licence copy preserved; quantizer remains **ggml-org**
 - CPU-only loopback run on `127.0.0.1:8080` loaded the model and generated text
   for short probes; runtime is **currently stopped**; port 8080 not listening
-- Short probe is **insufficient** for broad behavioral or security capability
-  claims
-- SIONA provider integration has **not** started
+- Controlled real SIONA provider text path validated in **EXP-3B-005**
+  (`LanguageEngine` → `ModelGateway` → `LocalOpenWeightProvider` → llama.cpp →
+  Qwen): exact `/v1/models` model-ID verification succeeded; direct provider
+  text succeeded without fallback; LanguageEngine reached the real local
+  provider; tool proposals remained absent
+- Deterministic fallback verified after shutdown
+- Structured JSON probe **observed failure**; structured JSON capability remains
+  **unverified**
+- Short probes are **insufficient** for broad behavioral or security capability
+  claims; capabilities remain limited/unverified beyond the specific observed
+  text path
+- Model registry remains **inactive**; Gate E governed evaluation remains
+  **pending**
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued
 
@@ -87,14 +111,15 @@ Selection notes:
 - Publisher Q8_0 remains a possible later comparison.
 - Qwen3-4B and Granite remain later comparison candidates.
 - The first baseline is replaceable behind `ModelGateway`.
-- Broad runtime/model capability remains unverified beyond the limited
-  loopback probe.
-- SIONA provider integration and additional inference campaigns still require
-  separate authorization.
+- Broad runtime/model capability remains unverified beyond the specific observed
+  text path.
+- Further provider campaigns, registry activation and Gate E evaluation still
+  require separate explicit authorization.
 
 This is **not** SIONA's permanent reasoning model, a final production model, a
 SIONA-native model, or a capability-approved model. The selected baseline is
-locally installed and artifact-verified; the runtime is currently stopped.
+locally installed and artifact-verified; the controlled text path was validated;
+the runtime is currently stopped.
 
 ## Preserved later candidates (not authorized)
 
@@ -482,7 +507,7 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 
 **Historical selection status:** PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION
 
-**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED; PROVIDER INTEGRATION PENDING
+**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); RUNTIME CURRENTLY STOPPED; REGISTRY INACTIVE; GATE E PENDING
 
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
@@ -490,9 +515,10 @@ Primary first baseline remains **llama.cpp native Windows x64 CPU**
 The historical recommendation remains useful as decision provenance. It is
 **not** the current installation state. Installation occurred later under
 separate explicit owner authorization. Local operator evidence records
-artifact verification and a limited loopback probe; the runtime is currently
-stopped. Further execution campaigns and SIONA provider integration still
-require separate authorization.
+artifact verification, a limited loopback probe, and EXP-3B-005 controlled
+real-provider text-path validation; the runtime is currently stopped. Further
+provider campaigns, registry activation and Gate E evaluation still require
+separate authorization.
 
 **Historical owner-selection gate wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
@@ -551,8 +577,8 @@ No final production runtime approval is issued by ADR 0003 (still Proposed).
 | Provenance risk | Low for publisher Q8_0; moderate for ggml-org Q4_K_M |
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
-| Local evaluation status | Limited local loopback smoke completed; governed real-model production evaluation suite not started |
-| Selection status | **OWNER-AUTHORIZED locally installed baseline (runtime currently stopped); provider integration pending** |
+| Local evaluation status | Limited local loopback smoke completed; controlled real-provider text path validated (EXP-3B-005); governed real-model production evaluation suite not started |
+| Selection status | **OWNER-AUTHORIZED locally installed baseline; controlled real-provider text path validated (EXP-3B-005); runtime currently stopped; registry/Gate E pending** |
 
 ### Candidate B — Qwen3-4B
 
@@ -773,15 +799,24 @@ Comparison: Granite 4.0 Micro Q4_K_M.
 
 **Current restrictions:**
 
-- SIONA provider integration not authorized by this documentation PR
+- Controlled real SIONA provider text path validated (EXP-3B-005); limited
+  text-transport gate only
 - Model registry remains inactive
-- Additional inference campaigns require separate authorization
-- Capabilities remain unverified beyond the basic probe
+- Gate E governed evaluation remains pending
+- Further provider campaigns beyond the recorded text path require separate
+  authorization
+- Further provider integration campaigns (registry activation, Gate E) still
+  require separate explicit authorization
+- Structured JSON capability remains unverified after observed probe failure
+- Broad security, timeout/cancellation, streaming, adversarial and behavioral
+  evaluation remains pending
+- Capabilities remain limited/unverified beyond the specific observed text path
 - ADR 0003 remains Proposed
 - Phase 3B remains in progress
 - Phase 4 remains not started
+- Runtime currently stopped
 
-No real-model production evaluation suite has been completed.
+No real-model production evaluation suite (Gate E) has been completed.
 
 ---
 

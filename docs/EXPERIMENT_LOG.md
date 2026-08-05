@@ -314,7 +314,10 @@ Configuration:
 Metrics: LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM
   direct-provider wall ~1.07 s (prompt 29 / completion 12 / total 41)
   LanguageEngine wall ~1.10 s
-  readiness working set ~2.16 GiB; probe-window peak ~1.75 GiB
+  readiness working-set sample approximately 2.16 GiB
+  highest later probe-window sample approximately 1.75 GiB
+  overall maximum observed across recorded samples approximately 2.16 GiB
+  (not a generalized performance benchmark)
 Result: IMPLEMENTED AND VALIDATED AGAINST THE PINNED LOCAL RUNTIME;
         LIMITED TEXT-TRANSPORT GATE ONLY;
         BROAD CAPABILITIES AND PRODUCTION CERTIFICATION PENDING
@@ -327,9 +330,11 @@ Evidence:
   Structured JSON probe: observed failure (markdown-fenced text; structured=null);
     structured JSON capability remains UNVERIFIED
   Tool-call safety: tool_calls returned by provider = 0; no ToolGateway connect
-  Runtime shut down (CloseMainWindow did not exit; Stop-Process without -Force)
+  Shutdown: Stop-Process without -Force; final llama-server count 0;
+    final llama-cli count 0; port 8080 not listening;
+    application-level graceful shutdown not verified
   Deterministic fallback verified after shutdown (fallback_used=true; no restart)
-  Offline tests 307 passed / 4 skipped; production eval 7/7; HTTP smoke OK
+  Offline tests 308 passed / 4 skipped; production eval 7/7; HTTP smoke OK
 Outstanding: model registry activation; broad capability verification;
              Gate E real-model evaluation suite; ADR 0003 acceptance;
              Phase 3B completion

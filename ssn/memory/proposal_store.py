@@ -68,10 +68,18 @@ def _find_repo_root(start: Optional[str] = None, max_up: int = 6) -> str:
 
 def get_state_dir() -> str:
     """
-    Resolve state dir:
-      1) SSN_STATE_DIR env if set
-      2) <repo_root>/.ssn_state
+    Resolve state dir via centralized path helper (SSN_STATE_DIR /
+    SSN_RUNTIME_DATA_DIR aware), with legacy fallback.
     """
+    try:
+        from ssn.runtime.paths import get_state_dir as _central
+
+        p = str(_central())
+        _ensure_dir(p)
+        return p
+    except Exception:
+        pass
+
     env = os.getenv("SSN_STATE_DIR")
     if isinstance(env, str) and env.strip():
         p = os.path.abspath(env.strip())

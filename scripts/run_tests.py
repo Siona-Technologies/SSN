@@ -3,11 +3,12 @@
 CI-safe unittest runner for SIONA.
 
 Runs modules known to pass offline without import side-effects.
-Expand this list as test debt is cleared (see docs/SIONA_BUILD_PLAN.md).
+Uses an isolated SSN_RUNTIME_DATA_DIR so tracked ssn/data is never dirtied.
 """
 
 from __future__ import annotations
 
+import atexit
 import os
 import sys
 import unittest
@@ -56,6 +57,11 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase2_integration_hardening",
     "ssn.tests.test_phase2_trace_isolation_shutdown",
     "ssn.tests.test_phase2_closeout_docs",
+    # Phase 3A local model / eval foundation
+    "ssn.tests.test_phase3a_runtime_data_isolation",
+    "ssn.tests.test_phase3a_local_provider",
+    "ssn.tests.test_phase3a_model_registry",
+    "ssn.tests.test_phase3a_provider_eval",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",
@@ -66,6 +72,11 @@ CI_TEST_MODULES = [
 
 def main() -> int:
     os.environ.setdefault("SSN_OFFLINE", "1")
+
+    from ssn.runtime.paths import cleanup_ensured_isolation, ensure_isolated_for_tests
+
+    ensure_isolated_for_tests()
+    atexit.register(cleanup_ensured_isolation)
 
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()

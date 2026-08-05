@@ -19,10 +19,19 @@ from typing import Any, Dict, Optional
 DEFAULT_PATH = "ssn/data/semantic_memory.json"
 
 
+def _resolve_default_semantic_path() -> str:
+    try:
+        from ssn.runtime.paths import default_semantic_memory_path
+
+        return default_semantic_memory_path()
+    except Exception:
+        return DEFAULT_PATH
+
+
 class SemanticStore:
-    def __init__(self, path: str = DEFAULT_PATH):
-        self.path = path
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+    def __init__(self, path: str | None = None):
+        self.path = path or _resolve_default_semantic_path()
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
 
         self._facts: Dict[str, Any] = {}
         self._load()

@@ -25,11 +25,26 @@ def main() -> int:
     # Eval must not pick up a real master key from the developer environment.
     os.environ.pop("SSN_MASTER_KEY", None)
 
+    from ssn.runtime.paths import cleanup_ensured_isolation, ensure_isolated_for_tests
+
+    ensure_isolated_for_tests()
+    try:
+        return _main_body()
+    finally:
+        cleanup_ensured_isolation()
+
+
+def _main_body() -> int:
     parser = argparse.ArgumentParser(description="Run SIONA eval scenarios")
     parser.add_argument(
         "--production",
         action="store_true",
         help="Also run production runtime scenarios (SSNRuntimeBuilder)",
+    )
+    parser.add_argument(
+        "--provider",
+        action="store_true",
+        help="Also run Phase 3A provider-oriented evaluation cases (deterministic/mock)",
     )
     args = parser.parse_args()
 
@@ -49,6 +64,25 @@ def main() -> int:
         report["summary"]["total"] += prod_report["summary"]["total"]
         report["summary"]["passed"] += prod_report["summary"]["passed"]
         report["summary"]["failed"] += prod_report["summary"]["failed"]
+
+    if args.provider:
+        from ssn.eval.provider_eval import run_provider_eval
+
+        prov = run_provider_eval()
+        report["provider_eval"] = {
+            "summary": prov.get("summary"),
+            "label": prov.get("label"),
+            "commit": prov.get("git_commit"),
+        }
+        report["summary"]["provider_total"] = prov["summary"]["total"]
+        report["summary"]["provider_passed"] = prov["summary"]["passed"]
+        report["summary"]["provider_failed"] = prov["summary"]["failed"]
+        report["summary"]["provider_skipped"] = prov["summary"]["skipped"]
+        if prov["summary"]["failed"]:
+            print(json.dumps(prov["summary"], indent=2))
+            failed = [r for r in prov["results"] if r.get("status") == "fail"]
+            print(json.dumps(failed, indent=2, default=str))
+            return 1
 
     print(json.dumps(report["summary"], indent=2))
     failed = [r for r in report["results"] if not r["passed"]]

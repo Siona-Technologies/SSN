@@ -91,6 +91,14 @@ dist/
 .ssn_state/**
 
 # ============================
+# EVAL / ARTIFACT OUTPUTS
+# ============================
+artifacts/
+artifacts/**
+ssn/data/eval_reports/
+ssn/data/eval_reports/**
+
+# ============================
 # TEST / TOOLING ARTIFACTS
 # ============================
 .pytest_cache/

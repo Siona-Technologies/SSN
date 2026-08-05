@@ -14,6 +14,15 @@ from typing import Any, Dict, List
 DEFAULT_IDENTITY_PATH = "ssn/data/identity_profile.json"
 
 
+def _resolve_default_identity_path() -> str:
+    try:
+        from ssn.runtime.paths import default_identity_path
+
+        return default_identity_path()
+    except Exception:
+        return DEFAULT_IDENTITY_PATH
+
+
 def _now() -> float:
     return time.time()
 
@@ -95,8 +104,8 @@ class IdentityProfileStore:
     identity record that SSN can reference consistently.
     """
 
-    def __init__(self, path: str = DEFAULT_IDENTITY_PATH):
-        self.path = path
+    def __init__(self, path: str | None = None):
+        self.path = path or _resolve_default_identity_path()
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
 
     def load(self) -> Dict[str, Any]:

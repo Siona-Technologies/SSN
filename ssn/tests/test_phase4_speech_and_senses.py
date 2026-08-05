@@ -142,14 +142,28 @@ class TestPhase4SenseTickDemo(unittest.TestCase):
                 "entity": {"id": "person:test", "entity": "person", "status": "present"},
             }
         ]
-        resp = rt.shell.handle_event(
-            {
-                "type": "sense_tick",
-                "role": "OWNER",
-                "context": {"events": events, "max_events": 10},
-                "meta": {},
-            }
-        )
+        # Patch owner verification so this exercise is independent of tracked
+        # identity_profile.json (required under SSN_RUNTIME_DATA_DIR isolation).
+        with patch(
+            "ssn.interfaces.handlers_sense_tick.verify_owner",
+            return_value={
+                "master_key_score": 1.0,
+                "biometric_score": 0.0,
+                "behavior_score": 0.0,
+                "overall_score": 0.7,
+            },
+        ), patch(
+            "ssn.interfaces.handlers_sense_tick.is_samson_verified",
+            return_value=True,
+        ):
+            resp = rt.shell.handle_event(
+                {
+                    "type": "sense_tick",
+                    "role": "OWNER",
+                    "context": {"events": events, "max_events": 10},
+                    "meta": {},
+                }
+            )
         self.assertTrue(resp.ok)
         wm = getattr(rt, "world_model", None)
         if wm is not None and callable(getattr(wm, "snapshot", None)):

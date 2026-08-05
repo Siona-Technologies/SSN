@@ -12,6 +12,7 @@ from ssn.governance.consent import (
     consent_revoked,
     delegation_allows,
     is_model_identity,
+    validate_consent,
 )
 from ssn.governance.identity_records import (
     IdentityFactRecord,
@@ -410,25 +411,93 @@ def decide_can_approve(
     ctx: PolicyContext,
     consent: Optional[ConsentRecord] = None,
 ) -> PolicyDecision:
+    """
+    Approve a valid DRAFT record only.
+
+    Rejected, expired, or revoked records must be replaced by a new DRAFT
+    revision — this function never silently reactivates them.
+    """
+    ok, reason = validate_fact_record(record)
+    if not ok:
+        if reason in {
+            "invalid_approval_timestamp",
+            "invalid_review_date",
+            "invalid_revocation_status",
+            "deny_invalid_record",
+            "missing_classification",
+        }:
+            mapped = (
+                "deny_missing_classification"
+                if reason == "missing_classification"
+                else reason
+            )
+            return PolicyDecision(False, mapped, "APPROVE")
+        return PolicyDecision(False, "deny_invalid_record", "APPROVE")
+
     if record.classification is None:
         return PolicyDecision(False, "deny_missing_classification", "APPROVE")
-    # Structural validation without requiring APPROVED fields (record may be DRAFT).
     if model_output_cannot_self_approve(record):
         return PolicyDecision(False, "deny_model_cannot_self_approve", "APPROVE")
-    if record.classification in {InformationClass.SECRET, InformationClass.FORGET_DELETE}:
+    if record.classification == InformationClass.SECRET:
         return PolicyDecision(False, "deny_secret", "APPROVE")
+    if record.classification == InformationClass.FORGET_DELETE:
+        return PolicyDecision(False, "deny_forget_delete", "APPROVE")
+
+    rev = (record.revocation_status or "").strip().lower()
+    if rev == "revoked":
+        return PolicyDecision(False, "deny_revoked", "APPROVE")
+    if record.approval_status == ApprovalStatus.REVOKED:
+        return PolicyDecision(False, "deny_revoked", "APPROVE")
+    if record.approval_status == ApprovalStatus.REJECTED:
+        return PolicyDecision(False, "deny_rejected", "APPROVE")
+    if record.approval_status == ApprovalStatus.EXPIRED:
+        return PolicyDecision(False, "deny_expired", "APPROVE")
+    if record.approval_status != ApprovalStatus.DRAFT:
+        return PolicyDecision(False, "deny_not_draft", "APPROVE")
 
     auth = _require_auth(ctx)
     if auth:
         return PolicyDecision(auth.allowed, auth.reason, "APPROVE")
 
-    ok = can_person_approve(
+    actor = (ctx.actor_id or "").strip()
+    subject = (record.subject_id or "").strip()
+
+    # Subject self-approval of their own valid DRAFT.
+    if subject and actor == subject:
+        return PolicyDecision(True, "allow_subject_approve", "APPROVE")
+
+    # Exact authorized company approver for company/public/legal drafts.
+    if record.classification in {
+        InformationClass.PUBLIC_COMPANY,
+        InformationClass.PUBLIC_PROFESSIONAL,
+        InformationClass.COMPANY_CONFIDENTIAL,
+        InformationClass.LEGAL_RESTRICTED,
+    } and actor in set(ctx.authorized_company_approver_ids or ()):
+        return PolicyDecision(True, "allow_company_approver", "APPROVE")
+
+    # Delegated approval: RECORD_APPROVAL only (never assistance/prompt substitutes).
+    if consent is None:
+        return PolicyDecision(False, "deny_approver", "APPROVE")
+
+    vok, vreason = validate_consent(consent)
+    if not vok:
+        return PolicyDecision(False, vreason, "APPROVE")
+    if consent_revoked(consent):
+        return PolicyDecision(False, "deny_consent_revoked", "APPROVE")
+    if (consent.subject_id or "").strip() != subject:
+        return PolicyDecision(False, "deny_consent_wrong_subject", "APPROVE")
+    if actor != (consent.grantee_id or "").strip():
+        return PolicyDecision(False, "deny_delegate_mismatch", "APPROVE")
+    if AllowedUse.RECORD_APPROVAL not in consent.allowed_uses:
+        return PolicyDecision(False, "deny_approval_use_not_delegated", "APPROVE")
+
+    ok_auth = can_person_approve(
         actor_id=ctx.actor_id,
         actor_authenticated=ctx.actor_authenticated,
         record=record,
         authorized_company_approver_ids=ctx.authorized_company_approver_ids,
         consent=consent,
     )
-    if ok:
-        return PolicyDecision(True, "allow_approver", "APPROVE")
+    if ok_auth:
+        return PolicyDecision(True, "allow_delegate_approve", "APPROVE")
     return PolicyDecision(False, "deny_approver", "APPROVE")

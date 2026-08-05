@@ -384,6 +384,234 @@ class TestIdentityInformationGovernance(unittest.TestCase):
         )
         self.assertFalse(decision.allowed)
 
+    def test_owner_assistance_consent_cannot_authorize_approval(self):
+        rec = _fact(
+            subject="James Ndodana Njaji",
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+            approval_status=ApprovalStatus.DRAFT,
+        )
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.OWNER_ASSISTANCE,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="2026-08-05T00:00:00Z",
+        )
+        self.assertFalse(
+            can_person_approve(
+                actor_id=SUBJECT_SAMSON,
+                actor_authenticated=True,
+                record=rec,
+                consent=consent,
+            )
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True), consent=consent
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_approval_use_not_delegated")
+
+    def test_model_prompt_consent_cannot_authorize_approval(self):
+        rec = _fact(
+            subject="James Ndodana Njaji",
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+        )
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.MODEL_PROMPT,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="2026-08-05T00:00:00Z",
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True), consent=consent
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_approval_use_not_delegated")
+
+    def test_record_approval_consent_authorizes_exact_delegate(self):
+        rec = _fact(
+            subject="James Ndodana Njaji",
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+        )
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="2026-08-05T00:00:00Z",
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True), consent=consent
+        )
+        self.assertTrue(d.allowed)
+        self.assertEqual(d.reason, "allow_delegate_approve")
+
+    def test_record_approval_delegate_matching_is_exact(self):
+        rec = _fact(
+            subject="James Ndodana Njaji",
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+        )
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="2026-08-05T00:00:00Z",
+        )
+        d = decide_can_approve(
+            rec,
+            ctx=_ctx(SUBJECT_SAMSON + "-assistant", authenticated=True),
+            consent=consent,
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_delegate_mismatch")
+
+    def test_consent_for_another_subject_cannot_authorize_approval(self):
+        rec = _fact(
+            subject="James Ndodana Njaji",
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+        )
+        consent = ConsentRecord(
+            subject_id=SUBJECT_SAMSON,
+            grantee_id="person:delegate",
+            allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+            granted=True,
+            granted_by=SUBJECT_SAMSON,
+            timestamp="2026-08-05T00:00:00Z",
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx("person:delegate", authenticated=True), consent=consent
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_consent_wrong_subject")
+
+    def test_malformed_draft_cannot_be_approved(self):
+        rec = _fact(statement="", classification=InformationClass.PUBLIC_COMPANY)
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_invalid_record")
+
+    def test_missing_provenance_cannot_be_approved(self):
+        rec = _fact(
+            source_type="",
+            source_reference="",
+            subject_id=SUBJECT_SAMSON,
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True)
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_invalid_record")
+
+    def test_rejected_record_cannot_be_approved(self):
+        rec = _fact(
+            subject_id=SUBJECT_SAMSON,
+            approval_status=ApprovalStatus.REJECTED,
+        )
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_rejected")
+
+    def test_revoked_approval_status_cannot_be_approved(self):
+        rec = _fact(
+            subject_id=SUBJECT_SAMSON,
+            approval_status=ApprovalStatus.REVOKED,
+            approved_by=SUBJECT_SAMSON,
+            approval_timestamp="2026-01-01T00:00:00Z",
+        )
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_revoked")
+
+    def test_expired_record_cannot_be_approved(self):
+        rec = _fact(
+            subject_id=SUBJECT_SAMSON,
+            approval_status=ApprovalStatus.EXPIRED,
+            approved_by=SUBJECT_SAMSON,
+            approval_timestamp="2026-01-01T00:00:00Z",
+            review_date="2020-01-01",
+        )
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_expired")
+
+    def test_revocation_status_revoked_cannot_be_approved(self):
+        rec = _fact(
+            subject_id=SUBJECT_SAMSON,
+            approval_status=ApprovalStatus.DRAFT,
+            revocation_status="revoked",
+        )
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "deny_revoked")
+
+    def test_invalid_consent_timestamp_denied(self):
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="not-a-timestamp",
+        )
+        ok, reason = validate_consent(consent)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "invalid_consent_timestamp")
+        rec = _fact(
+            subject_id=SUBJECT_JAMES,
+            classification=InformationClass.COFOUNDER_PRIVATE,
+        )
+        d = decide_can_approve(
+            rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True), consent=consent
+        )
+        self.assertFalse(d.allowed)
+        self.assertEqual(d.reason, "invalid_consent_timestamp")
+
+    def test_invalid_consent_revoked_at_denied(self):
+        consent = ConsentRecord(
+            subject_id=SUBJECT_JAMES,
+            grantee_id=SUBJECT_SAMSON,
+            allowed_uses=(AllowedUse.RECORD_APPROVAL,),
+            granted=True,
+            granted_by=SUBJECT_JAMES,
+            timestamp="2026-08-05T00:00:00Z",
+            revoked=True,
+            revoked_at="sometime",
+        )
+        ok, reason = validate_consent(consent)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "invalid_consent_revoked_at")
+
+    def test_subject_may_approve_own_valid_draft(self):
+        rec = _fact(
+            subject_id=SUBJECT_SAMSON,
+            classification=InformationClass.OWNER_PRIVATE,
+            approval_status=ApprovalStatus.DRAFT,
+        )
+        d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+        self.assertTrue(d.allowed)
+        self.assertEqual(d.reason, "allow_subject_approve")
+
+    def test_secret_and_forget_delete_unapprovable(self):
+        for cls, reason in (
+            (InformationClass.SECRET, "deny_secret"),
+            (InformationClass.FORGET_DELETE, "deny_forget_delete"),
+        ):
+            rec = _fact(classification=cls, subject_id=SUBJECT_SAMSON)
+            d = decide_can_approve(rec, ctx=_ctx(SUBJECT_SAMSON, authenticated=True))
+            self.assertFalse(d.allowed, cls)
+            self.assertEqual(d.reason, reason, cls)
+
     def test_arbitrary_actor_cannot_approve_company_public_legal(self):
         for cls in (
             InformationClass.PUBLIC_COMPANY,
@@ -400,6 +628,7 @@ class TestIdentityInformationGovernance(unittest.TestCase):
         rec = _fact(
             classification=InformationClass.PUBLIC_COMPANY,
             subject_id="company:siona-technologies",
+            approval_status=ApprovalStatus.DRAFT,
         )
         d = decide_can_approve(
             rec,
@@ -410,6 +639,7 @@ class TestIdentityInformationGovernance(unittest.TestCase):
             ),
         )
         self.assertTrue(d.allowed)
+        self.assertEqual(d.reason, "allow_company_approver")
 
     def test_invalid_review_date_denies_use(self):
         rec = _approved_public(review_date="not-a-date")
@@ -643,9 +873,12 @@ class TestIdentityGovernanceDocs(unittest.TestCase):
         self.assertIn("PolicyContext", consent)
         self.assertIn("actor_authenticated", consent)
         self.assertIn("grantee_id", consent)
+        self.assertIn("RECORD_APPROVAL", consent)
+        self.assertIn("never interchangeable", consent.lower())
         self.assertIn("exact", consent.lower())
         self.assertIn("personal_email: excluded", public)
         self.assertIn("APPROVED", private)
+        self.assertIn("RECORD_APPROVAL", private)
         self.assertIn("Audit **sionaglobal.com** only", website)
         self.assertIn("in progress", status.lower())
         self.assertIn("Phase 4 remains **not started**", status)

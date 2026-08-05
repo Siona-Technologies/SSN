@@ -93,6 +93,16 @@ classes for policy purposes).
 
 Model output cannot reclassify a fact to a weaker class.
 
+## AllowedUse permissions (exact, non-interchangeable)
+
+- `PUBLIC_WEBSITE` / `PUBLIC_RESPONSE` — public disclosure only for the named use
+- `OWNER_ASSISTANCE` — assistance only
+- `MODEL_PROMPT` — prompt insertion only
+- `RECORD_APPROVAL` — record approval only
+- `TRAINING_DATASET` — denied by default
+
+A consent or intended-use list must include the exact requested permission.
+
 ## Privacy exclusions
 
 Personal email addresses, personal phone numbers, and home addresses must not

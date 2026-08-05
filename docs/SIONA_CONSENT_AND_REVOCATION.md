@@ -33,8 +33,9 @@ Delegation fields (exact matching only — no free-form scope substrings):
 - `allowed_uses` (exact `AllowedUse` enum values)
 - `granted`
 - `granted_by` (must equal `subject_id` for subject-issued delegation)
-- `timestamp`
-- `revoked` / `revoked_at`
+- `timestamp` (valid ISO date or timestamp; invalid values fail closed)
+- `revoked` / `revoked_at` (`revoked_at` required and valid when revoked;
+  must be empty when not revoked)
 
 Rules:
 
@@ -43,16 +44,32 @@ Rules:
 - `actor_id` must exactly equal `grantee_id`
 - Requested use must exactly appear in `allowed_uses`
 - Consent self-issued by a delegate (`granted_by != subject_id`) is invalid
+- Invalid `timestamp` or `revoked_at` fails closed
+  (`invalid_consent_timestamp` / `invalid_consent_revoked_at`)
 
-Subject approval of their own record may occur without a prior delegation record.
-Delegated access always requires a valid consent record.
+## Permission boundaries (never interchangeable)
+
+| Permission | Authorizes |
+|------------|------------|
+| `OWNER_ASSISTANCE` | Assistance use only |
+| `MODEL_PROMPT` | Prompt insertion only |
+| `RECORD_APPROVAL` | Record approval only |
+
+A consent record must include the **exact** requested permission. Assistance or
+prompt consent never authorizes approval. Approval consent never authorizes
+assistance or prompt use by itself.
+
+Subject approval of their own valid DRAFT record may occur without a prior
+delegation record. Delegated approval always requires `RECORD_APPROVAL` in
+`allowed_uses`. Delegated access for other uses always requires a valid consent
+record naming that exact use.
 
 ## Co-founder boundary
 
 | Subject | Who may approve COFOUNDER_PRIVATE facts |
 |---------|------------------------------------------|
-| Samson Sibona Njaji | Samson (subject), or an exact authenticated delegate with valid consent |
-| James Ndodana Njaji | James (subject), or an exact authenticated delegate with valid consent |
+| Samson Sibona Njaji | Samson (subject), or an exact authenticated delegate with valid `RECORD_APPROVAL` consent |
+| James Ndodana Njaji | James (subject), or an exact authenticated delegate with valid `RECORD_APPROVAL` consent |
 
 Samson's approval alone does **not** authorize James's private data.
 James's approval alone does **not** authorize Samson's private data.

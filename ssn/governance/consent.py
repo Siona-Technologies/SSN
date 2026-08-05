@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from ssn.governance.information_classes import AllowedUse, InformationClass
-from ssn.governance.identity_records import IdentityFactRecord
+from ssn.governance.identity_records import IdentityFactRecord, is_valid_iso_instant
 
 
 # Canonical subject IDs for co-founders (non-sensitive).
@@ -56,8 +56,20 @@ def validate_consent(consent: ConsentRecord) -> Tuple[bool, str]:
     for use in consent.allowed_uses:
         if not isinstance(use, AllowedUse):
             return False, "invalid_consent_allowed_uses"
-    if consent.revoked and not (consent.revoked_at or "").strip():
+
+    ok_ts, _ = is_valid_iso_instant(consent.timestamp)
+    if not ok_ts:
+        return False, "invalid_consent_timestamp"
+
+    revoked_at = (consent.revoked_at or "").strip()
+    if consent.revoked:
+        ok_rev, _ = is_valid_iso_instant(revoked_at)
+        if not ok_rev:
+            return False, "invalid_consent_revoked_at"
+    elif revoked_at:
+        # Active consents must not carry a revocation timestamp.
         return False, "invalid_consent_revoked_at"
+
     if len(subject) > 256 or len(grantee) > 256 or len(granted_by) > 256:
         return False, "invalid_consent_field_length"
     return True, "ok"
@@ -115,10 +127,8 @@ def can_person_approve(
     Approval authority (authenticated actors only).
 
     - Subject may approve their own record without prior delegation.
-    - Delegated approval requires a valid ConsentRecord with exact grantee
-      and AllowedUse that includes an approval-capable use when supplied;
-      for approval actions we accept OWNER_ASSISTANCE or a dedicated match
-      only when consent.allowed_uses is non-empty and actor is exact grantee.
+    - Delegated approval requires exact RECORD_APPROVAL in allowed_uses.
+      OWNER_ASSISTANCE and MODEL_PROMPT never authorize approval.
     - Company/public/legal: subject or exact authorized company approver.
     - SECRET / FORGET_DELETE: never.
     """
@@ -138,15 +148,12 @@ def can_person_approve(
     if subject and actor == subject:
         return True
 
-    # Exact delegated approval (subject-issued).
+    # Exact delegated approval (subject-issued RECORD_APPROVAL only).
     if consent is not None:
-        # Approval delegation: require valid consent naming this actor as grantee.
-        # Requested use for approval is treated as OWNER_ASSISTANCE membership in
-        # allowed_uses (structured enum list — exact membership, not substring).
         ok, _reason = delegation_allows(
-            consent, actor_id=actor, requested_use=AllowedUse.OWNER_ASSISTANCE
+            consent, actor_id=actor, requested_use=AllowedUse.RECORD_APPROVAL
         )
-        if ok and consent.subject_id == subject:
+        if ok and (consent.subject_id or "").strip() == subject:
             return True
 
     if cls in {
@@ -160,7 +167,6 @@ def can_person_approve(
         return False
 
     if cls in {InformationClass.OWNER_PRIVATE, InformationClass.COFOUNDER_PRIVATE}:
-        # Non-subject without valid delegation: deny.
         return False
 
     return False

@@ -105,15 +105,22 @@ def parse_iso_date(value: str) -> Tuple[Optional[date], str]:
         return None, "invalid_date_value"
 
 
-def parse_iso_timestamp(value: str) -> Tuple[bool, str]:
+def is_valid_iso_instant(value: str) -> Tuple[bool, str]:
+    """Shared deterministic ISO date/timestamp check (no third-party deps)."""
     text = (value or "").strip()
     if not text:
         return False, "empty_timestamp"
     if not _ISO_TS.match(text):
-        return False, "invalid_approval_timestamp"
-    # Accept date-only or datetime forms already matched by regex.
-    d, reason = parse_iso_date(text)
+        return False, "invalid_timestamp_format"
+    d, _reason = parse_iso_date(text)
     if d is None:
+        return False, "invalid_timestamp_value"
+    return True, "ok"
+
+
+def parse_iso_timestamp(value: str) -> Tuple[bool, str]:
+    ok, _reason = is_valid_iso_instant(value)
+    if not ok:
         return False, "invalid_approval_timestamp"
     return True, "ok"
 

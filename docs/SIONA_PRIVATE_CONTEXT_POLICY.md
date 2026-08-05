@@ -68,3 +68,13 @@ datasets. Secrets cannot be approved into ordinary memory.
 class-specific authentication/approval rules. Always deny MODEL_PROMPT for
 SECRET, FORGET_DELETE, and LEGAL_RESTRICTED. Do not permit DRAFT private or
 confidential records in model prompts.
+
+## Record approval
+
+Normal approval (`decide_can_approve`) applies only to structurally valid
+`DRAFT` records. Rejected, expired, or revoked records must be replaced by a
+new DRAFT revision — they are not reactivated through approval.
+
+Delegated approval requires exact `RECORD_APPROVAL` in consent `allowed_uses`.
+`OWNER_ASSISTANCE` and `MODEL_PROMPT` never authorize approval. Permissions are
+never interchangeable.

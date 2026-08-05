@@ -43,3 +43,18 @@ Limitations: No open-weight model installed; results labelled mock/deterministic
 Artifact references: artifacts/eval/ or SSN_EVAL_OUTPUT_DIR
 Reproduction command: SSN_OFFLINE=1 python scripts/run_eval.py --provider
 ```
+
+### EXP-3A-002 — Final security/isolation gate (mock/deterministic)
+
+```text
+Experiment ID: EXP-3A-002
+Date: 2026-08-05
+Git commit: (Phase 3A final-gate tip)
+Runtime mode: legacy + hardened local provider foundation
+Dataset: Phase 3A security/registry/isolation/provider-eval suites
+Model/provider: deterministic + mock local HTTP only
+Result: Final gate hardening — redirects rejected, request sanitizer,
+        per-test isolation, registry transactional load, hard eval timeouts
+Limitations: Still no real model/runtime; not production-security certified
+Reproduction command: SSN_OFFLINE=1 python scripts/run_tests.py
+```

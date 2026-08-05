@@ -6,7 +6,9 @@
 **Phase 3B:** deferred — real open-weight selection and verification  
 
 This document remains the Phase 3 engineering specification. Phase 3A does **not**
-install or download a real model.
+install or download a real model. The Phase 3A final security/isolation gate
+hardens redirects, request sanitization, per-test isolation, registry validation,
+and declarative hard-timeout evaluations — still without a real model.
 
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
 

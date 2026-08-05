@@ -50,27 +50,41 @@ hash-based replies for offline CI.
 ```bash
 SSN_MODEL_PROVIDER=local
 SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:<port>/generate
-SSN_LOCAL_MODEL_ID=<configured-model-id>
+SSN_LOCAL_MODEL_ID=<configured-model-id>   # required — no default operational ID
 # Optional:
 SSN_LOCAL_MODEL_ALLOW_REMOTE=1   # required for non-loopback endpoints
 SSN_LOCAL_MODEL_TIMEOUT_S=20
 SSN_LOCAL_MODEL_MAX_RESPONSE_BYTES=1048576
 ```
 
-Security defaults:
+Security defaults (final gate):
 
 - Loopback-only endpoints unless `SSN_LOCAL_MODEL_ALLOW_REMOTE=1`
-- Context scrubbed via existing redaction before send
+- Embedded credentials, URL fragments, and HTTP redirects are rejected
+- Full `ModelRequest` sanitization at the provider boundary (context, system,
+  messages, metadata, tool definitions); exact configured secrets replaced
 - Tool calls remain proposals (never executed by the provider)
-- Unhealthy/local failures fall through to deterministic providers when wired
-  through `ModelGateway`
+- Unverified capability claims stay conservative (no tools/structured/context
+  window invention until a verified registry entry exists)
+- Response parsing bounds text, tool proposals, confidence, and usage fields
 
 Transport mapping is isolated in `LocalHttpTransport` so future Ollama /
 llama.cpp adapters can be added without rewriting `ModelGateway`.
 
 Model registry / provenance: see `ssn.cognition.model_gateway.registry`.
 CI uses clearly labelled **mock** registry fixtures only. No real open-weight
-entry is registered until Phase 3B verification.
+entry is registered until Phase 3B verification. Loading is transactional.
+
+## Runtime data isolation
+
+Tests use **per-test** temporary directories via `IsolatedTextTestRunner`.
+Smoke scripts may use one process-level `SSN_RUNTIME_DATA_DIR`.
+`cleanup_ensured_isolation()` only clears directories it owns.
+
+## Evaluation
+
+`scripts/run_eval.py --provider` runs declarative cases with hard child-process
+timeouts. Results are labelled mock/deterministic. No real model is evaluated.
 
 ## Legacy compatibility
 
@@ -88,11 +102,6 @@ SSN_MODEL_PROVIDER=local         # Phase 3A optional local path
 ```
 
 Default remains `dummy` so existing tests are unchanged.
-
-## Runtime data isolation
-
-Tests and smoke scripts set `SSN_RUNTIME_DATA_DIR` to a temporary directory so
-tracked `ssn/data/*` files are never mutated by CI. See `ssn.runtime.paths`.
 
 ## Safety
 

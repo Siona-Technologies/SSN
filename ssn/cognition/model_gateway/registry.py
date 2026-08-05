@@ -31,11 +31,23 @@ ALLOWED_FIELDS: Set[str] = {
     "classification",
     "hardware_requirements",
     "added_date",
-    "verification_status",
+    "verification_status",  # legacy alias → artifact_verification_status
+    "artifact_verification_status",
+    "capability_verification_status",
+    "capabilities",
     "notes",
     "limitations",
     "mock",
     "siona_native",
+}
+
+ALLOWED_CAPABILITY_FIELDS: Set[str] = {
+    "chat",
+    "tools",
+    "structured_json",
+    "streaming",
+    "multimodal",
+    "context_window",
 }
 
 CLASSIFICATIONS = frozenset({"local", "remote", "unknown"})
@@ -91,7 +103,13 @@ class ModelRegistryEntry:
     classification: Optional[str] = "unknown"
     hardware_requirements: Optional[Dict[str, Any]] = None
     added_date: Optional[str] = None
+    # Provenance / artefact verification (checksum, licence, source)
+    artifact_verification_status: Optional[str] = "unverified"
+    # Behavioural capability verification (explicit capabilities object)
+    capability_verification_status: Optional[str] = "unverified"
+    # Legacy alias retained for readers; mirrors artifact_verification_status
     verification_status: Optional[str] = "unverified"
+    capabilities: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
     limitations: Optional[str] = None
     mock: bool = False
@@ -170,6 +188,40 @@ def _validate_added_date(value: Optional[str]) -> Optional[str]:
     return s
 
 
+def _validate_capabilities(raw: Any) -> Optional[Dict[str, Any]]:
+    """Validate explicit behavioural capabilities; unknowns default to false/null."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise RegistryValidationError("capabilities_not_object")
+    unknown = set(raw.keys()) - ALLOWED_CAPABILITY_FIELDS
+    if unknown:
+        raise RegistryValidationError(f"unknown_capability_fields:{sorted(unknown)}")
+    out: Dict[str, Any] = {
+        "chat": False,
+        "tools": False,
+        "structured_json": False,
+        "streaming": False,
+        "multimodal": False,
+        "context_window": None,
+    }
+    for key in ("chat", "tools", "structured_json", "streaming", "multimodal"):
+        if key not in raw or raw[key] is None:
+            continue
+        if not isinstance(raw[key], bool):
+            raise RegistryValidationError(f"capability_not_bool:{key}")
+        out[key] = raw[key]
+    if "context_window" in raw and raw["context_window"] is not None:
+        try:
+            ctx = int(raw["context_window"])
+        except Exception as exc:
+            raise RegistryValidationError(f"invalid_capability_context_window:{exc}") from exc
+        if ctx <= 0:
+            raise RegistryValidationError("capability_context_window_not_positive")
+        out["context_window"] = ctx
+    return out
+
+
 def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
     if not isinstance(data, dict):
         raise RegistryValidationError("entry_not_object")
@@ -195,9 +247,35 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
     if classification not in CLASSIFICATIONS:
         raise RegistryValidationError(f"invalid_classification:{classification}")
 
-    verification_status = _unknown_or_str(data.get("verification_status")) or "unverified"
-    if verification_status not in VERIFICATION_STATUSES:
-        raise RegistryValidationError(f"invalid_verification_status:{verification_status}")
+    # Separate artefact provenance from behavioural capability verification.
+    artifact_status = (
+        _unknown_or_str(data.get("artifact_verification_status"))
+        or _unknown_or_str(data.get("verification_status"))
+        or "unverified"
+    )
+    if artifact_status not in VERIFICATION_STATUSES:
+        raise RegistryValidationError(f"invalid_artifact_verification_status:{artifact_status}")
+
+    capability_status = _unknown_or_str(data.get("capability_verification_status")) or "unverified"
+    if capability_status not in VERIFICATION_STATUSES:
+        raise RegistryValidationError(f"invalid_capability_verification_status:{capability_status}")
+
+    capabilities = _validate_capabilities(data.get("capabilities"))
+
+    is_mock = bool(data.get("mock", False))
+    # Phase 3A: mocks may not claim verified behavioural capabilities
+    if is_mock and capability_status == "verified":
+        raise RegistryValidationError("mock_cannot_claim_verified_capabilities")
+    if is_mock and capabilities:
+        if any(
+            capabilities.get(k) is True
+            for k in ("tools", "structured_json", "streaming", "multimodal")
+        ):
+            raise RegistryValidationError("mock_cannot_claim_real_model_capabilities")
+
+    # Behavioural capabilities require explicit verified status to be actionable
+    if capability_status == "verified" and capabilities is None:
+        raise RegistryValidationError("verified_capabilities_require_capabilities_object")
 
     ctx = data.get("context_window")
     context_window: Optional[int]
@@ -213,8 +291,6 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
 
     licence_id = _unknown_or_str(data.get("licence_id"))
     licence_ref = _unknown_or_str(data.get("licence_ref"))
-    # Treat literal "unknown" as present unknown marker — pair rule:
-    # both present (including unknown) or both null.
     lic_present = licence_id is not None
     ref_present = licence_ref is not None
     if lic_present != ref_present:
@@ -261,10 +337,13 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
         classification=classification,
         hardware_requirements=hardware,
         added_date=added_date,
-        verification_status=verification_status,
+        artifact_verification_status=artifact_status,
+        capability_verification_status=capability_status,
+        verification_status=artifact_status,
+        capabilities=capabilities,
         notes=notes,
         limitations=limitations,
-        mock=bool(data.get("mock", False)),
+        mock=is_mock,
         siona_native=False,
     )
 
@@ -367,7 +446,16 @@ def mock_ci_registry_payload() -> Dict[str, Any]:
                 "classification": "local",
                 "hardware_requirements": {"gpu": False, "cpu_ok": True},
                 "added_date": "2026-08-05",
-                "verification_status": "mock",
+                "artifact_verification_status": "mock",
+                "capability_verification_status": "unverified",
+                "capabilities": {
+                    "chat": False,
+                    "tools": False,
+                    "structured_json": False,
+                    "streaming": False,
+                    "multimodal": False,
+                    "context_window": None,
+                },
                 "notes": "CI mock entry only — not a real open-weight model",
                 "limitations": "Deterministic/mock validation only (Phase 3A)",
                 "mock": True,

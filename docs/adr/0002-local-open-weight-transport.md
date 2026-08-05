@@ -23,10 +23,17 @@ permanent runtime (Ollama, llama.cpp, etc.) or downloading weights in CI.
    local activation is explicit opt-in with both endpoint and model ID.
 7. CI validates with deterministic providers and a loopback mock HTTP server only.
 8. Governed tests use per-test runtime-data isolation; cleanup is ownership-safe.
+9. Artefact verification and behavioural capability verification are separate
+   registry fields; capabilities are enabled only when explicitly recorded and
+   capability-verified.
+10. Synchronous urllib transport checks cancel tokens before network start only;
+    mid-request cancellation is deferred to a future async transport.
 
 ## Consequences
 
 - No permanent runtime lock-in in Phase 3A.
 - Real model selection and licence/checksum verification deferred to Phase 3B.
-- Shadow mode remains observation-only (no duplicate inference).
+- Shadow mode remains observation-only (no duplicate inference); eval injects a
+  counting ModelProvider behind ModelGateway to prove call counts.
 - Provider is not claimed production-secure.
+- Evaluation reports are sanitized before persistence.

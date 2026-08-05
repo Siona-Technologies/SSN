@@ -47,6 +47,9 @@ Phase 3A is **not** marked accepted until this final hardening gate is complete 
 
 - Optional local provider requires explicitly configured endpoint **and** model ID
 - Provider is **not** claimed production-secure
+- Synchronous urllib transport does **not** support mid-request cancellation
+  (pre-network cancel only; mid-request cancel deferred to async transport)
+- Artefact verification is separate from behavioural capability verification
 - Default Front Door path remains the legacy dummy provider unless opted in
 - Owner-adjacent baseline failures remain technical debt
 

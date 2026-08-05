@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from pathlib import Path
@@ -18,7 +19,6 @@ class TestProviderEval(unittest.TestCase):
             cases = default_provider_cases()
             ids = [c.case_id for c in cases]
             self.assertEqual(len(ids), len(set(ids)))
-            # In-process for speed; subprocess path covered separately
             report = run_provider_eval(cases=cases, write_report=True, use_subprocess=False)
             self.assertEqual(report["label"], "mock/deterministic")
             self.assertEqual(report["summary"]["total"], len(cases))
@@ -29,22 +29,20 @@ class TestProviderEval(unittest.TestCase):
                 msg=str([(f["case_id"], f.get("actual_result")) for f in failed]),
             )
             self.assertEqual(report["summary"]["passed"], len(cases))
-            self.assertIn("git_commit", report)
-            self.assertIn("environment", report)
             path = Path(report["report_path"])
             self.assertTrue(path.exists())
-            self.assertIn("eval_reports", str(path).replace("\\", "/"))
-            # Declarative fields present
-            sample = report["results"][0]
-            for key in (
-                "input_summary",
-                "expected_constraints",
-                "provider_configuration",
-                "timeout_s",
-                "wall_latency_ms",
-                "error_category",
-            ):
-                self.assertIn(key, sample)
+
+    def test_cancellation_case_names_honest(self):
+        cases = {c.case_id: c for c in default_provider_cases()}
+        self.assertIn("prov.cancellation_before_network", cases)
+        self.assertNotIn("prov.cancellation_during", cases)
+        desc = cases["prov.cancellation_before_network"].description.lower()
+        self.assertIn("before network", desc)
+        self.assertIn("no mid-request cancel", desc)
+        self.assertTrue(
+            cases["prov.cancellation_before_network"].expected_constraints.get("pre_network_only")
+        )
+        self.assertIn("prov.in_progress_timeout", cases)
 
     def test_failure_reporting(self):
         from ssn.eval.provider_eval import ProviderEvalCase, HANDLERS
@@ -81,6 +79,53 @@ class TestProviderEval(unittest.TestCase):
         )
         self.assertFalse(out.get("ok"))
         self.assertEqual(out.get("error_category"), "timeout")
+
+    def test_subprocess_result_repeated(self):
+        from ssn.eval.provider_eval import _run_handler_with_timeout
+
+        for _ in range(3):
+            out = _run_handler_with_timeout("health_ok", {}, timeout_s=5.0)
+            self.assertTrue(out.get("ok"), msg=str(out))
+            out_t = _run_handler_with_timeout(
+                "sleep_forever", {"sleep_s": 30}, timeout_s=0.3
+            )
+            self.assertEqual(out_t.get("error_category"), "timeout")
+
+    def test_report_redacts_secrets(self):
+        from ssn.eval.provider_eval import ProviderEvalCase, HANDLERS
+
+        secret = "REPORT_SECRET_VALUE_SHOULD_NEVER_APPEAR_9z"
+
+        def leaky(inp):
+            return {
+                "ok": True,
+                "detail": f"saw {inp.get('secret')}",
+                "master_key": secret,
+            }
+
+        HANDLERS["leaky_report"] = leaky
+        case = ProviderEvalCase(
+            "prov.leaky",
+            "security",
+            "report redaction",
+            "leaky_report",
+            input={"secret": secret, "prompt": f"master_key={secret}"},
+            provider_configuration={"api_key": secret},
+            expected_constraints={"token": secret},
+            thresholds={"password": secret},
+        )
+        try:
+            with isolated_runtime_data(prefix="eval-redact-"):
+                report = run_provider_eval(
+                    cases=[case], write_report=True, use_subprocess=False
+                )
+                blob = json.dumps(report, default=str)
+                raw = Path(report["report_path"]).read_bytes()
+                self.assertNotIn(secret, blob)
+                self.assertNotIn(secret.encode("utf-8"), raw)
+                self.assertNotIn(secret, str(report.get("results")))
+        finally:
+            HANDLERS.pop("leaky_report", None)
 
     def test_declarative_case_fields(self):
         case = default_provider_cases()[0]

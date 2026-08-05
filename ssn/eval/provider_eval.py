@@ -206,23 +206,52 @@ def _h_cancellation_before(inp: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": ok, "detail": resp.finish_reason}
 
 
-def _h_cancellation_during(inp: Dict[str, Any]) -> Dict[str, Any]:
+def _h_cancellation_before_network(inp: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Cancel token is set before generate() — pre-network start check only.
+
+    Synchronous urllib transport does NOT support mid-request cancellation.
+    True cooperative mid-request cancellation is deferred to async transport.
+    """
     from ssn.cognition.model_gateway import CancelToken, ModelRequest
     from ssn.cognition.model_gateway.local_provider import LocalOpenWeightProvider
     from ssn.cognition.model_gateway.mock_local_server import MockLocalModelServer
 
-    server = MockLocalModelServer(mode="timeout").start()
-    server._httpd.timeout_sleep_s = 1.0  # type: ignore[attr-defined]
+    server = MockLocalModelServer(mode="ok").start()
     try:
-        p = LocalOpenWeightProvider(endpoint=server.generate_url, model_id="mock", timeout_s=0.2)
+        p = LocalOpenWeightProvider(endpoint=server.generate_url, model_id="mock", timeout_s=2.0)
         token = CancelToken()
-        # Cancel before generate — local provider checks cancel before network
         token.cancel()
-        req = ModelRequest.from_prompt("slow")
+        req = ModelRequest.from_prompt("should not reach network")
         req.cancel_token = token
         resp = p.generate(req)
-        ok = resp.finish_reason == "cancelled"
-        return {"ok": ok, "detail": resp.finish_reason}
+        ok = resp.finish_reason == "cancelled" and not resp.healthy
+        return {
+            "ok": ok,
+            "detail": resp.finish_reason,
+            "limitation": "pre_network_cancel_only; mid_request_cancel_deferred_to_async_transport",
+        }
+    finally:
+        server.stop()
+
+
+def _h_in_progress_timeout(inp: Dict[str, Any]) -> Dict[str, Any]:
+    """Terminate an in-progress slow request via bounded provider timeout (not cancel)."""
+    from ssn.cognition.model_gateway import ModelRequest
+    from ssn.cognition.model_gateway.local_provider import LocalOpenWeightProvider
+    from ssn.cognition.model_gateway.mock_local_server import MockLocalModelServer
+
+    server = MockLocalModelServer(mode="timeout").start()
+    server._httpd.timeout_sleep_s = 1.5  # type: ignore[attr-defined]
+    try:
+        p = LocalOpenWeightProvider(endpoint=server.generate_url, model_id="mock", timeout_s=0.2)
+        resp = p.generate(ModelRequest.from_prompt("slow in progress"))
+        ok = (not resp.healthy) and resp.meta.get("error_category") in {"timeout", "http"}
+        return {
+            "ok": ok,
+            "detail": str(resp.meta.get("error_category")),
+            "error_category": resp.meta.get("error_category"),
+        }
     finally:
         server.stop()
 
@@ -338,53 +367,77 @@ def _h_tenant_isolation(inp: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _h_shadow_no_dup(inp: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Prove shadow observation does not cause an additional ModelProvider call.
+
+    Injects a counting provider behind the canonical ModelGateway on the
+    CognitiveRuntime, performs one authoritative gateway.complete, then
+    IntegrationFacade.observe_authoritative_chat in shadow mode.
+    """
     import time as _time
     from ssn.cognition.loop import CognitiveRuntime
+    from ssn.cognition.model_gateway import DeterministicModelProvider, ModelGateway, ModelRequest
     from ssn.integration.facade import IntegrationFacade
     from ssn.integration.trace_context import TraceContext
 
-    class CountingProvider:
-        name = "counting-v1"
-        calls = 0
+    class CountingProvider(DeterministicModelProvider):
+        name = "siona-counting-model-v1"
 
-        def capabilities(self):
-            from ssn.cognition.model_gateway.contracts import ModelCapabilities
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
 
-            return ModelCapabilities(provider_name=self.name)
+        def generate(self, request):  # type: ignore[override]
+            self.calls += 1
+            return super().generate(request)
 
-        def health(self):
-            return {"ok": True}
-
-        def generate(self, request):
-            CountingProvider.calls += 1
-            from ssn.cognition.model_gateway.contracts import ModelResponse
-
-            return ModelResponse(text="x", provider=self.name, healthy=True)
-
-    CountingProvider.calls = 0
-    cr = CognitiveRuntime.create()
-    # Inject counting provider if possible; otherwise use metrics
+    counting = CountingProvider()
+    gateway = ModelGateway(providers=[counting])
+    cr = CognitiveRuntime.create(model_gateway=gateway)
     facade = IntegrationFacade.create(cognitive_runtime=cr, mode="shadow")
-    before = facade.metrics.model_requests
-    before_calls = CountingProvider.calls
+
+    before_facade_requests = facade.metrics.model_requests
+    before_shadow = facade.metrics.model_shadow_observations
+    before_calls = counting.calls
+    before_gw = gateway.metrics.model_requests
+
+    # One authoritative inference via the canonical gateway
+    auth = gateway.complete(ModelRequest.from_prompt("authoritative"))
+    if not auth.healthy:
+        return {"ok": False, "detail": "authoritative_failed"}
+    if counting.calls != before_calls + 1:
+        return {"ok": False, "detail": f"expected_one_call got={counting.calls}"}
+    if gateway.metrics.model_requests != before_gw + 1:
+        return {"ok": False, "detail": "gateway_metrics_mismatch"}
+
     tr = TraceContext(runtime_mode="shadow", role="GUEST")
     facade.observe_authoritative_chat(
         user_input="shadow eval",
         role="GUEST",
         context={},
-        result={"answer": "hello", "degraded": False, "used_tools": []},
+        result={"answer": auth.text, "degraded": False, "used_tools": []},
         trace=tr,
         started_at=_time.time(),
-        router_result={"mode": "hybrid", "engine": "dummy", "reply": "hello"},
+        router_result={"mode": "hybrid", "engine": counting.name, "reply": auth.text},
     )
+
     ok = (
-        facade.metrics.model_requests == before
-        and facade.metrics.model_shadow_observations >= 1
-        and CountingProvider.calls == before_calls
+        counting.calls == before_calls + 1
+        and gateway.metrics.model_requests == before_gw + 1
+        and facade.metrics.model_requests == before_facade_requests
+        and facade.metrics.model_shadow_observations >= before_shadow + 1
     )
     return {
         "ok": ok,
-        "detail": f"shadow_obs={facade.metrics.model_shadow_observations} calls={CountingProvider.calls}",
+        "detail": (
+            f"provider_calls={counting.calls} gw_requests={gateway.metrics.model_requests} "
+            f"facade_requests={facade.metrics.model_requests} "
+            f"shadow_obs={facade.metrics.model_shadow_observations}"
+        ),
+        "provider_calls": counting.calls,
+        "gateway_model_requests": gateway.metrics.model_requests,
+        "facade_model_requests": facade.metrics.model_requests,
+        "facade_shadow_observations": facade.metrics.model_shadow_observations,
     }
 
 
@@ -460,9 +513,10 @@ def _h_capability_honesty(inp: Dict[str, Any]) -> Dict[str, Any]:
         and caps.structured_json is False
         and caps.context_window == 0
         and meta.get("trained_siona_native") is False
-        and meta.get("verification_status") == "unverified"
+        and meta.get("capability_verification_status") == "unverified"
+        and meta.get("sync_mid_request_cancellation") is False
     )
-    return {"ok": ok, "detail": str(meta.get("verification_status"))}
+    return {"ok": ok, "detail": str(meta.get("capability_verification_status"))}
 
 
 def _h_registry_provenance(inp: Dict[str, Any]) -> Dict[str, Any]:
@@ -482,10 +536,13 @@ def _h_registry_provenance(inp: Dict[str, Any]) -> Dict[str, Any]:
         entry is not None
         and entry.mock
         and not entry.siona_native
-        and caps.metadata.get("verification_status") == "mock"
+        and entry.capability_verification_status == "unverified"
+        and entry.artifact_verification_status == "mock"
+        and caps.metadata.get("capability_verification_status") == "unverified"
         and caps.tools is False
+        and caps.structured_json is False
     )
-    return {"ok": ok, "detail": str(caps.metadata.get("verification_status"))}
+    return {"ok": ok, "detail": str(caps.metadata.get("capability_verification_status"))}
 
 
 def _h_oversized_tool_list(inp: Dict[str, Any]) -> Dict[str, Any]:
@@ -548,7 +605,8 @@ HANDLERS = {
     "health_ok": _h_health_ok,
     "timeout_fallback": _h_timeout_fallback,
     "cancellation_before": _h_cancellation_before,
-    "cancellation_during": _h_cancellation_during,
+    "cancellation_before_network": _h_cancellation_before_network,
+    "in_progress_timeout": _h_in_progress_timeout,
     "fallback_correctness": _h_fallback_correctness,
     "response_size": _h_response_size,
     "redaction_payload": _h_redaction_payload,
@@ -579,28 +637,53 @@ def _worker(handler_id: str, inp: Dict[str, Any], q: Any) -> None:
 
 def _run_handler_with_timeout(handler_id: str, inp: Dict[str, Any], timeout_s: float) -> Dict[str, Any]:
     """Execute handler in a child process; terminate on timeout (Windows-safe)."""
+    import queue as queue_mod
+
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
     proc = ctx.Process(target=_worker, args=(handler_id, inp, q))
     proc.start()
     proc.join(timeout_s)
+    timed_out = False
     if proc.is_alive():
+        timed_out = True
         proc.terminate()
         proc.join(2.0)
         if proc.is_alive():
             proc.kill()
             proc.join(1.0)
-        return {
-            "ok": False,
-            "error_category": "timeout",
-            "detail": f"handler_timeout:{timeout_s}s",
-        }
-    if q.empty():
-        return {"ok": False, "error_category": "error", "detail": "no_result"}
-    status, payload = q.get()
-    if status == "ok":
-        return payload
-    return {"ok": False, "error_category": "error", "detail": payload}
+
+    result: Dict[str, Any]
+    try:
+        status, payload = q.get(timeout=0.5)
+        if status == "ok":
+            result = payload if isinstance(payload, dict) else {"ok": False, "detail": str(payload)}
+        else:
+            result = {"ok": False, "error_category": "error", "detail": payload}
+    except queue_mod.Empty:
+        if timed_out:
+            result = {
+                "ok": False,
+                "error_category": "timeout",
+                "detail": f"handler_timeout:{timeout_s}s",
+            }
+        else:
+            result = {"ok": False, "error_category": "error", "detail": "no_result"}
+    finally:
+        try:
+            q.close()
+        except Exception:
+            pass
+        try:
+            q.join_thread()
+        except Exception:
+            pass
+        try:
+            if hasattr(proc, "close"):
+                proc.close()
+        except Exception:
+            pass
+    return result
 
 
 def default_provider_cases() -> List[ProviderEvalCase]:
@@ -676,10 +759,22 @@ def default_provider_cases() -> List[ProviderEvalCase]:
             tags=["deterministic"],
         ),
         ProviderEvalCase(
-            "prov.cancellation_during",
+            "prov.cancellation_before_network",
             "cancellation",
-            "Cancellation observed on local provider path",
-            "cancellation_during",
+            "Cancel token observed before network start (sync urllib has no mid-request cancel)",
+            "cancellation_before_network",
+            tags=["mock_local", "honesty"],
+            timeout_s=8.0,
+            expected_constraints={
+                "pre_network_only": True,
+                "mid_request_cancel_deferred": "async_provider_transport",
+            },
+        ),
+        ProviderEvalCase(
+            "prov.in_progress_timeout",
+            "timeout",
+            "In-progress slow request terminated by provider timeout",
+            "in_progress_timeout",
             tags=["mock_local"],
             timeout_s=8.0,
         ),
@@ -800,6 +895,68 @@ def default_provider_cases() -> List[ProviderEvalCase]:
     ]
 
 
+def _collect_secret_values(value: Any, *, found: Optional[List[str]] = None, depth: int = 0) -> List[str]:
+    from ssn.cognition.model_gateway.sanitize import _is_secret_key
+
+    acc = found if found is not None else []
+    if depth > 8:
+        return acc
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if _is_secret_key(str(k)) and isinstance(v, str) and len(v) >= 4:
+                acc.append(v)
+            _collect_secret_values(v, found=acc, depth=depth + 1)
+    elif isinstance(value, list):
+        for item in value[:64]:
+            _collect_secret_values(item, found=acc, depth=depth + 1)
+    return acc
+
+
+def _sanitize_report_value(
+    value: Any, *, depth: int = 0, exact_secrets: Optional[List[str]] = None
+) -> Any:
+    """Report-safe redaction — never emit configured secrets or secret-looking keys."""
+    from ssn.cognition.model_gateway.sanitize import (
+        REDACTED,
+        _configured_secret_values,
+        _is_secret_key,
+        _redact_text,
+    )
+
+    if depth == 0 and exact_secrets is None:
+        exact = list(_configured_secret_values())
+        exact.extend(_collect_secret_values(value))
+        # dedupe
+        seen = set()
+        exact_secrets = []
+        for s in exact:
+            if s not in seen:
+                seen.add(s)
+                exact_secrets.append(s)
+
+    secrets = exact_secrets or []
+    if depth > 8:
+        return "<truncated_depth>"
+    if isinstance(value, dict):
+        out: Dict[str, Any] = {}
+        for k, v in list(value.items())[:64]:
+            key = str(k)
+            if _is_secret_key(key):
+                out[key] = REDACTED
+            else:
+                out[key] = _sanitize_report_value(v, depth=depth + 1, exact_secrets=secrets)
+        return out
+    if isinstance(value, list):
+        return [
+            _sanitize_report_value(v, depth=depth + 1, exact_secrets=secrets) for v in value[:64]
+        ]
+    if isinstance(value, str):
+        return _redact_text(value, exact_secrets=secrets)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return _redact_text(str(value), exact_secrets=secrets)[:500]
+
+
 def run_provider_eval(
     *,
     cases: Optional[List[ProviderEvalCase]] = None,
@@ -831,29 +988,40 @@ def run_provider_eval(
         except Exception as exc:
             status = "fail"
             failed += 1
-            err = f"{type(exc).__name__}:{exc}"
+            err = f"{type(exc).__name__}:{type(exc).__name__}"
+            # Do not embed raw exception args that may contain secrets
             error_category = "error"
-            detail = {"ok": False, "detail": err}
+            detail = {"ok": False, "detail": "handler_exception"}
         wall = max(0.0, (time.time() - started) * 1000.0)
         results.append(
             {
                 "case_id": case.case_id,
                 "category": case.category,
                 "description": case.description,
-                "input_summary": {k: (str(v)[:80] if not isinstance(v, (int, float, bool)) else v) for k, v in case.input.items()},
-                "expected_constraints": case.expected_constraints,
-                "provider_configuration": case.provider_configuration,
+                "input_summary": _sanitize_report_value(
+                    {
+                        k: (str(v)[:80] if not isinstance(v, (int, float, bool)) else v)
+                        for k, v in case.input.items()
+                    }
+                ),
+                "expected_constraints": _sanitize_report_value(case.expected_constraints),
+                "provider_configuration": _sanitize_report_value(case.provider_configuration),
                 "timeout_s": case.timeout_s,
-                "thresholds": case.thresholds,
+                "thresholds": _sanitize_report_value(case.thresholds),
                 "status": status,
                 "tags": list(case.tags),
                 "wall_latency_ms": wall,
-                "provider_latency_ms": (detail or {}).get("provider_latency_ms") if isinstance(detail, dict) else None,
-                "actual_result": detail,
-                "error": err,
+                "provider_latency_ms": (detail or {}).get("provider_latency_ms")
+                if isinstance(detail, dict)
+                else None,
+                "actual_result": _sanitize_report_value(detail),
+                "error": _sanitize_report_value(err) if err else None,
                 "error_category": error_category,
                 "label": "mock/deterministic",
-                "limitations": ["Phase 3A mock/deterministic only"],
+                "limitations": [
+                    "Phase 3A mock/deterministic only",
+                    "Sync urllib has no mid-request cancellation",
+                ],
             }
         )
     report = {
@@ -878,13 +1046,17 @@ def run_provider_eval(
             "No model weights downloaded",
             "Results are mock/deterministic only",
             "Provider is not claimed production-secure",
+            "Synchronous urllib transport does not support mid-request cancellation",
+            "Mid-request cancellation deferred to future async provider transport",
         ],
         "reproduction_command": "SSN_OFFLINE=1 python scripts/run_eval.py --provider",
     }
+    report = _sanitize_report_value(report)
     if write_report:
         out_dir = get_eval_output_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"provider_eval_{int(time.time())}.json"
-        path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+        raw = json.dumps(report, indent=2, default=str)
+        path.write_text(raw, encoding="utf-8")
         report["report_path"] = str(path)
     return report

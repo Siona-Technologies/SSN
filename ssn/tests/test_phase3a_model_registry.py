@@ -67,7 +67,92 @@ class TestModelRegistry(unittest.TestCase):
 
     def test_invalid_verification_status(self):
         with self.assertRaises(RegistryValidationError):
-            validate_entry_dict(_base(verification_status="pretty-sure"))
+            validate_entry_dict(_base(artifact_verification_status="pretty-sure"))
+
+    def test_explicit_capabilities_verified(self):
+        entry = validate_entry_dict(
+            _base(
+                mock=False,
+                artifact_verification_status="unverified",
+                capability_verification_status="verified",
+                capabilities={
+                    "chat": True,
+                    "tools": False,
+                    "structured_json": True,
+                    "streaming": False,
+                    "multimodal": False,
+                    "context_window": 8192,
+                },
+                notes="schema fixture only — not a real model",
+            )
+        )
+        self.assertEqual(entry.capability_verification_status, "verified")
+        self.assertTrue(entry.capabilities["structured_json"])
+        self.assertFalse(entry.capabilities["tools"])
+        self.assertEqual(entry.capabilities["context_window"], 8192)
+
+    def test_missing_capabilities_object_when_verified(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(
+                _base(
+                    mock=False,
+                    capability_verification_status="verified",
+                )
+            )
+
+    def test_unknown_capability_fields(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(
+                _base(
+                    mock=False,
+                    capability_verification_status="verified",
+                    capabilities={"chat": True, "telepathy": True},
+                )
+            )
+
+    def test_false_capability_types(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(
+                _base(
+                    mock=False,
+                    capability_verification_status="verified",
+                    capabilities={"chat": "yes", "tools": False},
+                )
+            )
+
+    def test_mock_cannot_claim_verified_capabilities(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(
+                _base(
+                    mock=True,
+                    capability_verification_status="verified",
+                    capabilities={"chat": True, "tools": False},
+                )
+            )
+
+    def test_mock_cannot_claim_tools_true(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(
+                _base(
+                    mock=True,
+                    capability_verification_status="unverified",
+                    capabilities={"chat": False, "tools": True},
+                )
+            )
+
+    def test_artifact_status_separate_from_capability(self):
+        entry = validate_entry_dict(
+            _base(
+                mock=False,
+                artifact_verification_status="verified",
+                capability_verification_status="unverified",
+                capabilities={"chat": False, "tools": False},
+            )
+        )
+        self.assertEqual(entry.artifact_verification_status, "verified")
+        self.assertEqual(entry.capability_verification_status, "unverified")
+        # Artefact verified alone must not imply behavioural tools
+        self.assertFalse(entry.capabilities.get("tools"))
 
     def test_unsupported_checksum_algorithm(self):
         with self.assertRaises(RegistryValidationError):

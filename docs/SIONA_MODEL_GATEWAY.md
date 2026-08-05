@@ -65,8 +65,14 @@ Security defaults (final gate):
   messages, metadata, tool definitions); exact configured secrets replaced
 - Tool calls remain proposals (never executed by the provider)
 - Unverified capability claims stay conservative (no tools/structured/context
-  window invention until a verified registry entry exists)
+  window invention until an explicit `capabilities` object is recorded with
+  `capability_verification_status=verified`)
+- Artefact verification (`artifact_verification_status`) is separate from
+  behavioural capability verification
+- Synchronous urllib does not support mid-request cancellation; cancel tokens
+  are checked before network start only
 - Response parsing bounds text, tool proposals, confidence, and usage fields
+- Evaluation reports are redacted before write
 
 Transport mapping is isolated in `LocalHttpTransport` so future Ollama /
 llama.cpp adapters can be added without rewriting `ModelGateway`.

@@ -543,56 +543,78 @@ class LocalOpenWeightProvider:
         if self.transport and capture_last_request:
             self.transport.capture_last_request = True
 
-    def _verification_status(self) -> str:
+    def _artifact_verification_status(self) -> str:
         entry = self._registry_entry
         if entry is None:
             return "unverified"
-        status = getattr(entry, "verification_status", None) or "unverified"
+        status = (
+            getattr(entry, "artifact_verification_status", None)
+            or getattr(entry, "verification_status", None)
+            or "unverified"
+        )
         if getattr(entry, "mock", False) and status not in {"mock", "unverified"}:
             return "mock"
         return str(status)
 
+    def _capability_verification_status(self) -> str:
+        entry = self._registry_entry
+        if entry is None:
+            return "unverified"
+        status = getattr(entry, "capability_verification_status", None) or "unverified"
+        if getattr(entry, "mock", False) and status == "verified":
+            return "unverified"
+        return str(status)
+
+    def _verification_status(self) -> str:
+        """Legacy alias → artefact verification status."""
+        return self._artifact_verification_status()
+
     def capabilities(self) -> ModelCapabilities:
         """
-        Conservative capabilities until a verified registry entry exists.
+        Conservative capabilities until an explicit verified capabilities object exists.
 
         Distinguishes transport vs configured-model vs verified-model claims
-        inside metadata.
+        inside metadata. Behavioural flags are enabled only when
+        capability_verification_status == "verified" and fields are explicit.
         """
-        verified = self._verification_status() in {"verified"}
-        mock = self._verification_status() == "mock" or bool(
-            getattr(self._registry_entry, "mock", False)
-        )
-        # Transport capabilities (what the HTTP adapter can carry)
+        art_status = self._artifact_verification_status()
+        cap_status = self._capability_verification_status()
+        mock = bool(getattr(self._registry_entry, "mock", False)) if self._registry_entry else False
+        caps_obj = getattr(self._registry_entry, "capabilities", None) if self._registry_entry else None
+        if not isinstance(caps_obj, dict):
+            caps_obj = {}
+
         transport_caps = {
             "chat": True,
             "streaming": False,
             "tools_proposals": True,
             "structured_json_transport": True,
         }
-        # Configured model capabilities — conservative when unverified
+
+        # Default conservative — do not invent from artefact verification alone
+        model_chat = True  # transport always supports chat text
         model_tools = False
         model_structured = False
+        model_streaming = False
+        model_multimodal = False
         context_window = 0
-        if verified and self._registry_entry is not None:
-            model_tools = True
-            model_structured = True
-            ctx = getattr(self._registry_entry, "context_window", None)
-            context_window = int(ctx) if isinstance(ctx, int) and ctx > 0 else 0
-        elif mock and self._registry_entry is not None:
-            # Mock may identify transport capabilities only — still unverified model
-            model_tools = False
-            model_structured = False
-            ctx = getattr(self._registry_entry, "context_window", None)
-            # Do not invent; only report registry value as mock metadata, not verified claim
-            context_window = 0
+
+        if cap_status == "verified" and caps_obj:
+            model_chat = bool(caps_obj.get("chat", False))
+            model_tools = bool(caps_obj.get("tools", False))
+            model_structured = bool(caps_obj.get("structured_json", False))
+            model_streaming = bool(caps_obj.get("streaming", False))
+            model_multimodal = bool(caps_obj.get("multimodal", False))
+            ctx = caps_obj.get("context_window")
+            if isinstance(ctx, int) and ctx > 0:
+                context_window = ctx
 
         return ModelCapabilities(
-            chat=True,
-            streaming=False,
+            chat=model_chat if cap_status == "verified" else True,
+            streaming=model_streaming,
             tools=model_tools,
             structured_json=model_structured,
-            multimodal=False,
+            multimodal=model_multimodal,
             context_window=context_window,
             provider_name=self.name,
             metadata={
@@ -603,19 +625,29 @@ class LocalOpenWeightProvider:
                 "open_weight": True,
                 "simulated": False,
                 "optional": True,
-                "verification_status": self._verification_status(),
+                "artifact_verification_status": art_status,
+                "capability_verification_status": cap_status,
+                "verification_status": art_status,  # legacy alias
                 "transport_capabilities": transport_caps,
                 "configured_model_capabilities": {
-                    "tools": model_tools,
-                    "structured_json": model_structured,
+                    "chat": model_chat if cap_status == "verified" else None,
+                    "tools": model_tools if cap_status == "verified" else False,
+                    "structured_json": model_structured if cap_status == "verified" else False,
+                    "streaming": model_streaming if cap_status == "verified" else False,
+                    "multimodal": model_multimodal if cap_status == "verified" else False,
                     "context_window": context_window if context_window > 0 else None,
                 },
                 "verified_model_capabilities": {
-                    "tools": model_tools if verified else False,
-                    "structured_json": model_structured if verified else False,
-                    "context_window": context_window if verified and context_window > 0 else None,
+                    "chat": model_chat if cap_status == "verified" else False,
+                    "tools": model_tools if cap_status == "verified" else False,
+                    "structured_json": model_structured if cap_status == "verified" else False,
+                    "streaming": model_streaming if cap_status == "verified" else False,
+                    "multimodal": model_multimodal if cap_status == "verified" else False,
+                    "context_window": context_window if cap_status == "verified" and context_window > 0 else None,
                 },
                 "mock_registry": mock,
+                "sync_mid_request_cancellation": False,
+                "mid_request_cancellation_deferred": "async_provider_transport",
             },
         )
 
@@ -625,7 +657,9 @@ class LocalOpenWeightProvider:
             "model_id": self.model_id or None,
             "endpoint_classification": self._endpoint_classification,
             "endpoint_loopback": self._endpoint_classification == "loopback",
-            "verification_status": self._verification_status(),
+            "artifact_verification_status": self._artifact_verification_status(),
+            "capability_verification_status": self._capability_verification_status(),
+            "verification_status": self._artifact_verification_status(),
             "endpoint_summary": safe_endpoint_summary(self._endpoint) if self._endpoint else None,
             "trained_siona_native": False,
         }

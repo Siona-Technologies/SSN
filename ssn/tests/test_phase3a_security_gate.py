@@ -181,7 +181,8 @@ class TestCapabilitiesProvenance(unittest.TestCase):
         self.assertFalse(caps.structured_json)
         self.assertEqual(caps.context_window, 0)
         self.assertFalse(caps.metadata.get("trained_siona_native"))
-        self.assertEqual(caps.metadata.get("verification_status"), "unverified")
+        self.assertEqual(caps.metadata.get("capability_verification_status"), "unverified")
+        self.assertFalse(caps.metadata.get("sync_mid_request_cancellation"))
 
     def test_mock_registry_capabilities(self):
         reg = ModelRegistry()
@@ -193,10 +194,45 @@ class TestCapabilitiesProvenance(unittest.TestCase):
             registry_entry=entry,
         )
         caps = p.capabilities()
-        self.assertEqual(caps.metadata.get("verification_status"), "mock")
+        self.assertEqual(caps.metadata.get("artifact_verification_status"), "mock")
+        self.assertEqual(caps.metadata.get("capability_verification_status"), "unverified")
         self.assertFalse(caps.tools)
         self.assertFalse(caps.metadata.get("trained_siona_native"))
         self.assertTrue(caps.metadata.get("mock_registry"))
+
+    def test_explicit_verified_capabilities_only(self):
+        from ssn.cognition.model_gateway.registry import validate_entry_dict
+
+        entry = validate_entry_dict(
+            {
+                "provider_id": "schema-fixture",
+                "model_id": "cap-fixture",
+                "mock": False,
+                "siona_native": False,
+                "artifact_verification_status": "unverified",
+                "capability_verification_status": "verified",
+                "capabilities": {
+                    "chat": True,
+                    "tools": False,
+                    "structured_json": True,
+                    "streaming": False,
+                    "multimodal": False,
+                    "context_window": 4096,
+                },
+                "notes": "schema fixture only",
+            }
+        )
+        p = LocalOpenWeightProvider(
+            endpoint="http://127.0.0.1:9/g",
+            model_id="cap-fixture",
+            registry_entry=entry,
+        )
+        caps = p.capabilities()
+        self.assertTrue(caps.structured_json)
+        self.assertFalse(caps.tools)
+        self.assertEqual(caps.context_window, 4096)
+        # Artefact status alone would not enable these — capability status does
+        self.assertEqual(caps.metadata.get("capability_verification_status"), "verified")
 
     def test_no_unconfigured_model_id_string(self):
         p = LocalOpenWeightProvider(endpoint="", model_id=None)

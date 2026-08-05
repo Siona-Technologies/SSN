@@ -58,3 +58,32 @@ Result: Final gate hardening — redirects rejected, request sanitizer,
 Limitations: Still no real model/runtime; not production-security certified
 Reproduction command: SSN_OFFLINE=1 python scripts/run_tests.py
 ```
+
+### EXP-3B-000 — Hardware readiness and planning baseline
+
+```text
+Experiment ID: EXP-3B-000
+Date: 2026-08-05
+Git commit: (Phase 3B planning branch tip)
+Runtime mode: n/a — planning only
+Dataset: n/a
+Model/provider: none installed
+Neuromorphic backend: n/a
+Hardware: HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe;
+          15.73 GiB RAM; no CUDA GPU; Balanced power plan; on AC during inventory
+Configuration: no runtime; no weights; documentation scaffolding only
+Metrics: none (no inference)
+Result: readiness/planning only —
+        storage gate passed at 41.86 GiB free after controlled cleanup
+        (prior low-space ~7.74 GiB; 31.51 GiB duplicate archive removed);
+        free RAM after restart/check 4.73 GiB; preferred target 6–8 GiB;
+        WSL2 Ubuntu available but stopped; Docker absent; no model runtimes
+Limitations: model and runtime selection pending; no real-model experiment;
+             no runtime installed; no weights downloaded
+Artifact references: docs/PHASE_3B_HARDWARE_INVENTORY.md,
+                      docs/PHASE_3B_MODEL_INDEPENDENCE.md,
+                      docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
+                      docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
+                      docs/adr/0003-first-local-model-strategy.md
+Reproduction command: n/a (documentation/planning entry)
+```

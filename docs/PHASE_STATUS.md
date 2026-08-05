@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** on `feat/siona-runtime-integration-v2` |
 | Phase 2 implementation/hardening commit | `81aada0` |
 | Previous status-record commit | `0401dba` |
-| Final branch tip | *(set at commit time)* |
+| Final branch tip | `7b92114` |
 | Acceptance date | 2026-08-05 |
 | Test totals | Offline CI: **199 passed, 4 skipped** |
 | Acceptance gate | Shared-deps free of request traces; concurrent isolation; safe async shutdown |

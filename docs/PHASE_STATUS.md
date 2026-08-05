@@ -4,8 +4,10 @@
 |-------|--------|
 | Phase 1 | **Completed and hardened** (`183fa70`) |
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
-| Phase 3 | **In progress — Phase 3A provider and evaluation foundation** |
-| Phase 3 branch | `feat/siona-local-model-evals-v3` |
+| Phase 3 | **In progress — Phase 3A completed; Phase 3B not started** |
+| Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
+| Phase 3B | **Not started** |
+| Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
 ## Governing documents
@@ -16,7 +18,24 @@
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
 
-## Phase 3A status (this branch)
+## Phase 3A status (completed)
+
+Phase 3A is **completed, hardened, hosted-CI accepted and merged**.
+
+- Accepted feature SHA: `d6c17d0d723ef309cca1f8edf3fb467b12d04d2a`
+- Merge commit: `2e6abb6d70f4204bb4f9e479e081b0a9fc116580`
+- PR: [#2](https://github.com/Siona-Technologies/SSN/pull/2)
+
+Hosted CI (PR #2):
+
+- Python 3.11: 277 passed, 4 skipped
+- Python 3.12: 277 passed, 4 skipped
+- Production evaluation: 7/7 on both
+- HTTP smoke: passed on both
+
+Local evidence:
+
+- Provider evaluation: 25/25 (deterministic/mock only)
 
 Delivered in Phase 3A (including final security/isolation gate):
 
@@ -41,7 +60,8 @@ Explicitly **not** done in Phase 3A:
 - SNN training remains deferred
 - Physical embodiments remain deferred
 
-Phase 3A is **not** marked accepted until this final hardening gate is complete on the branch tip; Phase 3 overall remains **in progress**.
+Phase 3 overall remains **in progress**. Phase 3B remains **not started**.
+The optional local provider is **not** production-security certified.
 
 ## Known limitations
 

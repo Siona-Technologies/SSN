@@ -9,12 +9,21 @@ from typing import Any, Dict, List
 DEFAULT_PATH = "ssn/data/trace_memory.json"
 
 
+def _resolve_default_trace_path() -> str:
+    try:
+        from ssn.runtime.paths import default_trace_memory_path
+
+        return default_trace_memory_path()
+    except Exception:
+        return DEFAULT_PATH
+
+
 class TraceMemory:
     MAX_SNAPSHOTS = 5000
 
-    def __init__(self, path: str = DEFAULT_PATH):
-        self.path = path
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+    def __init__(self, path: str | None = None):
+        self.path = path or _resolve_default_trace_path()
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
 
         if not os.path.exists(self.path):
             self._atomic_write_json(self.path, [])

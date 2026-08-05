@@ -26,6 +26,44 @@ from ssn.cognition.model_gateway.adapters import (
 )
 from ssn.cognition.model_gateway.gateway import ModelGateway
 
+# Local provider / registry are imported lazily via __getattr__ to avoid a
+# circular import: local_provider → integration.redaction → facade → loop → here.
+
+
+def __getattr__(name: str):
+    if name in {
+        "LocalOpenWeightProvider",
+        "build_local_provider_from_env",
+        "local_provider_enabled",
+    }:
+        from ssn.cognition.model_gateway import local_provider as _lp
+
+        mapping = {
+            "LocalOpenWeightProvider": _lp.LocalOpenWeightProvider,
+            "build_local_provider_from_env": _lp.build_local_provider_from_env,
+            "local_provider_enabled": _lp.local_provider_enabled,
+        }
+        return mapping[name]
+    if name in {
+        "ModelRegistry",
+        "ModelRegistryEntry",
+        "load_registry",
+        "mock_ci_registry_payload",
+        "validate_entry_dict",
+    }:
+        from ssn.cognition.model_gateway import registry as _reg
+
+        mapping = {
+            "ModelRegistry": _reg.ModelRegistry,
+            "ModelRegistryEntry": _reg.ModelRegistryEntry,
+            "load_registry": _reg.load_registry,
+            "mock_ci_registry_payload": _reg.mock_ci_registry_payload,
+            "validate_entry_dict": _reg.validate_entry_dict,
+        }
+        return mapping[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "MessageRole",
     "ModelCapabilities",
@@ -44,4 +82,12 @@ __all__ = [
     "LegacyLLMProviderAdapter",
     "ModelGatewayAsLLMProvider",
     "ModelGateway",
+    "LocalOpenWeightProvider",
+    "build_local_provider_from_env",
+    "local_provider_enabled",
+    "ModelRegistry",
+    "ModelRegistryEntry",
+    "load_registry",
+    "mock_ci_registry_payload",
+    "validate_entry_dict",
 ]

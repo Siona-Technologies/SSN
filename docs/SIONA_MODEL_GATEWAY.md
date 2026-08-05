@@ -42,6 +42,56 @@ for direct callers.
 `DeterministicModelProvider` is **not** real intelligence. It produces stable
 hash-based replies for offline CI.
 
+## Optional local open-weight provider (Phase 3A)
+
+`LocalOpenWeightProvider` implements the same `ModelProvider` protocol. It is
+**disabled by default** and never downloads weights or launches a runtime.
+
+```bash
+SSN_MODEL_PROVIDER=local
+SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:<port>/generate
+SSN_LOCAL_MODEL_ID=<configured-model-id>   # required — no default operational ID
+# Optional:
+SSN_LOCAL_MODEL_ALLOW_REMOTE=1   # required for non-loopback endpoints
+SSN_LOCAL_MODEL_TIMEOUT_S=20
+SSN_LOCAL_MODEL_MAX_RESPONSE_BYTES=1048576
+```
+
+Security defaults (final gate):
+
+- Loopback-only endpoints unless `SSN_LOCAL_MODEL_ALLOW_REMOTE=1`
+- Embedded credentials, URL fragments, and HTTP redirects are rejected
+- Full `ModelRequest` sanitization at the provider boundary (context, system,
+  messages, metadata, tool definitions); exact configured secrets replaced
+- Tool calls remain proposals (never executed by the provider)
+- Unverified capability claims stay conservative (no tools/structured/context
+  window invention until an explicit `capabilities` object is recorded with
+  `capability_verification_status=verified`)
+- Artefact verification (`artifact_verification_status`) is separate from
+  behavioural capability verification
+- Synchronous urllib does not support mid-request cancellation; cancel tokens
+  are checked before network start only
+- Response parsing bounds text, tool proposals, confidence, and usage fields
+- Evaluation reports are redacted before write
+
+Transport mapping is isolated in `LocalHttpTransport` so future Ollama /
+llama.cpp adapters can be added without rewriting `ModelGateway`.
+
+Model registry / provenance: see `ssn.cognition.model_gateway.registry`.
+CI uses clearly labelled **mock** registry fixtures only. No real open-weight
+entry is registered until Phase 3B verification. Loading is transactional.
+
+## Runtime data isolation
+
+Tests use **per-test** temporary directories via `IsolatedTextTestRunner`.
+Smoke scripts may use one process-level `SSN_RUNTIME_DATA_DIR`.
+`cleanup_ensured_isolation()` only clears directories it owns.
+
+## Evaluation
+
+`scripts/run_eval.py --provider` runs declarative cases with hard child-process
+timeouts. Results are labelled mock/deterministic. No real model is evaluated.
+
 ## Legacy compatibility
 
 | Legacy | Adapter |
@@ -54,6 +104,7 @@ Env additions (optional):
 
 ```bash
 SSN_LLM_PROVIDER=deterministic   # or gateway
+SSN_MODEL_PROVIDER=local         # Phase 3A optional local path
 ```
 
 Default remains `dummy` so existing tests are unchanged.

@@ -10,7 +10,16 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 
-DEFAULT_WORLD_PATH = "ssn/data/world_model.json"
+DEFAULT_WORLD_PATH = "ssn/data/world_model.json"  # legacy string; prefer default_world_path()
+
+
+def _resolve_default_world_path() -> str:
+    try:
+        from ssn.runtime.paths import default_world_path
+
+        return default_world_path()
+    except Exception:
+        return DEFAULT_WORLD_PATH
 
 
 @dataclass
@@ -51,9 +60,9 @@ class WorldModel:
     MAX_ENTITIES = 500
     MAX_EVENTS = 2000
 
-    def __init__(self, path: str = DEFAULT_WORLD_PATH):
-        self.path = path
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+    def __init__(self, path: str | None = None):
+        self.path = path or _resolve_default_world_path()
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
 
         self._entities: Dict[str, WorldEntity] = {}
         self._events: List[WorldEvent] = []

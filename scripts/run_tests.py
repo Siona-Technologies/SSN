@@ -3,11 +3,12 @@
 CI-safe unittest runner for SIONA.
 
 Runs modules known to pass offline without import side-effects.
-Expand this list as test debt is cleared (see docs/SIONA_BUILD_PLAN.md).
+Each test receives a unique SSN_RUNTIME_DATA_DIR (per-test isolation).
 """
 
 from __future__ import annotations
 
+import atexit
 import os
 import sys
 import unittest
@@ -56,6 +57,12 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase2_integration_hardening",
     "ssn.tests.test_phase2_trace_isolation_shutdown",
     "ssn.tests.test_phase2_closeout_docs",
+    # Phase 3A local model / eval foundation
+    "ssn.tests.test_phase3a_runtime_data_isolation",
+    "ssn.tests.test_phase3a_local_provider",
+    "ssn.tests.test_phase3a_model_registry",
+    "ssn.tests.test_phase3a_provider_eval",
+    "ssn.tests.test_phase3a_security_gate",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",
@@ -67,12 +74,19 @@ CI_TEST_MODULES = [
 def main() -> int:
     os.environ.setdefault("SSN_OFFLINE", "1")
 
+    from ssn.runtime.paths import cleanup_ensured_isolation
+    from ssn.runtime.test_isolation import IsolatedTextTestRunner
+
+    # Do not allocate a suite-wide runtime dir — per-test isolation owns paths.
+    # Ownership-safe cleanup remains registered for smoke helpers that may set it.
+    atexit.register(cleanup_ensured_isolation)
+
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
     for mod in CI_TEST_MODULES:
         suite.addTests(loader.loadTestsFromName(mod))
 
-    runner = unittest.TextTestRunner(verbosity=2)
+    runner = IsolatedTextTestRunner(verbosity=2)
     result = runner.run(suite)
     return 0 if result.wasSuccessful() else 1
 

@@ -15,7 +15,12 @@ from ssn.runtime.frontdoor_context import normalize_session_id, _UNSAFE_FILENAME
 
 
 def _default_state_dir() -> str:
-    return os.getenv("SSN_STATE_DIR") or ".ssn_state"
+    try:
+        from ssn.runtime.paths import get_state_dir
+
+        return str(get_state_dir())
+    except Exception:
+        return os.getenv("SSN_STATE_DIR") or ".ssn_state"
 
 
 class SessionStore:

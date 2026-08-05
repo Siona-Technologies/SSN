@@ -223,5 +223,20 @@ def get_default_provider_from_env() -> LLMProvider:
         except Exception:
             return LocalDummyLLMProvider()
 
+    # Optional Phase 3A local open-weight path (also via SSN_MODEL_PROVIDER=local)
+    local_flag = (os.getenv("SSN_MODEL_PROVIDER") or "").strip().lower()
+    if name == "local" or local_flag in {"local", "local_open_weight", "open_weight"}:
+        try:
+            from ssn.cognition.model_gateway import ModelGateway, ModelGatewayAsLLMProvider
+            from ssn.cognition.model_gateway.deterministic import DeterministicModelProvider
+            from ssn.cognition.model_gateway.local_provider import LocalOpenWeightProvider
+
+            local = LocalOpenWeightProvider()
+            # Deterministic fallback remains available behind the local provider.
+            gateway = ModelGateway(providers=[local, DeterministicModelProvider()])
+            return ModelGatewayAsLLMProvider(gateway, name="ssn-gateway-local-open-weight-v1")
+        except Exception:
+            return LocalDummyLLMProvider()
+
     # Fallback / default: local dummy implementation
     return LocalDummyLLMProvider()

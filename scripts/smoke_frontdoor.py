@@ -70,6 +70,17 @@ def _assert_no_secret_value_leak(obj: Any, *, mk: str | None) -> None:
 
 
 def main() -> None:
+    os.environ.setdefault("SSN_OFFLINE", "1")
+    from ssn.runtime.paths import cleanup_ensured_isolation, ensure_isolated_for_tests
+
+    ensure_isolated_for_tests()
+    try:
+        _main_body()
+    finally:
+        cleanup_ensured_isolation()
+
+
+def _main_body() -> None:
     mk = os.getenv("SSN_MASTER_KEY")  # set env for OWNER tests
 
     rt = SSNRuntimeBuilder.build_default(default_role="GUEST", output_mode="full")

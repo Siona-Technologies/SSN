@@ -48,6 +48,14 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase38_fusion_stabilizer",
     "ssn.tests.test_phase38_fusion_stabilizer_no_drift_regression",
     "ssn.tests.test_phase39_mode_damper",
+    # Cognitive runtime foundation (Phase 1 neuromorphic architecture)
+    "ssn.tests.test_cognitive_runtime_v1",
+    "ssn.tests.test_cognitive_runtime_hardening",
+    # Phase 2 runtime integration
+    "ssn.tests.test_phase2_runtime_integration",
+    "ssn.tests.test_phase2_integration_hardening",
+    "ssn.tests.test_phase2_trace_isolation_shutdown",
+    "ssn.tests.test_phase2_closeout_docs",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

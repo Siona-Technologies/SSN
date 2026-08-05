@@ -437,6 +437,43 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
         approved=True,
     )
 
+    try:
+        integration = depsd.get("integration")
+        if integration is not None:
+            from ssn.integration.trace_context import TraceContext
+            from ssn.integration.runtime_modes import get_runtime_mode
+            import uuid as _uuid
+
+            if get_runtime_mode().value != "legacy":
+                # Derive from this InterfaceRequest only — never shared deps trace state.
+                tr = TraceContext.extract_or_create(
+                    context=req.context if isinstance(getattr(req, "context", None), dict) else {},
+                    meta=req.meta if isinstance(getattr(req, "meta", None), dict) else {},
+                    deps=depsd,
+                    role="OWNER",
+                    source="run_tool",
+                    runtime_mode=get_runtime_mode().value,
+                )
+                # Strip master_key from observed args
+                safe_args = {
+                    k: v
+                    for k, v in args.items()
+                    if "key" not in str(k).lower() and "secret" not in str(k).lower()
+                }
+                integration.observe_tool_execution(
+                    tool_name=tool_name,
+                    args=safe_args,
+                    execution_id=str(_uuid.uuid4()),
+                    ok=bool(result.ok),
+                    result_summary={
+                        "ok": bool(result.ok),
+                        "error": result.error if not result.ok else None,
+                    },
+                    trace=tr,
+                )
+    except Exception:
+        pass
+
     return InterfaceResponse(
         ok=bool(result.ok),
         action="run_tool",

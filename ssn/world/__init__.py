@@ -5,7 +5,7 @@ SSN World Model (Phase 5.5)
 Maintains SSN's internal belief state ("what is happening") in a bounded,
 time-aware, confidence-driven representation.
 
-This is the foundation for Jarvis-like situation awareness:
+This is the foundation for situation awareness used by future assistant embodiments:
 - entities (people/objects/zones)
 - events (motion, presence, alerts)
 - decay/TTL to keep state fresh and bounded

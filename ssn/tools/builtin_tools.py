@@ -451,7 +451,7 @@ def register_builtin_tools(reg: ToolRegistry) -> None:
     )
 
     # =========================================================
-    # System & time helpers (lightweight Jarvis utils)
+    # System & time helpers (lightweight assistant utilities)
     # =========================================================
     def system_time_now(deps: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
         import datetime

@@ -29,6 +29,38 @@ class SSNRuntime:
     world_context_provider: Any = None
     perception_hub: Any = None
     tool_registry: Any = None
+    # Phase-1 cognitive foundation (additive; does not replace Orchestrator)
+    cognitive_runtime: Any = None
+    # Phase-2 integration facade (observation / experimental)
+    integration: Any = None
+
+    async def shutdown(self, *, timeout_s: float = 5.0) -> None:
+        """Drain/cancel pending observation tasks on teardown."""
+        integ = self.integration
+        if integ is not None:
+            fn = getattr(integ, "shutdown", None)
+            if callable(fn):
+                await fn(timeout_s=timeout_s)
+
+    def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+        """
+        Sync teardown for callers without a running event loop.
+        Inside a running loop, raises — use ``await runtime.shutdown()``.
+        """
+        import asyncio
+
+        from ssn.integration.event_bridge import EventBridgeShutdownInAsyncContextError
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None and loop.is_running():
+            raise EventBridgeShutdownInAsyncContextError(
+                "shutdown_sync() cannot be called inside a running event loop; "
+                "use await runtime.shutdown()"
+            )
+        asyncio.run(self.shutdown(timeout_s=timeout_s))
 
 
 class _DummyPerceptionHub:
@@ -352,6 +384,49 @@ class SSNRuntimeBuilder:
             # - FrontDoor/CLI can set deps["offline"]=True and tools will honor it
             deps.setdefault("offline", False)
 
+        # Additive cognitive foundation (event bus / workspace / gateways).
+        # Does not replace Orchestrator, BrainRouter, policy, or owner-control paths.
+        cognitive_runtime = None
+        integration = None
+        try:
+            from ssn.cognition.loop import CognitiveRuntime  # type: ignore
+            from ssn.cognition.model_gateway import ModelGateway  # type: ignore
+            from ssn.integration.facade import IntegrationFacade  # type: ignore
+            from ssn.integration.runtime_modes import get_runtime_mode  # type: ignore
+
+            # Reuse a single model gateway instance for the cognitive path.
+            shared_gateway = ModelGateway.for_tests()
+            cognitive_runtime = CognitiveRuntime.create(
+                memory_hub=self.memory_hub,
+                world_model=self.world_model,
+                model_gateway=shared_gateway,
+            )
+            # Ensure memory/world boundaries point at orchestrator-owned backends.
+            cognitive_runtime.memory._hub = self.memory_hub
+            cognitive_runtime.world._world = self.world_model
+
+            integration = IntegrationFacade.create(
+                cognitive_runtime=cognitive_runtime,
+                orchestrator=self.orchestrator,
+                mode=get_runtime_mode().value,
+            )
+            _safe_setattr(self.orchestrator, "cognitive_runtime", cognitive_runtime)
+            _safe_setattr(self.orchestrator, "integration", integration)
+
+            # Canonical routing.selected is emitted once from
+            # IntegrationFacade.observe_authoritative_chat (same Front Door TraceContext).
+            # Do not attach BrainRouter.integration_observer — that duplicated events
+            # with a fresh unrelated trace_id.
+
+            if isinstance(deps, dict):
+                deps["cognitive_runtime"] = cognitive_runtime
+                deps["integration"] = integration
+                deps["cognitive_mode"] = integration.mode.value
+                deps["model_gateway"] = shared_gateway
+        except Exception:
+            cognitive_runtime = None
+            integration = None
+
         shell = AgentShell(gateway=gateway, default_role=self.default_role)
 
         return SSNRuntime(
@@ -368,4 +443,6 @@ class SSNRuntimeBuilder:
             world_context_provider=self.world_context_provider,
             perception_hub=self.perception_hub,
             tool_registry=self.tool_registry,
+            cognitive_runtime=cognitive_runtime,
+            integration=integration,
         )

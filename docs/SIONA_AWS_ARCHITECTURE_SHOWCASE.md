@@ -23,7 +23,7 @@
 | Dependency on single vendor APIs | **Pluggable LLM providers** (local HTTP, future custom weights); brain code stays stable |
 | Regional AI sovereignty | **Owner law** (Samson home law) + local-first design; tunable to local language, law, and systems |
 
-**One-liner:** *SIONA is a safe, owner-controlled Jarvis-class brain that turns your data, tools, and sensors into a single intelligent assistant you actually control.*
+**One-liner:** *SIONA is a safe, owner-controlled hybrid brain that turns your data, tools, and sensors into a single intelligent assistant you actually control.*
 
 ---
 
@@ -53,7 +53,7 @@
 |------------|--------|
 | Production GPU LLM (real model server) | Architecture ready; wire `SSN_LLM_PROVIDER=http` to Ollama/vLLM |
 | Always-on systemd service | ✅ `deploy/siona.service` + install guide |
-| Voice Jarvis (STT/TTS + hotword) | Phase 4 skeleton; optional deps for mic/speaker |
+| Voice assistant path (STT/TTS + hotword) | Phase 4 skeleton; optional deps for mic/speaker |
 | Face recognition / vision intelligence | Perception pipeline ready; models not wired |
 | Multi-tenant cloud scale | Law paths + tenant state dirs; AWS deployment guide in this doc |
 | Web/dashboard UI | HTTP Front Door live; dashboard UI future |
@@ -166,7 +166,7 @@ SIONA is designed as a **deployable cognitive runtime**, not a desktop-only scri
 | Network | VPC, private subnets, security groups |
 | Observability | CloudWatch logs/metrics; **structured JSON** HTTP audit/access logs (`SSN_STRUCTURED_LOG=1`) |
 
-**Local-first by design; cloud-ready by architecture.** The same codebase can run on a Jarvis workstation or scale on AWS when elastic GPU and multi-tenant isolation are required.
+**Local-first by design; cloud-ready by architecture.** The same codebase can run on a future user-facing assistant workstation or scale on AWS when elastic GPU and multi-tenant isolation are required.
 
 ---
 
@@ -178,7 +178,7 @@ SIONA is designed as a **deployable cognitive runtime**, not a desktop-only scri
 2. ~~Expose **HTTP Front Door** (stateless) with session backing store.~~ ✅ Done (Phase 2).
 3. CI: deterministic offline test suite (`SSN_OFFLINE=1`). ✅ Done.
 
-### Phase B — Jarvis workstation
+### Phase B — Assistant workstation
 
 4. ~~**Ubuntu LTS** dedicated machine; systemd always-on service.~~ ✅ Unit + docs (Phase 6).
 5. **Sleep/wake** modes (service runs; interaction gated by owner command).
@@ -197,7 +197,7 @@ SIONA is designed as a **deployable cognitive runtime**, not a desktop-only scri
 We are seeking guidance on:
 
 1. **Recommended GPU inference pattern** for always-on vs bursty workloads (EC2 vs SageMaker vs EKS + GPU node groups).
-2. **Cost model** for a small always-on Jarvis instance vs scale-to-zero API.
+2. **Cost model** for a small always-on assistant instance vs scale-to-zero API.
 3. **Security checklist** for OWNER keys, audit logs, tool side-effects, and VPC isolation.
 4. **Multi-tenant readiness** without rewriting the brain (namespaces, per-tenant state, shared knowledge promotion gates).
 
@@ -215,13 +215,13 @@ A: Provider abstraction allows Bedrock as one backend later; priority is owner-c
 A: Law-bound OWNER control, explicit memory/knowledge writes, world model, full tool trace, and hybrid cognition (LLM + SNN + fusion modes)—not single-shot Q&A.
 
 **Q: Hardware requirement?**  
-A: Runs on a developer laptop today (dummy LLM). Jarvis-class experience requires GPU (local desktop or AWS).
+A: Runs on a developer laptop today (dummy LLM). A full future user-facing assistant experience requires GPU (local desktop or AWS).
 
 ---
 
 ## 10. Closing statement
 
-> We have built the **brain’s skeleton and nervous system**. The next step is plugging in a **real GPU mind** and **voice/UI** so SIONA can run always-on as Jarvis—on a dedicated Ubuntu workstation or on AWS—with full owner control, auditability, and a path to African AI sovereignty.
+> We have built the **brain’s skeleton and nervous system**. The next step is plugging in a **real GPU mind** and **voice/UI** so SIONA can run always-on as a future user-facing assistant embodiment—on a dedicated Ubuntu workstation or on AWS—with full owner control, auditability, and a path to African AI sovereignty.
 
 ---
 

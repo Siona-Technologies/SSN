@@ -195,8 +195,13 @@ def get_default_provider_from_env() -> LLMProvider:
       - SSN_LLM_PROVIDER:
           "dummy"  (default)  -> LocalDummyLLMProvider
           "http"             -> HttpLLMProvider (stub, local/remote URL)
+          "deterministic"    -> ModelGateway deterministic provider (via adapter)
+          "gateway"          -> same as deterministic (explicit gateway path)
       - SSN_LLM_ENDPOINT:
           base URL for HttpLLMProvider (e.g., http://localhost:8000/generate)
+
+    Default remains LocalDummyLLMProvider so existing tests and offline
+    behaviour are unchanged. The model gateway is additive.
     """
 
     name = (os.getenv("SSN_LLM_PROVIDER") or "dummy").strip().lower()
@@ -204,6 +209,19 @@ def get_default_provider_from_env() -> LLMProvider:
     if name == "http":
         return HttpLLMProvider()
 
+    if name in ("deterministic", "gateway"):
+        # Lazy import to avoid circular deps and keep dummy path light.
+        try:
+            from ssn.cognition.model_gateway import (
+                DeterministicModelProvider,
+                ModelGateway,
+                ModelGatewayAsLLMProvider,
+            )
+
+            gateway = ModelGateway(providers=[DeterministicModelProvider()])
+            return ModelGatewayAsLLMProvider(gateway, name="ssn-gateway-deterministic-v1")
+        except Exception:
+            return LocalDummyLLMProvider()
+
     # Fallback / default: local dummy implementation
     return LocalDummyLLMProvider()
-

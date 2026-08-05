@@ -319,4 +319,8 @@ class IntegrationFacade:
         await self.events.shutdown(timeout_s=timeout_s)
 
     def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+        """
+        Sync teardown for callers without a running event loop.
+        Inside a running loop, raises — use ``await facade.shutdown()``.
+        """
         self.events.shutdown_sync(timeout_s=timeout_s)

@@ -445,10 +445,10 @@ def handle_run_tool(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
             import uuid as _uuid
 
             if get_runtime_mode().value != "legacy":
-                # Reuse inbound TraceContext when present; role is the path already
-                # authorized above (OWNER) — do not invent OWNER for observation alone.
+                # Derive from this InterfaceRequest only — never shared deps trace state.
                 tr = TraceContext.extract_or_create(
                     context=req.context if isinstance(getattr(req, "context", None), dict) else {},
+                    meta=req.meta if isinstance(getattr(req, "meta", None), dict) else {},
                     deps=depsd,
                     role="OWNER",
                     source="run_tool",

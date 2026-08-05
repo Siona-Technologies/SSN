@@ -34,13 +34,33 @@ class SSNRuntime:
     # Phase-2 integration facade (observation / experimental)
     integration: Any = None
 
-    def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+    async def shutdown(self, *, timeout_s: float = 5.0) -> None:
         """Drain/cancel pending observation tasks on teardown."""
         integ = self.integration
         if integ is not None:
-            fn = getattr(integ, "shutdown_sync", None)
+            fn = getattr(integ, "shutdown", None)
             if callable(fn):
-                fn(timeout_s=timeout_s)
+                await fn(timeout_s=timeout_s)
+
+    def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+        """
+        Sync teardown for callers without a running event loop.
+        Inside a running loop, raises — use ``await runtime.shutdown()``.
+        """
+        import asyncio
+
+        from ssn.integration.event_bridge import EventBridgeShutdownInAsyncContextError
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None and loop.is_running():
+            raise EventBridgeShutdownInAsyncContextError(
+                "shutdown_sync() cannot be called inside a running event loop; "
+                "use await runtime.shutdown()"
+            )
+        asyncio.run(self.shutdown(timeout_s=timeout_s))
 
 
 class _DummyPerceptionHub:

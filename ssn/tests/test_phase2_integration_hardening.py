@@ -157,16 +157,7 @@ class TestTraceContinuity(unittest.TestCase):
             seen, unsub = _collect_events(rt.cognitive_runtime.bus)
             try:
                 tid = "tool-trace-001"
-                tr = TraceContext(
-                    trace_id=tid,
-                    correlation_id=tid,
-                    tenant_id="ten-tool",
-                    session_id="sess-tool",
-                    role="GUEST",
-                    runtime_mode="shadow",
-                    source="test",
-                )
-                rt.gateway.deps["trace_context"] = tr
+                # Explicit request context only — never plant shared deps["trace_context"]
                 with mock.patch(
                     "ssn.interfaces.handlers_tools.verify_owner",
                     return_value={
@@ -392,14 +383,14 @@ class TestProductScopeDocs(unittest.TestCase):
             ROOT / "docs" / "TECHNICAL_DEBT_REGISTER.md",
             ROOT / "docs" / "EXPERIMENT_LOG.md",
         ]
-        pattern = re.compile(r"\b(Pulse|Weza AI|Weza)\b", re.IGNORECASE)
+        pattern = re.compile(r"\b(Pulse|Weza AI|Weza|Jarvis)\b", re.IGNORECASE)
         for path in docs:
             if not path.exists():
                 continue
             text = path.read_text(encoding="utf-8")
             self.assertIsNone(
                 pattern.search(text),
-                f"Found Pulse/Weza reference in {path}",
+                f"Found Pulse/Weza/Jarvis reference in {path}",
             )
 
 

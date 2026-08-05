@@ -3,9 +3,13 @@
 SIONA is the core intelligence platform of SIONA Technologies.
 
 It is not merely a chatbot. It is intended to become a persistent, multimodal,
-hybrid neuromorphic intelligence that can operate as a private Jarvis-style
-assistant and later inhabit IoT environments, vehicles, robots, drones, and
-humanoid embodiments.
+hybrid neuromorphic intelligence that can operate as a private
+future user-facing assistant embodiment and later inhabit IoT environments,
+vehicles, robots, drones, and humanoid embodiments.
+
+The current working name for the future assistant embodiment is SIBONA. SIBONA
+is not part of the Phase 2 runtime and does not yet introduce a separate product
+dependency.
 
 ## Product relationship
 
@@ -20,7 +24,7 @@ future business and architectural decision and is outside the present scope.
 
 ## Deployment models
 
-### Jarvis (personal assistant)
+### Future user-facing assistant embodiment
 
 Local-first runtime on a trusted computer or home hub:
 

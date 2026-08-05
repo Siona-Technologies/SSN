@@ -868,9 +868,7 @@ def _phase2_attach(
         source="front_door",
         runtime_mode=mode.value,
     )
-    # Propagate for child interface handlers on this request.
-    if isinstance(deps, dict):
-        deps["trace_context"] = trace
+    # Propagate onto the per-request context only — never shared runtime deps.
     if isinstance(ctx, dict):
         ctx["trace_id"] = trace.trace_id
         ctx["correlation_id"] = trace.correlation_id

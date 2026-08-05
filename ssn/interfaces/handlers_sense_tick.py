@@ -254,9 +254,10 @@ def handle_sense_tick(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
 
             mode = get_runtime_mode()
             if mode.value != "legacy":
-                # Reuse inbound TraceContext; role comes from authorization above.
+                # Derive from this InterfaceRequest only — never shared deps trace state.
                 tr = TraceContext.extract_or_create(
                     context=req.context if isinstance(req.context, dict) else {},
+                    meta=req.meta if isinstance(getattr(req, "meta", None), dict) else {},
                     deps=depsd,
                     role=resp_role,
                     source="sense_tick",

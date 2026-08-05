@@ -6,13 +6,14 @@ Async safety:
 - emit_sync uses asyncio.run when no loop is running.
 - When a loop is already running, emission is tracked in a bounded pending-task
   registry (not fire-and-forget). Call drain()/shutdown() on teardown.
+- shutdown_sync() raises if called inside a running event loop — use await shutdown().
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, Optional, Set
 
 from ssn.cognition.event_bus import AsyncEventBus
 from ssn.cognition.events import CognitiveEvent, EventPriority
@@ -24,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 class EventBridgeSyncInAsyncContextError(RuntimeError):
     """Raised when emit_sync cannot safely schedule work (registry full)."""
+
+
+class EventBridgeShutdownInAsyncContextError(RuntimeError):
+    """Raised when shutdown_sync is called inside a running event loop."""
 
 
 class EventBridge:
@@ -47,7 +52,6 @@ class EventBridge:
 
     @property
     def pending_task_count(self) -> int:
-        # Drop finished tasks opportunistically
         self._pending = {t for t in self._pending if not t.done()}
         return len(self._pending)
 
@@ -104,7 +108,15 @@ class EventBridge:
         else:
             self._record_success(event_type)
 
-    def _schedule_tracked(self, coro: Any, event_type: str) -> asyncio.Task[Any]:
+    def _schedule_tracked(
+        self,
+        coro_factory: Callable[[], Awaitable[Any]],
+        event_type: str,
+    ) -> asyncio.Task[Any]:
+        """
+        Admit then construct the coroutine — avoids unawaited-coroutine leaks
+        when the pending registry is full.
+        """
         if self._closed:
             raise RuntimeError("event bridge is shut down")
         if self.pending_task_count >= self.max_pending_tasks:
@@ -112,6 +124,7 @@ class EventBridge:
                 f"pending observation task registry full ({self.max_pending_tasks}); "
                 "await EventBridge.drain() or use emit_async with backpressure"
             )
+        coro = coro_factory()
         task = asyncio.create_task(coro, name=f"siona-obs-{event_type}")
         self._pending.add(task)
         task.add_done_callback(lambda t: self._on_task_done(t, event_type))
@@ -154,8 +167,10 @@ class EventBridge:
                 loop = None
 
             if loop is not None and loop.is_running():
-                self._schedule_tracked(self.bus.dispatch_inline(event), event_type)
-                # Success counted in done callback after dispatch completes.
+                self._schedule_tracked(
+                    lambda: self.bus.dispatch_inline(event),
+                    event_type,
+                )
                 return event
 
             asyncio.run(self.bus.dispatch_inline(event))
@@ -197,12 +212,20 @@ class EventBridge:
             return None
 
     async def drain(self, *, timeout_s: float = 5.0) -> None:
-        """Await pending observation tasks (or cancel on timeout)."""
-        pending = [t for t in list(self._pending) if not t.done()]
+        """Await pending observation tasks (or cancel on timeout). Never waits on self."""
+        try:
+            current = asyncio.current_task()
+        except RuntimeError:
+            current = None
+        pending = [
+            t
+            for t in list(self._pending)
+            if not t.done() and t is not current
+        ]
         if not pending:
-            self._pending.clear()
+            self._pending = {t for t in self._pending if not t.done()}
             return
-        done, still = await asyncio.wait(pending, timeout=timeout_s)
+        _done, still = await asyncio.wait(pending, timeout=timeout_s)
         for t in still:
             t.cancel()
         if still:
@@ -215,13 +238,19 @@ class EventBridge:
         self._closed = True
 
     def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
-        """Sync wrapper for CLI/runtime teardown."""
+        """
+        Sync wrapper for callers without a running event loop.
+
+        Raises if invoked inside a running loop — use ``await shutdown()`` instead.
+        Never schedules shutdown through the pending-task registry.
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
         if loop is not None and loop.is_running():
-            # Schedule drain; caller in async context should await shutdown().
-            self._schedule_tracked(self.shutdown(timeout_s=timeout_s), "shutdown")
-            return
+            raise EventBridgeShutdownInAsyncContextError(
+                "shutdown_sync() cannot be called inside a running event loop; "
+                "use await EventBridge.shutdown() / await runtime.shutdown()"
+            )
         asyncio.run(self.shutdown(timeout_s=timeout_s))

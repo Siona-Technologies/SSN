@@ -3,7 +3,10 @@
 **Working title:** SIONA Local Model and Evaluation Layer  
 **Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline installed and artifact-verified locally with limited loopback probe  
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
-**Phase 3B:** in progress — baseline installed/verified locally; limited loopback inference completed; provider integration and full evaluation pending  
+**Phase 3B:** in progress — baseline installed/verified locally; limited loopback
+inference completed; `openai_chat` transport dialect implemented with
+deterministic mock tests; real-runtime activation, registry and full evaluation
+pending  
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate

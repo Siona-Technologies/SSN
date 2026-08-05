@@ -93,9 +93,21 @@ class ModelGatewayAsLLMProvider:
     so LanguageEngine.process(...) keeps working unchanged.
     """
 
-    def __init__(self, provider: Any, *, name: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        provider: Any,
+        *,
+        name: Optional[str] = None,
+        default_timeout_s: Optional[float] = None,
+    ) -> None:
         self._provider = provider
         self.name = name or getattr(provider, "name", "model-gateway-llm-adapter")
+        if default_timeout_s is None:
+            self._default_timeout_s = None
+        else:
+            from ssn.cognition.model_gateway.local_provider import normalize_gateway_timeout
+
+            self._default_timeout_s = normalize_gateway_timeout(default_timeout_s)
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         model_req = ModelRequest.from_prompt(
@@ -103,6 +115,9 @@ class ModelGatewayAsLLMProvider:
             role=request.role or "GUEST",
             context=request.context,
         )
+        if self._default_timeout_s is not None:
+            # Keep gateway outer bound slightly above HTTP transport timeout.
+            model_req.timeout_s = max(0.2, float(self._default_timeout_s))
         # Prefer gateway.complete if available (fallback chain)
         if hasattr(self._provider, "complete"):
             resp: ModelResponse = self._provider.complete(model_req)

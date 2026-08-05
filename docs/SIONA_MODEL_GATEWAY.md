@@ -42,20 +42,37 @@ for direct callers.
 `DeterministicModelProvider` is **not** real intelligence. It produces stable
 hash-based replies for offline CI.
 
-## Optional local open-weight provider (Phase 3A)
+## Optional local open-weight provider (Phase 3A/3B)
 
 `LocalOpenWeightProvider` implements the same `ModelProvider` protocol. It is
 **disabled by default** and never downloads weights or launches a runtime.
 
 ```bash
 SSN_MODEL_PROVIDER=local
-SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:<port>/generate
+SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:<port>/generate   # siona_generate default
 SSN_LOCAL_MODEL_ID=<configured-model-id>   # required — no default operational ID
 # Optional:
-SSN_LOCAL_MODEL_ALLOW_REMOTE=1   # required for non-loopback endpoints
+SSN_LOCAL_MODEL_API_DIALECT=siona_generate   # or openai_chat (llama.cpp OpenAI-compatible)
+SSN_LOCAL_MODEL_VERIFY_MODEL_ID=0            # default: false for siona_generate, true for openai_chat
+SSN_LOCAL_MODEL_MAX_TOKENS_CAP=512           # default 512 for openai_chat; positive bounded int
+SSN_LOCAL_MODEL_ALLOW_REMOTE=1               # required for non-loopback endpoints
 SSN_LOCAL_MODEL_TIMEOUT_S=20
 SSN_LOCAL_MODEL_MAX_RESPONSE_BYTES=1048576
 ```
+
+### API dialects
+
+- `siona_generate` (default): Phase 3A mock contract — `POST …/generate` with
+  `{text: …}` responses. Preserves existing deterministic CI behaviour.
+- `openai_chat`: llama.cpp / OpenAI-compatible mapping — accepts base
+  `http://127.0.0.1:8080` or exact `…/v1/chat/completions`; derives `/health`
+  and `/v1/models`; posts OpenAI chat payloads with `stream:false`; extracts
+  `choices[0].message.content`. Ambiguous paths fail closed. Default model-ID
+  verification uses `/v1/models`. Default max-tokens cap is 512.
+
+Health is fail-closed: success only when `ok` is boolean `true` or `status` is
+exactly `"ok"`. LanguageEngine local opt-in sets ModelGateway request timeout to
+transport timeout + 1 second so HTTP can terminate first.
 
 Security defaults (final gate):
 

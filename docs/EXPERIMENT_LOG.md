@@ -248,3 +248,45 @@ Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       reports directory; not committed)
 Reproduction command: n/a (manual local operator procedure; not CI)
 ```
+
+### EXP-3B-004 — llama.cpp OpenAI-compatible transport implementation
+
+```text
+Experiment ID: EXP-3B-004
+Date: 2026-08-05
+Git commit: (Phase 3B provider-integration branch tip)
+Runtime mode: implementation and deterministic mock validation only
+Dataset: Phase 3B openai_chat mock HTTP suite + existing Phase 3A provider tests
+Model/provider: LocalOpenWeightProvider openai_chat dialect (mock OpenAI server only)
+Neuromorphic backend: n/a
+Hardware: n/a for this implementation gate (no real runtime exercised)
+Configuration:
+  default dialect: siona_generate
+  opt-in dialect: openai_chat via SSN_LOCAL_MODEL_API_DIALECT
+  no SSN_MODEL_PROVIDER activation required for unit tests
+  no real endpoint contacted; ephemeral loopback mock servers only
+Metrics: unittest pass/fail only (no token/s claims)
+Result: IMPLEMENTED AND TESTED AGAINST DETERMINISTIC MOCKS;
+        REAL-RUNTIME PROVIDER VALIDATION PENDING
+Evidence covered by mocks:
+  OpenAI request/response mapping
+  exact model-ID verification
+  fail-closed health (ok is True or status == "ok")
+  timeout hard bounds and gateway margin
+  output / temperature / port / model-id bounds
+  deterministic fallback retained on transport failure
+Outstanding: real-runtime activation against stopped llama.cpp baseline;
+             registry activation; governed real-model evaluation;
+             capability approval; ADR acceptance
+Limitations: no real runtime started; no GGUF loaded; no real inference;
+             registry inactive; capabilities unverified;
+             ADR 0003 remains Proposed; Phase 3B remains in progress;
+             Phase 4 not started; CI remains model-free
+Artifact references: docs/SIONA_MODEL_GATEWAY.md,
+                      docs/PHASE_STATUS.md,
+                      docs/PHASE_3_ENGINEERING_SPEC.md,
+                      docs/adr/0003-first-local-model-strategy.md,
+                      ssn/cognition/model_gateway/local_provider.py,
+                      ssn/tests/test_phase3b_openai_chat_transport.py
+Reproduction command: SSN_OFFLINE=1 python scripts/run_tests.py
+```

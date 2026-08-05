@@ -174,3 +174,74 @@ Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       docs/PHASE_3_ENGINEERING_SPEC.md
 Reproduction command: n/a (documentation/governance entry)
 ```
+
+### EXP-3B-003 — First real local-model loopback baseline
+
+```text
+Experiment ID: EXP-3B-003
+Date: 2026-08-05
+Git commit: (Phase 3B evidence branch tip)
+Runtime mode: local operator evidence — llama.cpp loopback only
+Dataset: n/a (manual short probes only)
+Model/provider: Qwen3-1.7B-Q4_K_M.gguf via llama-server; SIONA provider NOT wired
+Neuromorphic backend: n/a
+Hardware: i7-1165G7 / Iris Xe / ~16 GiB / no CUDA (CPU-only baseline)
+Configuration:
+  runtime: llama.cpp b9968 / commit 1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f
+  archive: llama-b9968-bin-win-cpu-x64.zip (18211732 bytes)
+  archive SHA256: f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd (MATCH)
+  model: Qwen3-1.7B-Q4_K_M.gguf (1282439264 bytes)
+  model SHA256: d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5 (MATCH)
+  host: 127.0.0.1
+  port: 8080
+  context: 4096
+  maximum prediction/output setting: 512
+  GPU layers: 0
+  CPU threads: 4
+  reasoning mode: off
+  no remote bind; no tool activation; no service/auto-start
+Observed process:
+  PID during run: 7256
+  working set during run: approximately 2349314048 bytes / 2.19 GiB
+Transport probes:
+  GET /health: HTTP 200
+  GET /v1/models: HTTP 200
+  basic chat: HTTP 200; returned "Local loopback inference is working."
+  arithmetic probe: HTTP 200; response "4"
+  (Do not imply general reasoning quality from one arithmetic response.)
+Metrics (LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM):
+  approximately 107 prompt tokens/s
+  approximately 20 generated tokens/s
+  arithmetic probe approximately 0.30 seconds
+Shutdown:
+  timestamp: 2026-08-05 20:44:44 +03:00
+  pre-shutdown PID: 7256
+  pre-shutdown working set: 2349314048 bytes
+  bind: 127.0.0.1:8080 only
+  CloseMainWindow: returned false
+  final shutdown method: Stop-Process without -Force
+  application-level graceful shutdown: not verified
+  normal non-force termination: succeeded
+  The first baseline verified normal non-force process termination. It did not
+  verify a llama.cpp application-level graceful-shutdown endpoint or protocol.
+  final llama-server/llama-cli process count: 0
+  final port 8080 state: not listening
+  post-shutdown runtime archive hash: MATCH
+  post-shutdown model hash: MATCH
+Result: installed + artifact-verified + limited loopback smoke completed;
+        runtime currently stopped; provider integration pending
+Outstanding: SIONA provider integration; registry activation; security /
+             structured-output / timeout / streaming / behavioral evaluation;
+             capability approval; ADR acceptance
+Limitations: capabilities unverified beyond basic transport/inference;
+             ADR 0003 remains Proposed; Phase 3B remains in progress;
+             Phase 4 not started; CI remains model-free
+Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
+                      docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
+                      docs/adr/0003-first-local-model-strategy.md,
+                      docs/PHASE_STATUS.md,
+                      docs/PHASE_3_ENGINEERING_SPEC.md
+                      (raw local evidence retained outside Git under operator
+                      reports directory; not committed)
+Reproduction command: n/a (manual local operator procedure; not CI)
+```

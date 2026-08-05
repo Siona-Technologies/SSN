@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — first runtime/model baseline owner-approved for pre-installation verification; installation and download remain unauthorized** |
+| Phase 3B | **In progress — first runtime/model baseline installed and artifact-verified locally; limited loopback inference completed; provider integration and full evaluation pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -69,35 +69,48 @@ The optional local provider is **not** production-security certified.
 
 ## Phase 3B status (in progress)
 
-Phase 3B remains **in progress**. The first runtime/model baseline is
-owner-approved for **pre-installation verification only**. This does **not**
-authorize installation, download, execution or capability approval.
+Phase 3B remains **in progress**. The first runtime/model baseline has been
+**installed and artifact-verified locally**, with a **limited loopback
+inference** probe completed and the runtime **stopped**. SIONA provider
+integration and full evaluation remain pending. Capability approval and ADR
+acceptance are **not** issued.
 
-Recorded:
+### Completed (local operator evidence, 2026-08-05)
 
-- Current hardware inventory completed
-- Storage readiness gate passed at **41.86 GiB** free
-- Official-source runtime/model research matrix completed with full field
-  coverage and pinned revisions (2026-08-05)
-- Source traceability appendix recorded
-- Owner-approved first baseline recorded:
-  - Runtime family: llama.cpp b9968 Windows x64 CPU-only
-  - Runtime source pinned: `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`
-  - Model artifact: `Qwen3-1.7B-Q4_K_M.gguf`
-  - Model repo/revision pinned: `ggml-org/Qwen3-1.7B-GGUF` @
-    `daeb8e2d528a760970442092f6bf1e55c3b659eb`
-  - Expected model digest pinned:
-    `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`
-- Runtime SHA verification **pending**
-- Read-only pre-install checklist **pending**
-- Runtime installation **not authorized**
-- Model download **not authorized**
-- Runtime not installed
-- Model not downloaded
-- Weights not downloaded
-- Runtime not executed
-- Real-model benchmark not started
-- Capabilities **unverified**
+- Owner baseline selection
+- Read-only pre-install checks
+- Runtime download and portable extraction (`llama.cpp` b9968)
+- Runtime archive local SHA256 verification (**MATCH**, 18211732 bytes,
+  `f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd`)
+- Model download (`Qwen3-1.7B-Q4_K_M.gguf`)
+- Model SHA256 verification (**MATCH**, 1282439264 bytes,
+  `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`)
+- Licence-copy preservation (MIT beside runtime; Apache-2.0 beside model)
+- CPU-only loopback startup (`127.0.0.1:8080`, ctx 4096, threads 4, ngl 0)
+- Basic health/model/chat probes (HTTP 200)
+- Controlled normal non-force shutdown
+- Rollback-friendly portable layout (outside Git)
+
+### Still pending
+
+- SIONA provider integration
+- Model registry record/activation
+- Real-provider security tests
+- Timeout and cancellation evaluation against real runtime
+- Structured JSON evaluation
+- Streaming evaluation
+- Bounded-output verification
+- Adversarial prompt evaluation
+- Real-model production evaluation suite
+- Rollback test involving provider fallback
+- Capability approval
+- ADR 0003 acceptance
+
+### Current runtime state
+
+- Runtime currently **stopped**
+- Port 8080 currently **not listening**
+- Capabilities remain **unverified** beyond basic transport/inference
 - ADR 0003 remains **Proposed**
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
@@ -116,6 +129,6 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: complete read-only pre-install checks, then seek explicit owner
-authorization before any runtime install or weight download (still optional;
-CI remains deterministic). Phase 4 remains **not started**.
+Phase 3B: authorize SIONA provider integration and governed real-model
+evaluation when ready (still optional; CI remains deterministic and model-free).
+Phase 4 remains **not started**.

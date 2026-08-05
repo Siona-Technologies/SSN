@@ -1,14 +1,14 @@
 # Phase 3B — Model and Runtime Research
 
 **Status:** Official-source research matrix completed; first baseline is
-**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**.
+**INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED**.
 
 **Source-access date:** 2026-08-05  
 **Hardware baseline:** HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe; ~15.73 GiB RAM; no CUDA  
 
-**Non-authorization:** No runtime install, no model download, no weights
-download, no runtime execution, no capability approval, and no ADR acceptance
-are issued by this document.
+**Non-authorization:** No SIONA provider integration, model-registry activation,
+capability approval, ADR acceptance, or Phase 4 work is issued by this
+document. Additional inference campaigns require further owner authorization.
 
 ## Research status
 
@@ -17,20 +17,25 @@ are issued by this document.
 | Official-source runtime research | **Completed with full field coverage** (2026-08-05) |
 | Official-source model research | **Completed with full field coverage** (2026-08-05) |
 | Source revisions pinned | **Yes** (see Source traceability appendix) |
-| Owner-approved first baseline | **Recorded — pre-installation verification only** |
-| Runtime installation | **Not authorized** |
-| Model download | **Not authorized** |
-| Weights | **Not downloaded** |
-| Runtime execution | **Not authorized** |
-| Real-model benchmark | **Not started** |
-| Capabilities | **Unverified** |
+| Owner-approved first baseline | **Recorded** |
+| Runtime installation | **Completed locally (operator evidence)** |
+| Model download | **Completed locally (operator evidence)** |
+| Local SHA256 verification | **MATCH for runtime archive and model** |
+| Limited loopback execution | **Completed; runtime currently stopped** |
+| Real-model production evaluation | **Not started** |
+| SIONA provider integration | **Pending — not authorized by this update** |
+| Capabilities | **Unverified beyond basic transport/inference probe** |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
 
 ## Owner-approved first baseline
 
-**Status wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
+**Prior status wording (selection gate):** OWNER-APPROVED FOR PRE-INSTALLATION
+VERIFICATION ONLY
+
+**Current local-evidence wording:** INSTALLED AND ARTIFACT-VERIFIED LOCALLY;
+LIMITED LOOPBACK EXECUTION COMPLETED
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -49,6 +54,28 @@ are issued by this document.
 | Quantizer | ggml-org |
 | Model licence | Apache License 2.0 |
 | Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only |
+
+### Local operator evidence (2026-08-05)
+
+This subsection is **local operator evidence**, not a claim that GitHub
+independently verified installation.
+
+- Runtime archive `llama-b9968-bin-win-cpu-x64.zip`: 18211732 bytes; locally
+  calculated SHA256
+  `f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd` — **MATCH**
+- Portable extract to `C:\Users\njaji\SIONA\runtimes\llama.cpp\b9968` with
+  `llama-server.exe` / `llama-cli.exe` present; MIT licence copy preserved
+- Model `Qwen3-1.7B-Q4_K_M.gguf`: 1282439264 bytes; locally calculated SHA256
+  `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` — **MATCH**
+- Model directory `C:\Users\njaji\SIONA\models\Qwen3-1.7B-Q4_K_M`; Apache-2.0
+  licence copy preserved; quantizer remains **ggml-org**
+- CPU-only loopback run on `127.0.0.1:8080` loaded the model and generated text
+  for short probes; runtime is **currently stopped**; port 8080 not listening
+- Short probe is **insufficient** for broad behavioral or security capability
+  claims
+- SIONA provider integration has **not** started
+- The model remains external, optional and replaceable; **not** SIONA-native
+- No tool capability is approved; no production recommendation is issued
 
 Selection notes:
 
@@ -457,8 +484,9 @@ Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
 
 The owner has recorded this as the first baseline for
-**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**. Installation,
-download and execution remain unauthorized.
+**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**, and local operator
+evidence now shows install + limited loopback execution completed (runtime
+currently stopped). SIONA provider integration remains pending.
 
 Later experiment: **llama.cpp SYCL**. Convenience comparison: **Ollama**.
 Alternative research path: **OpenVINO GenAI**.

@@ -89,27 +89,41 @@ Clarifications:
 - No SIONA-native model claim is made.
 - Capability verification remains separate from artefact verification.
 - Failure of this baseline must not require a SIONA Core redesign.
-- Runtime installation, model download, runtime execution and capability
-  approval remain **unauthorized**.
+- SIONA provider integration, model-registry activation, capability approval and
+  ADR acceptance remain **outstanding**.
+
+## Local evidence (2026-08-05) — necessary but not sufficient
+
+Local operator evidence recorded outside Git (summarized in governed docs):
+
+- Artifact installation and checksum verification **passed** (runtime archive
+  and model SHA256 **MATCH**)
+- Portable CPU-only runtime loaded the selected model on loopback
+- Limited loopback probes **passed** (`/health`, `/v1/models`, basic chat,
+  arithmetic smoke)
+- Normal non-force process termination **passed**
+- Application-level graceful shutdown was **not** verified
+- Provider integration and governed evaluation remain **outstanding**
+
+These results are **necessary but not sufficient** for changing ADR status from
+**Proposed** to Accepted.
 
 ### Why ADR status remains Proposed
 
-- Runtime archive SHA256 and install path are not yet verified/approved
-- Read-only pre-install checklist is still pending
-- Loopback install, integration, security, rollback and real-model evaluation
-  have not run
-- ADR acceptance requires successful artefact verification, installation,
-  integration, security testing, rollback testing and real-model evaluation
+- SIONA provider integration is not wired to this baseline yet
+- Model registry activation has not occurred
+- Security, structured-output, timeout/cancellation, streaming and adversarial
+  evaluations against the real runtime are outstanding
+- Full rollback/fallback validation involving ModelGateway is outstanding
 - Deterministic CI must remain free of real-model dependencies
 - No change to owner-control / actuator authority semantics
 
 ### Conditions required before changing ADR status from Proposed
 
-1. Owner approves verified runtime artefact (version + SHA256 + install path)
-2. Owner approves verified model artefact (repo + filename + SHA256) after
-   download authorization
-3. Loopback-only install completes with checksum verification
-4. Provider tests and real-model evaluations are recorded honestly
+1. Owner-approved artifacts remain pinned and checksum-verified
+2. SIONA provider integration and registry activation complete under policy
+3. Provider tests and real-model evaluations are recorded honestly
+4. Security, structured-output, timeout/cancellation and streaming gates pass
 5. Deterministic CI remains free of real-model dependencies
 6. No change to owner-control / actuator authority semantics
 

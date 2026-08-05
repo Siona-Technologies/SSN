@@ -69,10 +69,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Completed and hosted-CI accepted", text)
         self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
         self.assertIn(
-            "first runtime/model baseline owner-approved for pre-installation verification; installation and download remain unauthorized",
+            "first runtime/model baseline installed and artifact-verified locally; limited loopback inference completed; provider integration and full evaluation pending",
             text,
         )
-        self.assertIn("not authorized", text.lower())
+        self.assertIn("provider integration", text.lower())
         self.assertIn("unverified", text.lower())
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
@@ -151,18 +151,21 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Exact release, version, tag or revision examined", research)
         self.assertIn("Original repository revision", research)
         self.assertIn("Quantized repository revision", research)
-        self.assertIn("Not authorized", research)
         self.assertIn("In progress", research)
         self.assertIn("Phase 4", research)
         self.assertIn("**Not started**", research)
         runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("no install authorized", runbook.lower())
         self.assertIn("UNAPPROVED", runbook)
+        self.assertIn("18211732", runbook)
+        self.assertIn(
+            "f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd",
+            runbook,
+        )
         status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
         self.assertIn("Phase 4 remains **not started**", status)
-        self.assertIn("not authorized", status.lower())
+        self.assertIn("provider integration", status.lower())
         adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
             encoding="utf-8"
         )
@@ -170,9 +173,9 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
         self.assertIn("Proposed", status_block)
         self.assertNotIn("Accepted", status_block)
-        self.assertIn("no model download authorized", research.lower())
+        self.assertIn("PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED", research)
         self.assertIn("installation", research.lower())
-        self.assertIn("not authorized", research.lower())
+        self.assertIn("provider integration", research.lower())
 
     def test_phase3b_owner_approved_baseline(self):
         research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
@@ -199,8 +202,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("pre-installation verification", combined.lower())
         self.assertIn("OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY", research)
-        self.assertIn("not authorized", runbook.lower())
-        self.assertIn("not authorized", status.lower())
+        self.assertIn("provider integration", runbook.lower())
         self.assertIn("unverified", status.lower())
         self.assertIn("In progress", status)
         self.assertIn("Phase 4 remains **not started**", status)
@@ -215,6 +217,57 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("quantizer", runbook.lower())
         # Quantizer must be identified as ggml-org for the approved Q4_K_M path.
         self.assertIn("Quantizer | ggml-org", runbook.replace("`", ""))
+
+    def test_phase3b_install_execution_evidence(self):
+        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
+            encoding="utf-8"
+        )
+        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
+            encoding="utf-8"
+        )
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
+        combined = "\n".join([research, runbook, status, adr, experiment])
+        self.assertIn("18211732", combined)
+        self.assertIn(
+            "f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd",
+            combined,
+        )
+        self.assertIn("1282439264", combined)
+        self.assertIn(
+            "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
+            combined,
+        )
+        self.assertIn(
+            "INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED",
+            research,
+        )
+        self.assertIn("Local loopback inference is working.", experiment)
+        self.assertIn(
+            "LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM",
+            experiment,
+        )
+        self.assertIn("runtime currently **stopped**", status.lower())
+        self.assertIn("not listening", status.lower())
+        self.assertIn("application-level graceful shutdown", experiment.lower())
+        self.assertIn("not verified", experiment.lower())
+        self.assertIn("Stop-Process without -Force", experiment)
+        self.assertIn("provider integration", combined.lower())
+        self.assertIn("EXP-3B-003", experiment)
+        self.assertIn("unverified** beyond basic", status.lower())
+        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Proposed", status_block)
+        self.assertNotIn("Accepted", status_block)
+        self.assertIn("In progress", status)
+        self.assertIn("Phase 4 remains **not started**", status)
+        # No binary artifacts should be referenced as committed repo paths.
+        self.assertNotIn("```gguf", combined.lower())
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

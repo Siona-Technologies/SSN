@@ -165,7 +165,7 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 | CPU suitability on i7-1165G7 | Suitable for small models on 4C/8T; latency REQUIRES LOCAL BENCHMARK |
 | Iris Xe path | NOT APPLICABLE (CPU baseline) |
 | Risks | Endpoint schema drift vs SIONA transport; no tokens/s claim |
-| Unresolved questions | Confirm exact `--help` flags on the extracted b9968 CPU binary before any install approval |
+| Unresolved questions | Initial binary flags were inspected during the owner-authorized baseline run; future governed execution must revalidate required flags before startup |
 | Selection status | **Historical provisional primary baseline at research gate; now locally installed/verified (runtime stopped)** |
 
 ### 2. llama.cpp Windows SYCL
@@ -551,7 +551,7 @@ No final production runtime approval is issued by ADR 0003 (still Proposed).
 | Provenance risk | Low for publisher Q8_0; moderate for ggml-org Q4_K_M |
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
-| Local evaluation status | Not evaluated locally — no real-model benchmark completed |
+| Local evaluation status | Limited local loopback smoke completed; governed real-model production evaluation suite not started |
 | Selection status | **OWNER-AUTHORIZED locally installed baseline (runtime currently stopped); provider integration pending** |
 
 ### Candidate B — Qwen3-4B

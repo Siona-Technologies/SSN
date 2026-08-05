@@ -290,6 +290,23 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
         self.assertIn("unverified** beyond basic", status.lower())
+        self.assertIn("Limited local loopback smoke completed", research)
+        self.assertIn(
+            "governed real-model production evaluation suite not started",
+            research,
+        )
+        self.assertIn(
+            "future governed execution must revalidate required flags before startup",
+            research,
+        )
+        self.assertNotIn(
+            "Not evaluated locally — no real-model benchmark completed",
+            research,
+        )
+        self.assertNotIn(
+            "before any install approval",
+            research,
+        )
         self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
         status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1

@@ -69,12 +69,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Completed and hosted-CI accepted", text)
         self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
         self.assertIn(
-            "baseline installed/verified; openai_chat transport dialect implemented (mock-tested); real-runtime provider activation and registry still pending",
+            "baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); registry and broad capability verification still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
-        self.assertIn("registry still pending", text.lower())
+        self.assertIn("registry and broad capability verification still pending", text.lower())
         self.assertIn("siona_generate", text.lower())
         experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
         self.assertIn("EXP-3B-004", experiment)
@@ -82,11 +82,17 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "IMPLEMENTED AND TESTED AGAINST DETERMINISTIC MOCKS",
             experiment,
         )
-        self.assertIn("REAL-RUNTIME PROVIDER VALIDATION PENDING", experiment)
+        self.assertIn("EXP-3B-005", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND VALIDATED AGAINST THE PINNED LOCAL RUNTIME",
+            experiment,
+        )
+        self.assertIn("LIMITED TEXT-TRANSPORT GATE ONLY", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)
         self.assertIn("SSN_LOCAL_MODEL_API_DIALECT", gateway)
+        self.assertIn("EXP-3B-005", gateway)
         self.assertIn("unverified", text.lower())
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
@@ -152,8 +158,20 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("ARTIFACT-VERIFIED LOCALLY", research)
         self.assertIn("RUNTIME CURRENTLY STOPPED", research)
-        self.assertIn("PROVIDER INTEGRATION PENDING", research)
-        self.assertIn("Capabilities remain unverified beyond the basic probe", research)
+        self.assertIn("CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED", research)
+        self.assertIn("EXP-3B-005", research)
+        self.assertIn("REGISTRY INACTIVE", research)
+        self.assertIn("GATE E PENDING", research)
+        self.assertIn(
+            "Capabilities remain limited/unverified beyond the specific observed text path",
+            research,
+        )
+        self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
+        self.assertNotIn("SIONA provider integration has **not** started", research)
+        self.assertNotIn(
+            "SIONA provider integration | **Pending — not authorized by this update**",
+            research,
+        )
         self.assertIn("llama.cpp native Windows", research)
         self.assertIn("Qwen3-1.7B", research)
         self.assertNotIn(
@@ -215,7 +233,8 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("### Historical pre-install runtime direction", adr)
         self.assertIn("### Historical pre-install model direction", adr)
         self.assertIn("Current local evidence", adr)
-        self.assertIn("Provider integration", adr)
+        self.assertIn("Controlled real-provider text path", adr)
+        self.assertIn("Gate E evaluation suite not completed", adr)
         self.assertNotIn(
             "### Provisional model direction (not approved / not downloaded)",
             adr,
@@ -303,7 +322,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Stop-Process without -Force", experiment)
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
-        self.assertIn("unverified** beyond basic", status.lower())
+        self.assertIn("unverified** beyond the specific", status.lower())
         self.assertIn("Limited local loopback smoke completed", research)
         self.assertIn(
             "governed real-model production evaluation suite not started",
@@ -331,6 +350,92 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Phase 4 remains **not started**", status)
         # No binary artifacts should be referenced as committed repo paths.
         self.assertNotIn("```gguf", combined.lower())
+
+    def test_phase3b_real_provider_validation_evidence(self):
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
+        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
+            encoding="utf-8"
+        )
+        gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
+        spec = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
+        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
+            encoding="utf-8"
+        )
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        exp005 = experiment.split("### EXP-3B-005", 1)[1] if "### EXP-3B-005" in experiment else ""
+        current_docs = "\n".join([status, runbook, gateway, spec, research, adr, exp005])
+        combined = "\n".join([status, experiment, runbook, gateway, spec, research, adr])
+        self.assertIn("EXP-3B-005", experiment)
+        self.assertIn("Controlled real SIONA provider validation", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND VALIDATED AGAINST THE PINNED LOCAL RUNTIME",
+            experiment,
+        )
+        self.assertIn("LIMITED TEXT-TRANSPORT GATE ONLY", experiment)
+        self.assertIn("Controlled real SIONA provider text path validated", research)
+        self.assertIn("Exact /v1/models model-ID verification succeeded", experiment)
+        self.assertIn(
+            "LanguageEngine end-to-end used real local provider",
+            experiment,
+        )
+        self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
+        self.assertIn("Structured JSON probe: observed failure", experiment)
+        self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
+        self.assertIn("Model registry remains inactive", research)
+        self.assertIn("Gate E governed evaluation remains pending", research)
+        self.assertIn("Offline tests 308 passed / 4 skipped", experiment)
+        self.assertIn("readiness working-set sample approximately 2.16 GiB", experiment)
+        self.assertIn(
+            "highest later probe-window sample approximately 1.75 GiB",
+            experiment,
+        )
+        self.assertIn(
+            "overall maximum observed across recorded samples approximately 2.16 GiB",
+            experiment,
+        )
+        self.assertIn("real-provider text path", combined.lower())
+        self.assertIn("runtime currently **stopped**", status.lower())
+        self.assertIn("model registry remains **inactive**", status.lower())
+        self.assertIn("inactive", combined.lower())
+        self.assertIn("unverified", combined.lower())
+        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        adr_status = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Proposed", adr_status)
+        self.assertNotIn("Accepted", adr_status)
+        self.assertIn("In progress", status)
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertIn("Controlled real-provider text path validated", runbook)
+        self.assertIn("Gate E", runbook)
+        self.assertIn("Pending — not complete", runbook)
+        # Contradiction guards on current-state docs (exclude older experiment entries).
+        self.assertNotIn("SIONA provider integration has not started", current_docs)
+        self.assertNotIn("SIONA provider integration has **not** started", current_docs)
+        self.assertNotIn("is not wired to this baseline yet", current_docs.lower())
+        self.assertNotIn("Provider integration remains outstanding", current_docs)
+        self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
+        self.assertNotIn("production certification is complete", current_docs.lower())
+        self.assertNotIn("broad capabilities are verified", current_docs.lower())
+        self.assertNotIn("structured JSON capability is verified", current_docs.lower())
+        self.assertNotIn("registry is active", current_docs.lower())
+        self.assertNotIn("Phase 3B is complete", current_docs)
+        self.assertNotIn("Phase 3B completed", status)
+        self.assertNotIn("Phase 4 has started", current_docs)
+        self.assertNotIn("the model is SIONA-native", current_docs.lower())
+        self.assertNotIn("trained SIONA-native", exp005.lower())
+        why = adr.replace("\r\n", "\n").split("### Why ADR status remains Proposed", 1)[1].split(
+            "### Conditions", 1
+        )[0]
+        self.assertIn("Model registry remains inactive", why)
+        self.assertIn("Gate E evaluation suite not completed", why)
+        self.assertIn("Structured JSON capability unverified after observed failure", why)
+        self.assertIn("Production certification not issued", why)
+        self.assertIn("Phase 3B not complete", why)
+        self.assertNotIn("not wired to this baseline yet", why)
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

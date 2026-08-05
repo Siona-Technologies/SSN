@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat transport dialect implemented (mock-tested); real-runtime provider activation and registry still pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); registry and broad capability verification still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -70,10 +70,12 @@ The optional local provider is **not** production-security certified.
 ## Phase 3B status (in progress)
 
 Phase 3B remains **in progress**. The first runtime/model baseline has been
-**installed and artifact-verified locally**, with a **limited loopback
-inference** probe completed and the runtime **stopped**. SIONA provider
-integration and full evaluation remain pending. Capability approval and ADR
-acceptance are **not** issued.
+**installed and artifact-verified locally**. A **controlled real SIONA provider
+text-path validation** (LanguageEngine → ModelGateway → LocalOpenWeightProvider
+→ llama.cpp → Qwen) completed against the pinned runtime, then the runtime was
+**stopped**. Broad capability verification, registry activation, Gate E
+evaluation, capability approval, and ADR acceptance remain **pending** and are
+**not** issued.
 
 ### Completed (local operator evidence, 2026-08-05)
 
@@ -90,28 +92,31 @@ acceptance are **not** issued.
 - Basic health/model/chat probes (HTTP 200)
 - Controlled normal non-force shutdown
 - Rollback-friendly portable layout (outside Git)
+- Controlled real-provider validation (EXP-3B-005): exact model-ID verify;
+  direct provider text probe; LanguageEngine end-to-end; tool proposals absent;
+  deterministic fallback after shutdown; offline tests/eval/smoke green
 
 ### Still pending
 
-- Real-runtime SIONA provider activation against the stopped llama.cpp baseline
-  (`openai_chat` dialect is implemented and mock-tested; not auto-enabled)
 - Model registry record/activation
-- Real-provider security tests
-- Timeout and cancellation evaluation against real runtime
-- Structured JSON evaluation
+- Broad real-provider security / timeout / cancellation evaluation
+- Structured JSON capability verification (single probe observed failure)
 - Streaming evaluation
-- Bounded-output verification
+- Bounded-output verification campaign
 - Adversarial prompt evaluation
-- Real-model production evaluation suite
-- Rollback test involving provider fallback
+- Gate E real-model production evaluation suite
 - Capability approval
 - ADR 0003 acceptance
+- Phase 3B completion
 
 ### Current runtime state
 
 - Runtime currently **stopped**
 - Port 8080 currently **not listening**
-- Capabilities remain **unverified** beyond basic transport/inference
+- Capabilities remain **unverified** beyond the specific observed text path
+  (structured JSON and broader behaviours remain unverified)
+- Further provider integration work (registry activation, Gate E) remains
+  unauthorized without new owner approval
 - ADR 0003 remains **Proposed**
 - Model registry remains **inactive** (no production entry activated)
 
@@ -133,6 +138,7 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: authorize SIONA provider integration and governed real-model
+Phase 3B: authorize registry activation and Gate E governed real-model
 evaluation when ready (still optional; CI remains deterministic and model-free).
+Provider text-path validation is recorded; Phase 3B is **not** complete.
 Phase 4 remains **not started**.

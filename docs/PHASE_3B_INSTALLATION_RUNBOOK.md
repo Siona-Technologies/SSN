@@ -1,14 +1,16 @@
 # Phase 3B — Installation Runbook
 
 **Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
-limited loopback execution completed and stopped — **SIONA provider integration
-not authorized by this document**  
+limited loopback execution and **controlled real SIONA provider text-path
+validation** completed; runtime **stopped** — registry activation, Gate E
+evaluation, capability approval, and ADR acceptance **not** authorized by this
+document  
 **Rule:** each destructive or state-changing step beyond the recorded baseline
 requires **explicit approval** before execution
 
 This runbook defines the ordered procedure for the optional local runtime and
-single-model install. Completing documentation is not approval for provider
-integration, capability claims, or ADR acceptance.
+single-model install. Completing documentation is not approval for provider integration,
+capability claims, or ADR acceptance.
 
 ## Approval gates
 
@@ -19,9 +21,9 @@ Do not proceed past a stage without recorded approval.
 | A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
 | B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
 | C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes | Health/chat smoke only; **provider integration pending** |
-| E — Real-model eval | Gate D | Yes | Pending |
-| F — Rollback drill | Any prior install | Yes | Portable layout ready; full provider-fallback drill pending |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; registry/Gate E/capability approval still pending |
+| E — Real-model eval | Gate D | Yes | Pending — not complete |
+| F — Rollback drill | Any prior install | Yes | Portable layout ready; post-shutdown deterministic fallback verified; full campaign pending |
 
 ## Provisional safety defaults
 
@@ -77,7 +79,7 @@ installation.
 | Maximum output setting (executed) | 512 server default; probe used ≤64 | Recorded |
 | CPU threads (executed) | 4 | Recorded |
 | GPU layers (executed) | 0 | Recorded |
-| Capability status | Unverified beyond basic transport/inference probe | Must remain limited |
+| Capability status | Unverified beyond specific observed text path; structured JSON unverified | Must remain limited |
 | PATH modification | None | Confirmed |
 | Firewall rule | None | Confirmed |
 | Windows service | None | Confirmed |
@@ -85,15 +87,18 @@ installation.
 | Registry modification | None | Confirmed |
 | Download status (this baseline) | Completed under owner authorization | Local evidence |
 | Installation status (this baseline) | Completed portable extract | Local evidence |
-| Execution status | Limited loopback probe completed; **runtime currently stopped** | Local evidence |
+| Execution status | Limited loopback + controlled real-provider text path validated; **runtime currently stopped** | Local evidence |
 | Portable rollback | Available (delete runtime/model/staging dirs; Core untouched) | Design verified |
-| Rollback commands for provider fallback | `UNAPPROVED — provider integration not yet wired` | Not approved |
+| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005); registry still inactive | Local evidence |
 
 ### Remaining authorization gate
 
-No SIONA provider integration, model-registry activation, additional inference
-campaign, capability approval, ADR acceptance, or Phase 4 work may proceed
-without further explicit owner authorization.
+No model-registry activation, Gate E evaluation suite, capability approval,
+ADR acceptance, Phase 3B completion, or Phase 4 work may proceed without
+further explicit owner authorization. Controlled text-path validation does
+**not** certify production use or broad capabilities. Additional provider integration
+campaigns remain unauthorized until explicitly approved.
+`UNAPPROVED` for registry activation, Gate E, capability approval, and ADR acceptance.
 
 ## Stages
 

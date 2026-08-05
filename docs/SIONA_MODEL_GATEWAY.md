@@ -98,6 +98,20 @@ Model registry / provenance: see `ssn.cognition.model_gateway.registry`.
 CI uses clearly labelled **mock** registry fixtures only. No real open-weight
 entry is registered until Phase 3B verification. Loading is transactional.
 
+### Controlled real-provider validation (EXP-3B-005)
+
+A temporary loopback validation (2026-08-05) exercised:
+
+`LanguageEngine` → `ModelGateway` → `LocalOpenWeightProvider` (`openai_chat`)
+→ llama.cpp b9968 on `127.0.0.1:8080` → pinned `Qwen3-1.7B-Q4_K_M.gguf`.
+
+Observed: exact `/v1/models` ID verification; healthy direct text probe;
+LanguageEngine end-to-end on the real local provider; tool proposals absent;
+runtime stopped afterward; deterministic fallback after shutdown. Structured
+JSON remained **unverified** (probe observed failure). Registry remains
+**inactive**. This is a **limited text-transport gate only** — not production
+certification and not broad capability verification.
+
 ## Runtime data isolation
 
 Tests use **per-test** temporary directories via `IsolatedTextTestRunner`.

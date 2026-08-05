@@ -69,15 +69,17 @@ model claim is made.
 
 **Historical owner-selection gate:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
-**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED
+**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); RUNTIME CURRENTLY STOPPED; REGISTRY INACTIVE; GATE E PENDING
 
 These subsections above describe the state at the official-source research gate.
 The owner subsequently issued explicit download/install/execution authorization.
 The selected baseline is now locally installed and artifact-verified. Limited
-loopback execution completed and the runtime is stopped. This later
-authorization does **not** constitute ADR acceptance. Provider integration,
-registry activation, governed real-runtime evaluation, security testing and
-rollback/fallback validation remain pending. ADR status remains **Proposed**.
+loopback execution completed. The `openai_chat` transport was implemented and
+merged. Controlled real-provider text-path validation (EXP-3B-005) succeeded,
+then the runtime was stopped. This later authorization does **not** constitute
+ADR acceptance. Model-registry activation, Gate E evaluation, structured-JSON
+capability verification, broad real-runtime campaigns and production
+certification remain pending. ADR status remains **Proposed**.
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -103,8 +105,9 @@ Clarifications:
 - No SIONA-native model claim is made.
 - Capability verification remains separate from artefact verification.
 - Failure of this baseline must not require a SIONA Core redesign.
-- SIONA provider integration, model-registry activation, capability approval and
-  ADR acceptance remain **outstanding**.
+- Model-registry activation, Gate E evaluation, broad capability approval and
+  ADR acceptance remain **outstanding** (the limited text path is recorded, not
+  production certification).
 
 ## Local evidence (2026-08-05) — necessary but not sufficient
 
@@ -115,28 +118,39 @@ Local operator evidence recorded outside Git (summarized in governed docs):
 - Portable CPU-only runtime loaded the selected model on loopback
 - Limited loopback probes **passed** (`/health`, `/v1/models`, basic chat,
   arithmetic smoke)
+- `openai_chat` transport implementation **merged**
+- Controlled real-provider text path **validated** (EXP-3B-005): exact
+  `/v1/models` model-ID verification passed; LanguageEngine reached
+  llama.cpp/Qwen through ModelGateway; direct text without fallback; tool
+  proposals remained absent
+- Runtime **stopped** after validation
+- Deterministic fallback **passed** after shutdown
+- Structured JSON probe **failed** and remains **unverified**
 - Normal non-force process termination **passed**
 - Application-level graceful shutdown was **not** verified
-- Provider integration and governed evaluation remain **outstanding**
 
 These results are **necessary but not sufficient** for changing ADR status from
 **Proposed** to Accepted.
 
 ### Why ADR status remains Proposed
 
-- SIONA provider integration is not wired to this baseline yet
-- Model registry activation has not occurred
-- Security, structured-output, timeout/cancellation, streaming and adversarial
-  evaluations against the real runtime are outstanding
-- Full rollback/fallback validation involving ModelGateway is outstanding
+- Model registry remains inactive
+- Gate E evaluation suite not completed
+- Structured JSON capability unverified after observed failure
+- Real-runtime timeout/cancellation campaign incomplete
+- Streaming not evaluated
+- Adversarial/security campaign incomplete
+- Broad behavioral capabilities unverified
+- Production certification not issued
+- Phase 3B not complete
 - Deterministic CI must remain free of real-model dependencies
 - No change to owner-control / actuator authority semantics
 
 ### Conditions required before changing ADR status from Proposed
 
 1. Owner-approved artifacts remain pinned and checksum-verified
-2. SIONA provider integration and registry activation complete under policy
-3. Provider tests and real-model evaluations are recorded honestly
+2. Model registry activation completes under policy (when authorized)
+3. Gate E provider tests and real-model evaluations are recorded honestly
 4. Security, structured-output, timeout/cancellation and streaming gates pass
 5. Deterministic CI remains free of real-model dependencies
 6. No change to owner-control / actuator authority semantics
@@ -159,16 +173,17 @@ These results are **necessary but not sufficient** for changing ADR status from
 - Historical research/planning could proceed without installing software; that
   was the research-gate posture, not the current operator state.
 - The portable baseline is now **locally installed and artifact-verified** under
-  explicit owner authorization; the runtime is currently **stopped**.
-- Further governed integration (SIONA provider wiring, registry activation,
-  real-runtime evaluation, security and rollback/fallback validation) still
-  requires staged approvals in
+  explicit owner authorization; the limited text path was validated
+  (EXP-3B-005); the runtime is currently **stopped**.
+- Further governed work (registry activation, Gate E evaluation, structured-JSON
+  capability verification, broad security/timeout/streaming/adversarial
+  campaigns) still requires staged approvals in
   [PHASE_3B_INSTALLATION_RUNBOOK.md](../PHASE_3B_INSTALLATION_RUNBOOK.md).
 - CI remains deterministic; real models stay out of hosted gates unless a later
   ADR explicitly changes that policy.
 - Capability claims remain conservative until artefact and behavioural
-  verification are both recorded; the limited loopback probe is not sufficient
-  for production capability approval.
+  verification are both recorded; the limited text-transport gate is not
+  sufficient for production capability approval.
 
 ## Ownership boundaries
 

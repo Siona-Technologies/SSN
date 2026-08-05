@@ -1,7 +1,9 @@
 # Phase 3B — Installation Runbook
 
-**Status:** planning only — **no install authorized by this document**  
-**Rule:** each destructive or state-changing step requires **explicit approval** before execution
+**Status:** owner-approved first baseline recorded for **pre-installation
+verification only** — **no install authorized by this document**  
+**Rule:** each destructive or state-changing step requires **explicit approval**
+before execution
 
 This runbook defines the ordered procedure for a future optional local runtime and
 single-model install. Completing documentation is not approval to install.
@@ -34,30 +36,60 @@ These defaults are **provisional**, not final production certification:
 - CPU-first baseline
 - No model used in CI
 
-## Unapproved selection placeholders
+## Owner-approved first baseline (pre-installation verification only)
 
-Fill only after owner approval. Current values are placeholders.
+**Terminology:** this is the **OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION
+VERIFICATION**. It is **not** SIONA's permanent reasoning model, a final
+production model, a SIONA-native model, a capability-approved model, an
+installed model, or a downloaded model.
 
-| Placeholder | Value | Approval status |
-|-------------|-------|-----------------|
-| Exact selected runtime version | `UNAPPROVED — e.g. llama.cpp bXXXX` | Not approved |
-| Runtime download artefact | `UNAPPROVED — e.g. llama-bXXXX-bin-win-cpu-x64.zip` | Not approved |
-| Official runtime SHA256 | `UNAPPROVED` | Not approved |
-| Runtime controlled installation directory | `UNAPPROVED — e.g. C:\Users\njaji\Tools\llama.cpp-bXXXX` | Not approved |
-| Exact selected model repository | `UNAPPROVED — e.g. Qwen/Qwen3-1.7B-GGUF or ggml-org/Qwen3-1.7B-GGUF` | Not approved |
-| Exact GGUF filename | `UNAPPROVED` | Not approved |
-| Model SHA256 | `UNAPPROVED` | Not approved |
-| Model storage directory | `UNAPPROVED — on C: capacity-approved path` | Not approved |
-| Initial server host and port | `UNAPPROVED — provisional intent 127.0.0.1:8080` | Not approved |
-| Initial context size | `UNAPPROVED — provisional intent 2048 or 4096` | Not approved |
-| Initial maximum output tokens | `UNAPPROVED — provisional intent bounded (e.g. 256–512)` | Not approved |
-| CPU thread count | `UNAPPROVED — provisional intent ≤8` | Not approved |
-| GPU-layer count | `UNAPPROVED — provisional intent 0 for CPU baseline` | Not approved |
+| Field | Recorded value | Current status |
+|-------|----------------|----------------|
+| Runtime family | llama.cpp | Owner-approved baseline |
+| Runtime version | b9968 | Owner-approved baseline |
+| Runtime commit | `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f` | Source pinned |
+| Runtime archive | `llama-b9968-bin-win-cpu-x64.zip` | Approved for verification only |
+| Runtime SHA256 | REQUIRES PRE-INSTALL SOURCE VERIFICATION | Not yet verified |
+| Runtime mode | Windows x64 CPU-only | Owner-approved baseline |
+| Model family | Qwen3-1.7B | Owner-approved baseline |
+| Original model publisher | Qwen Team / Alibaba Cloud | Source pinned |
+| Model repository | `ggml-org/Qwen3-1.7B-GGUF` | Owner-approved baseline |
+| Repository revision | `daeb8e2d528a760970442092f6bf1e55c3b659eb` | Source pinned |
+| GGUF filename | `Qwen3-1.7B-Q4_K_M.gguf` | Owner-approved baseline |
+| Published size | 1282439264 bytes | Expected only |
+| Expected SHA256 | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` | Expected only |
+| Model licence | Apache License 2.0 | Requires licence preservation |
+| Quantizer | ggml-org | Explicit provenance |
+| Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only | Scope limited |
+| Installation directory | PENDING READ-ONLY PRE-INSTALL CHECKLIST | Not approved |
+| Model storage directory | PENDING READ-ONLY PRE-INSTALL CHECKLIST | Not approved |
+| Host and port | Provisional intent `127.0.0.1:8080` | Not execution-approved |
+| Context size | Provisional intent 4096 | Not execution-approved |
+| Maximum output tokens | Provisional intent 512 | Not execution-approved |
+| CPU threads | PENDING LOCAL VERIFICATION | Not approved |
+| GPU layers | 0 for CPU baseline | Provisional |
+| Capability status | Unverified | Must remain unverified |
+| Download status | Not authorized | Blocked |
+| Installation status | Not authorized | Blocked |
+| Execution status | Not authorized | Blocked |
 | Rollback commands | `UNAPPROVED — stop process; delete runtime dir; delete GGUF; restore registry mock` | Not approved |
 
-**No commands in this table may be executed until owner approval is recorded.**
+### Download / install gate (blocked)
+
+No download or state-changing command may be executed until:
+
+1. This documentation PR is reviewed and merged.
+2. Read-only pre-install checks pass.
+3. Runtime archive source and checksum handling are verified.
+4. Storage and free-RAM readings are refreshed.
+5. Exact installation and rollback paths are approved.
+6. The owner explicitly authorizes installation and model download.
+
+**No install authorized. No model download authorized. No runtime execution
+authorized.**
 
 ## Stages
+
 
 ### 1. Verify disk and RAM
 

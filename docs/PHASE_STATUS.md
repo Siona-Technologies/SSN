@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — official-source research matrix completed after coverage and traceability correction; provisional recommendation pending owner approval — no runtime/model installed** |
+| Phase 3B | **In progress — first runtime/model baseline owner-approved for pre-installation verification; installation and download remain unauthorized** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -69,10 +69,9 @@ The optional local provider is **not** production-security certified.
 
 ## Phase 3B status (in progress)
 
-Phase 3B remains **in progress**. Official-source research matrix was completed
-after coverage and traceability correction; the provisional recommendation
-remains pending owner approval. This does **not** authorize installation or
-download.
+Phase 3B remains **in progress**. The first runtime/model baseline is
+owner-approved for **pre-installation verification only**. This does **not**
+authorize installation, download, execution or capability approval.
 
 Recorded:
 
@@ -81,13 +80,25 @@ Recorded:
 - Official-source runtime/model research matrix completed with full field
   coverage and pinned revisions (2026-08-05)
 - Source traceability appendix recorded
-- Provisional recommendation recorded (requires owner approval)
+- Owner-approved first baseline recorded:
+  - Runtime family: llama.cpp b9968 Windows x64 CPU-only
+  - Runtime source pinned: `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`
+  - Model artifact: `Qwen3-1.7B-Q4_K_M.gguf`
+  - Model repo/revision pinned: `ggml-org/Qwen3-1.7B-GGUF` @
+    `daeb8e2d528a760970442092f6bf1e55c3b659eb`
+  - Expected model digest pinned:
+    `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`
+- Runtime SHA verification **pending**
+- Read-only pre-install checklist **pending**
 - Runtime installation **not authorized**
 - Model download **not authorized**
-- No runtime installed
-- No model selected as final
-- No weights downloaded
-- No real-model benchmark completed
+- Runtime not installed
+- Model not downloaded
+- Weights not downloaded
+- Runtime not executed
+- Real-model benchmark not started
+- Capabilities **unverified**
+- ADR 0003 remains **Proposed**
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
 Phase 4 remains **not started**.
@@ -105,5 +116,6 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: seek owner approval before any runtime install or weight download
-(still optional; CI remains deterministic). Phase 4 remains **not started**.
+Phase 3B: complete read-only pre-install checks, then seek explicit owner
+authorization before any runtime install or weight download (still optional;
+CI remains deterministic). Phase 4 remains **not started**.

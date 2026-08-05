@@ -129,3 +129,48 @@ Artifact references: docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
                       docs/PHASE_STATUS.md
 Reproduction command: n/a (documentation/research entry)
 ```
+
+### EXP-3B-002 — Owner-approved baseline selection
+
+```text
+Experiment ID: EXP-3B-002
+Date: 2026-08-05
+Git commit: (Phase 3B selection branch tip)
+Runtime mode: n/a — documentation and governance event only
+Dataset: n/a
+Model/provider: none installed; none downloaded; none executed
+Neuromorphic backend: n/a
+Hardware: unchanged inventory baseline (i7-1165G7 / Iris Xe / ~16 GiB / no CUDA)
+Configuration: no runtime; no weights; owner selection recorded only
+Metrics: none (no inference; no token/s; not a completed inference experiment)
+Owner approval scope: OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION
+                      VERIFICATION ONLY
+Runtime selection: llama.cpp b9968 Windows x64 CPU-only
+Runtime source revision: 1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f
+Expected runtime archive: llama-b9968-bin-win-cpu-x64.zip
+Model selection: Qwen3-1.7B-Q4_K_M.gguf
+Model repository: ggml-org/Qwen3-1.7B-GGUF
+Model repository revision: daeb8e2d528a760970442092f6bf1e55c3b659eb
+Expected model size: 1282439264 bytes
+Expected model SHA256: d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5
+Original publisher: Qwen Team / Alibaba Cloud
+Quantizer: ggml-org
+Licence: Apache License 2.0
+Result: documentation-only recording of owner-approved first baseline;
+        purpose limited to transport/integration/safety/provenance/rollback/
+        baseline-performance validation after later explicit install authorization
+Outstanding authorization gates: read-only pre-install checklist;
+        runtime archive SHA verification; install/download authorization;
+        execution; capability verification; real-model evaluation
+Limitations: no runtime downloaded; no runtime installed; no model downloaded;
+             no weights downloaded; no runtime executed; no inference;
+             no benchmark metrics; capabilities unverified;
+             ADR 0003 remains Proposed; Phase 3B remains in progress;
+             Phase 4 not started
+Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
+                      docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
+                      docs/adr/0003-first-local-model-strategy.md,
+                      docs/PHASE_STATUS.md,
+                      docs/PHASE_3_ENGINEERING_SPEC.md
+Reproduction command: n/a (documentation/governance entry)
+```

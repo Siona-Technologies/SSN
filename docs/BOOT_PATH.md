@@ -26,7 +26,9 @@ CLI / HTTP / Voice (planned)
         ├── ToolRegistry (net.*, research.*, memory.*, …)
         ├── MemoryHub / KnowledgeStore
         ├── WorldModel + PerceptionHub
-        └── PolicyEngine (world + system + home law)
+        ├── PolicyEngine (world + system + home law)
+        └── CognitiveRuntime (additive; ssn/cognition)
+              events · workspace · model gateway · neuromorphic
 ```
 
 ## Canonical construction

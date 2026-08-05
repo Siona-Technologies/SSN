@@ -1,0 +1,66 @@
+# SIONA Vision
+
+SIONA is the core intelligence platform of SIONA Technologies.
+
+It is not merely a chatbot. It is intended to become a persistent, multimodal,
+hybrid neuromorphic intelligence that can operate as a private Jarvis-style
+assistant and later inhabit IoT environments, vehicles, robots, drones, and
+humanoid embodiments.
+
+## Product relationship
+
+| Product | Role |
+|---------|------|
+| **SIONA Core (SSN)** | Shared cognitive runtime, memory, world model, policy, tools, embodiment contracts |
+| **SIONA Pulse** | Product that consumes SIONA Core through stable APIs — does not reimplement the brain |
+| **Weza AI** | Product that consumes SIONA Core through stable APIs — does not reimplement the brain |
+| Future apps | Same rule: consume Core contracts; do not fork intelligence architecture |
+
+## Deployment models
+
+### Jarvis (personal assistant)
+
+Local-first runtime on a trusted computer or home hub:
+
+- CLI and HTTP front door
+- Owner-controlled identity and policy (unchanged)
+- Offline-capable dummy / local model providers
+- Persistent memory and bounded world model
+
+### IoT
+
+Embodiment adapters expose devices as capabilities and sensor observations.
+Phase 1 provides **mock adapters only** — no real doors, appliances, or actuators.
+
+### Robotics / humanoid
+
+Future adapters (ROS 2, etc.) attach bodies without relocating the mind.
+Principle: **SIONA owns the persistent mind; each body is an adapter.**
+
+## What Phase 1 delivers
+
+An asynchronous hybrid cognitive-runtime **foundation**:
+
+- Typed cognitive events + in-process event bus
+- Bounded global cognitive workspace + attention arbitration
+- Model gateway contracts (chat, tools, JSON, streaming, fallback)
+- Neuromorphic provider abstraction (deterministic reference + legacy SNN adapter)
+- Cognitive loop skeleton (proposals, not autonomous execution)
+- Memory / world service boundaries
+- Embodiment / IoT contracts + mock adapter
+- Observability counters and deterministic tests
+
+## What Phase 1 is not
+
+- Not consciousness, AGI, or human-equivalent intelligence
+- Not a full trained neuromorphic brain
+- Not unrestricted autonomy
+- Not a rewrite of owner-control, policy, or law files
+- Not a microservices / Kafka deployment
+
+## Honesty about simulation
+
+Default language replies use `LocalDummyLLMProvider` (template replies).
+Default neuromorphic signals use a **deterministic simulated** reference provider.
+The legacy `SNNEngine` remains a random simulation wrapped by an adapter.
+Mock embodiment never touches hardware.

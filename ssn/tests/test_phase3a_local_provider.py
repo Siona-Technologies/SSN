@@ -14,9 +14,9 @@ from ssn.cognition.model_gateway.local_provider import (
     LocalProviderError,
     build_local_provider_from_env,
     local_provider_enabled,
-    scrub_context_for_provider,
     validate_endpoint_url,
 )
+from ssn.cognition.model_gateway.sanitize import scrub_context_for_provider
 from ssn.cognition.model_gateway.mock_local_server import MockLocalModelServer
 
 

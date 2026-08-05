@@ -41,6 +41,9 @@ def _get_json(url: str) -> tuple[int, dict]:
 
 
 class TestHTTPFrontDoor(unittest.TestCase):
+    # Owns a long-lived server + SSN_STATE_DIR via setUpClass — skip per-test env swap.
+    ssn_share_runtime_state = True
+
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmpdir = tempfile.mkdtemp(prefix="siona_http_test_")

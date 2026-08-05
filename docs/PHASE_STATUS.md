@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **Official-source research completed; provisional recommendation recorded — no runtime/model installed** |
+| Phase 3B | **In progress — official-source research matrix completed after coverage and traceability correction; provisional recommendation pending owner approval — no runtime/model installed** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -69,17 +69,21 @@ The optional local provider is **not** production-security certified.
 
 ## Phase 3B status (in progress)
 
-Phase 3B remains **in progress**. Official-source runtime/model research is
-**completed** and a provisional recommendation is recorded.
+Phase 3B remains **in progress**. Official-source research matrix was completed
+after coverage and traceability correction; the provisional recommendation
+remains pending owner approval. This does **not** authorize installation or
+download.
 
 Recorded:
 
 - Current hardware inventory completed
 - Storage readiness gate passed at **41.86 GiB** free
-- Official-source runtime/model research completed (2026-08-05)
+- Official-source runtime/model research matrix completed with full field
+  coverage and pinned revisions (2026-08-05)
+- Source traceability appendix recorded
 - Provisional recommendation recorded (requires owner approval)
-- Runtime installation **pending owner approval**
-- Model download **pending owner approval**
+- Runtime installation **not authorized**
+- Model download **not authorized**
 - No runtime installed
 - No model selected as final
 - No weights downloaded

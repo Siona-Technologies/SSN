@@ -109,15 +109,20 @@ Sources examined: ggml-org/llama.cpp (build, SYCL, LICENSE, release b9968);
                   Qwen/Qwen3-1.7B (+ GGUF); ggml-org/Qwen3-1.7B-GGUF;
                   Qwen/Qwen3-4B-GGUF; ibm-granite/granite-4.0-micro(+GGUF);
                   microsoft/Phi-4-mini-instruct; Qwen/Qwen3.5-2B
-Result: official-source matrix completed;
-        provisional runtime = llama.cpp Windows CPU baseline;
+Result: official-source matrix completed after coverage and
+        traceability correction (full 7-runtime / 5-model field sets;
+        pinned HF revisions; source traceability appendix);
+        provisional runtime = llama.cpp Windows CPU baseline (b9968);
         provisional first model family = Qwen3-1.7B
         (publisher Q8_0 or ggml-org Q4_K_M — owner choice pending);
         second candidate = Qwen3-4B Q4_K_M; comparison = Granite 4.0 Micro Q4_K_M;
-        Phi-4 community GGUF and Qwen3.5-2B deferred/rejected for first gate
+        Phi-4 community GGUF and Qwen3.5-2B deferred/rejected for first gate;
+        provisional recommendation remains pending owner approval
 Outstanding approval gates: runtime install; model download; local benchmark
 Limitations: no runtime installed; no weights downloaded; no benchmark metrics;
-             ADR 0003 remains Proposed
+             installation not authorized; model download not authorized;
+             ADR 0003 remains Proposed; Phase 3B remains in progress;
+             Phase 4 not started
 Artifact references: docs/PHASE_3B_MODEL_RUNTIME_RESEARCH.md,
                       docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       docs/adr/0003-first-local-model-strategy.md,

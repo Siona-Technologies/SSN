@@ -3,7 +3,7 @@
 **Working title:** SIONA Local Model and Evaluation Layer  
 **Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B official-source research recorded  
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
-**Phase 3B:** official-source research completed; provisional recommendation recorded — no runtime/model installed  
+**Phase 3B:** in progress — research matrix completed after coverage/traceability correction; provisional recommendation pending owner approval — no runtime/model installed  
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate

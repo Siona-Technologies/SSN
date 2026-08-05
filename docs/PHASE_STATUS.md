@@ -4,9 +4,9 @@
 |-------|--------|
 | Phase 1 | **Completed and hardened** (`183fa70`) |
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
-| Phase 3 | **In progress — Phase 3A completed; Phase 3B not started** |
+| Phase 3 | **In progress — Phase 3A completed; Phase 3B planning started** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **Not started** |
+| Phase 3B | **Planning and official-source research started — no runtime/model installed** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -17,6 +17,11 @@
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
+- [PHASE_3B_HARDWARE_INVENTORY.md](PHASE_3B_HARDWARE_INVENTORY.md)
+- [PHASE_3B_MODEL_INDEPENDENCE.md](PHASE_3B_MODEL_INDEPENDENCE.md)
+- [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](PHASE_3B_MODEL_RUNTIME_RESEARCH.md)
+- [PHASE_3B_INSTALLATION_RUNBOOK.md](PHASE_3B_INSTALLATION_RUNBOOK.md)
+- [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
 
 ## Phase 3A status (completed)
 
@@ -60,8 +65,24 @@ Explicitly **not** done in Phase 3A:
 - SNN training remains deferred
 - Physical embodiments remain deferred
 
-Phase 3 overall remains **in progress**. Phase 3B remains **not started**.
 The optional local provider is **not** production-security certified.
+
+## Phase 3B status (planning)
+
+Phase 3B has started **planning and official-source research only**.
+
+Recorded:
+
+- Current hardware inventory completed
+- Storage readiness gate passed at **41.86 GiB** free
+- Runtime selection **pending**
+- Model selection **pending**
+- No weights downloaded
+- No real-model benchmark conducted
+- No runtime installed
+
+Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
+Phase 4 remains **not started**.
 
 ## Known limitations
 
@@ -72,8 +93,10 @@ The optional local provider is **not** production-security certified.
 - Artefact verification is separate from behavioural capability verification
 - Default Front Door path remains the legacy dummy provider unless opted in
 - Owner-adjacent baseline failures remain technical debt
+- Preferred pre-inference free-RAM target is 6–8 GiB; measured free RAM may be lower
 
 ## Next
 
-Phase 3B: select and verify a real optional open-weight model (still optional; CI remains deterministic).
+Phase 3B: complete official-source runtime/model research, then seek approval
+before any install or weight download (still optional; CI remains deterministic).
 Phase 4 remains **not started**.

@@ -23,6 +23,11 @@ CORE_DOCS = [
     ROOT / "docs" / "HARDWARE_ROADMAP.md",
     ROOT / "docs" / "TECHNICAL_DEBT_REGISTER.md",
     ROOT / "docs" / "EXPERIMENT_LOG.md",
+    ROOT / "docs" / "PHASE_3B_HARDWARE_INVENTORY.md",
+    ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md",
+    ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
+    ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+    ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
     ROOT / "docs" / "SIONA_BUILD_PLAN.md",
     ROOT / "docs" / "SIONA_AWS_ARCHITECTURE_SHOWCASE.md",
 ]
@@ -62,25 +67,51 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("d6c17d0", text)
         self.assertIn("2e6abb6", text)
         self.assertIn("Completed and hosted-CI accepted", text)
-        self.assertIn("Phase 3A completed; Phase 3B not started", text)
+        self.assertIn("Phase 3A completed; Phase 3B planning started", text)
+        self.assertIn(
+            "Planning and official-source research started — no runtime/model installed",
+            text,
+        )
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
         self.assertIn("PHASE_3_ENGINEERING_SPEC.md", text)
-        self.assertIn("not started", text.lower())  # Phase 3B / Phase 4 remain not started
+        self.assertIn("not started", text.lower())  # Phase 4 remains not started
+        self.assertIn("PHASE_3B_HARDWARE_INVENTORY.md", text)
+        self.assertIn("0003-first-local-model-strategy.md", text)
         self.assertNotIn("Phase 3A status (this branch)", text)
         self.assertNotIn("not marked accepted until", text)
 
     def test_phase3_spec_status(self):
-        # Phase 3A completed/merged; Phase 3 overall in progress; Phase 3B not started.
+        # Phase 3A completed/merged; Phase 3 overall in progress; Phase 3B planning docs exist.
         text = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
         self.assertIn("phase 3a", text.lower())
         self.assertIn("completed", text.lower())
         self.assertIn("in progress", text.lower())
         self.assertIn("phase 3b", text.lower())
-        self.assertIn("not started", text.lower())
         self.assertIn("d6c17d0", text)
         self.assertIn("2e6abb6", text)
         self.assertIn("install or download a real model", text.lower())
+
+    def test_phase3b_planning_docs_exist(self):
+        for path in (
+            ROOT / "docs" / "PHASE_3B_HARDWARE_INVENTORY.md",
+            ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md",
+            ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
+            ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+            ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
+        ):
+            self.assertTrue(path.is_file(), f"missing {path}")
+        independence = (ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md").read_text(
+            encoding="utf-8"
+        )
+        plain = re.sub(r"\*+", "", independence).lower()
+        self.assertIn("does not currently own a trained foundation model", plain)
+        self.assertIn("replaceable", plain)
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Proposed", adr)
+        self.assertIn("No final runtime or model is approved", adr)
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

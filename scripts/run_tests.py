@@ -55,6 +55,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase2_runtime_integration",
     "ssn.tests.test_phase2_integration_hardening",
     "ssn.tests.test_phase2_trace_isolation_shutdown",
+    "ssn.tests.test_phase2_closeout_docs",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

@@ -1,5 +1,8 @@
 # SIONA Vision
 
+> **Governing charter:** see [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md).
+> This page is a short orientation summary; the charter is authoritative.
+
 SIONA is the core intelligence platform of SIONA Technologies.
 
 It is not merely a chatbot. It is intended to become a persistent, multimodal,

@@ -13,6 +13,8 @@ The current working name for the future assistant embodiment is SIBONA. SIBONA
 is not part of the Phase 2 runtime and does not yet introduce a separate product
 dependency.
 
+Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md).
+
 ## Hybrid LLM / SNN design
 
 The entire brain should **not** initially be one SNN.

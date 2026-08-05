@@ -1,8 +1,11 @@
 # SIONA Phase Roadmap
 
-## Phase 1 (this work) — Cognitive runtime foundation
+Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)  
+Phase status: [PHASE_STATUS.md](PHASE_STATUS.md)
 
-Completed scope:
+## Phase 1 — Cognitive runtime foundation
+
+**Completed and hardened** (`183fa70`).
 
 - Event fabric + workspace + attention
 - Model gateway contracts + legacy adapters
@@ -13,24 +16,27 @@ Completed scope:
 - Docs + deterministic tests
 - Owner-control freeze respected
 
-## Phase 2 (recommended next) — Wire and harden
+## Phase 2 — Runtime integration
 
-Do **not** start automatically; requires a new instruction.
+**Completed and hardened.** Accepted implementation gate: `7b92114`.  
+Formal record: [PHASE_2_ACCEPTANCE.md](PHASE_2_ACCEPTANCE.md).
 
-1. Optionally route a subset of Front Door / sense-tick traffic through the
-   event bus while keeping Orchestrator authoritative for identity/policy.
-2. Share a single `LanguageEngine` / model gateway instance across
-   BrainRouter and FusionEngine.
-3. Offer `NeuromorphicSNNFacade` as an opt-in replacement for random
-   `SNNEngine` in offline mode (`SSN_OFFLINE=1`).
-4. Wire real `PerceptionHub(bus, EncoderRegistry)` in `runtime_builder`
-   instead of the dummy fallback where possible.
-5. Add FAST/DEEP HTTP endpoint selection (`SSN_LLM_ENDPOINT_FAST` / `_DEEP`).
-6. Expand evaluation fixtures for event→workspace→proposal traces.
-7. Design (docs + interfaces only) the capability / physical-safety kernel
-   without changing owner semantics.
-8. First real local model adapter (e.g. llama.cpp / Ollama HTTP) behind
-   `ModelProvider`, still offline-testable with deterministic fallback.
+Delivered:
+
+- Runtime modes (`legacy`, `shadow`, `cognitive_experimental`)
+- Integration facade and observation bridges
+- Exact legacy Front Door compatibility
+- Trace continuity and shared-deps isolation
+- Safe async observation lifecycle
+- Governance documentation
+
+## Phase 3 — Local model and evaluation layer
+
+**Specified but not started.**  
+Specification only: [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md).
+
+Recommended future branch (do not create until Phase 3 is authorized):
+`feat/siona-local-model-evals-v3`.
 
 ## Later phases (sketch)
 
@@ -39,3 +45,4 @@ Do **not** start automatically; requires a new instruction.
 - First MQTT or ROS 2 adapter (still gated, confirmation required)
 - Learned neuromorphic backends (snnTorch / Norse) as providers
 - Explicit product-integration decisions (out of present Core scope)
+- Future user-facing assistant embodiment (working name: SIBONA)

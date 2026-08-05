@@ -19,7 +19,7 @@ SIONA is a **law-bound, deployable cognitive runtime** — infrastructure others
 | **PC today, GPU tomorrow** | Phases 0–6 run on a normal developer machine |
 | **Samson = deployment #1** | `home_law_samson.yaml` is the first instance of “law as code” |
 
-Long-term arc: personal Jarvis → deployable platform → regional sovereign AI (OpenAI/Meta-class **institution**, not a wrapper).
+Long-term arc: future user-facing assistant embodiment → deployable platform → regional sovereign AI (OpenAI/Meta-class **institution**, not a wrapper). The working name for the future assistant embodiment is SIBONA (not implemented in Phase 2).
 
 ---
 
@@ -352,7 +352,7 @@ SSN_EMBEDDING_ENDPOINT=http://127.0.0.1:8002/embed
 
 ### Phase 6 — Production shape
 
-**Goal:** `systemctl start siona` on Ubuntu Jarvis box; audit-ready logging.
+**Goal:** `systemctl start siona` on Ubuntu assistant workstation; audit-ready logging.
 
 **Duration estimate:** ~1 week  
 **Depends on:** Phases 2, 3, 5
@@ -497,7 +497,7 @@ SSN/
 | **M4: Multi-deployment** | 3 | Law + state isolation for tenant #2 |
 | **M5: Embodied demo** | 4 | Senses + voice loop on CPU |
 | **M6: Smart memory** | 5 | Embedding-backed knowledge |
-| **M7: Jarvis-ready** | 6 | systemd deploy on Ubuntu |
+| **M7: Assistant-ready** | 6 | systemd deploy on Ubuntu |
 | **M8: Real intelligence** | 7 | Local GPU + fine-tuned weights |
 
 ---

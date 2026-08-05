@@ -1,11 +1,11 @@
 # Phase 3 Engineering Specification
 
 **Working title:** SIONA Local Model and Evaluation Layer  
-**Status:** Phase 3A **in progress** on `feat/siona-local-model-evals-v3`  
-**Phase 3A:** provider foundation + evaluation scaffold (deterministic/mock only)  
-**Phase 3B:** deferred — real open-weight selection and verification  
+**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B not started  
+**Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
+**Phase 3B:** not started — real open-weight selection and verification  
 
-This document remains the Phase 3 engineering specification. Phase 3A does **not**
+This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate
 hardens redirects, request sanitization, per-test isolation, registry validation,
 and declarative hard-timeout evaluations — still without a real model.

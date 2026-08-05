@@ -30,7 +30,7 @@ Reproduction command:
 ```text
 Experiment ID: EXP-3A-001
 Date: 2026-08-05
-Git commit: (Phase 3A branch tip)
+Git commit: d6c17d0d723ef309cca1f8edf3fb467b12d04d2a
 Runtime mode: legacy (default) + provider eval harness
 Dataset: built-in provider eval cases
 Model/provider: deterministic + mock local HTTP (no real weights)
@@ -49,7 +49,7 @@ Reproduction command: SSN_OFFLINE=1 python scripts/run_eval.py --provider
 ```text
 Experiment ID: EXP-3A-002
 Date: 2026-08-05
-Git commit: (Phase 3A final-gate tip)
+Git commit: d6c17d0d723ef309cca1f8edf3fb467b12d04d2a
 Runtime mode: legacy + hardened local provider foundation
 Dataset: Phase 3A security/registry/isolation/provider-eval suites
 Model/provider: deterministic + mock local HTTP only

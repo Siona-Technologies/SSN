@@ -53,9 +53,18 @@ ALLOWED_API_DIALECTS = frozenset({DIALECT_SIONA_GENERATE, DIALECT_OPENAI_CHAT})
 
 DEFAULT_MAX_RESPONSE_BYTES = 1_048_576
 DEFAULT_TIMEOUT_S = 20.0
-DEFAULT_OPENAI_MAX_TOKENS_CAP = 512
+MIN_TRANSPORT_TIMEOUT_S = 0.1
+MAX_TRANSPORT_TIMEOUT_S = 119.0
+MAX_GATEWAY_TIMEOUT_S = 120.0
 GATEWAY_TIMEOUT_MARGIN_S = 1.0
+DEFAULT_OPENAI_MAX_TOKENS_CAP = 512
 MAX_TOKENS_CAP_HARD_MAX = 8192
+MAX_MODEL_ID_CHARS = 256
+MAX_HEALTH_META_CHARS = 128
+MIN_TCP_PORT = 1
+MAX_TCP_PORT = 65535
+OPENAI_TEMPERATURE_MIN = 0.0
+OPENAI_TEMPERATURE_MAX = 2.0
 DEFAULT_MAX_TEXT_CHARS = 262_144
 DEFAULT_MAX_TOOL_PROPOSALS = 16
 DEFAULT_MAX_TOOL_NAME = 128
@@ -84,13 +93,119 @@ def local_provider_enabled() -> bool:
     }
 
 
+def _is_finite_number(value: Any) -> bool:
+    try:
+        number = float(value)
+    except Exception:
+        return False
+    return math.isfinite(number)
+
+
+def normalize_transport_timeout(value: Any, *, explicit: bool) -> float:
+    """
+    Normalize a transport timeout.
+
+    - Environment / soft path (explicit=False): invalid values revert to default.
+    - Constructor path (explicit=True): invalid/non-finite/non-positive fail closed.
+    """
+    if value is None or (isinstance(value, str) and not str(value).strip()):
+        if explicit:
+            raise LocalProviderError("config", "invalid_timeout:empty")
+        return DEFAULT_TIMEOUT_S
+    try:
+        number = float(value)
+    except Exception as exc:
+        if explicit:
+            raise LocalProviderError("config", f"invalid_timeout:{exc}") from exc
+        return DEFAULT_TIMEOUT_S
+    if not math.isfinite(number):
+        if explicit:
+            raise LocalProviderError("config", "invalid_timeout:non_finite")
+        return DEFAULT_TIMEOUT_S
+    if number <= 0.0:
+        if explicit:
+            raise LocalProviderError("config", "invalid_timeout:non_positive")
+        return DEFAULT_TIMEOUT_S
+    if number < MIN_TRANSPORT_TIMEOUT_S:
+        if explicit:
+            raise LocalProviderError("config", "invalid_timeout:below_minimum")
+        return DEFAULT_TIMEOUT_S
+    if number > MAX_TRANSPORT_TIMEOUT_S:
+        if explicit:
+            raise LocalProviderError("config", "invalid_timeout:above_maximum")
+        return DEFAULT_TIMEOUT_S
+    return float(number)
+
+
 def _parse_timeout() -> float:
     raw = (os.getenv(ENV_TIMEOUT) or "").strip()
-    try:
-        return max(0.1, float(raw)) if raw else DEFAULT_TIMEOUT_S
-    except Exception:
+    if not raw:
         return DEFAULT_TIMEOUT_S
+    return normalize_transport_timeout(raw, explicit=False)
 
+
+def compute_gateway_timeout_s(transport_timeout_s: float) -> float:
+    transport = normalize_transport_timeout(transport_timeout_s, explicit=True)
+    return min(MAX_GATEWAY_TIMEOUT_S, float(transport) + float(GATEWAY_TIMEOUT_MARGIN_S))
+
+
+def normalize_gateway_timeout(value: Any) -> float:
+    """Validate an explicitly supplied ModelGatewayAsLLMProvider timeout."""
+    try:
+        number = float(value)
+    except Exception as exc:
+        raise LocalProviderError("config", f"invalid_gateway_timeout:{exc}") from exc
+    if not math.isfinite(number):
+        raise LocalProviderError("config", "invalid_gateway_timeout:non_finite")
+    minimum = MIN_TRANSPORT_TIMEOUT_S + GATEWAY_TIMEOUT_MARGIN_S
+    if number < minimum or number > MAX_GATEWAY_TIMEOUT_S:
+        raise LocalProviderError("config", "invalid_gateway_timeout:out_of_bounds")
+    return float(number)
+
+
+def validate_model_id_value(model_id: str, *, configured: bool = True) -> str:
+    value = str(model_id or "").strip()
+    if not value:
+        raise LocalProviderError("config" if configured else "malformed", "model_id_invalid")
+    if len(value) > MAX_MODEL_ID_CHARS:
+        raise LocalProviderError("config" if configured else "malformed", "model_id_invalid")
+    return value
+
+
+def validate_openai_temperature(value: Any) -> float:
+    try:
+        number = float(value)
+    except Exception as exc:
+        raise LocalProviderError("request", f"invalid_temperature:{exc}") from exc
+    if not math.isfinite(number):
+        raise LocalProviderError("request", "invalid_temperature:non_finite")
+    if number < OPENAI_TEMPERATURE_MIN or number > OPENAI_TEMPERATURE_MAX:
+        raise LocalProviderError("request", "invalid_temperature:out_of_range")
+    return float(number)
+
+
+def bound_health_meta_string(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if len(text) > MAX_HEALTH_META_CHARS:
+        return text[:MAX_HEALTH_META_CHARS]
+    return text
+
+
+def extract_health_raw(obj: Dict[str, Any]) -> Dict[str, Any]:
+    raw: Dict[str, Any] = {}
+    if obj.get("ok") is True or obj.get("ok") is False:
+        raw["ok"] = bool(obj.get("ok"))
+    status = bound_health_meta_string(obj.get("status"))
+    if status is not None:
+        raw["status"] = status
+    service = bound_health_meta_string(obj.get("service"))
+    if service is not None:
+        raw["service"] = service
+    return raw
 
 def _parse_max_bytes() -> int:
     raw = (os.getenv(ENV_MAX_BYTES) or "").strip()
@@ -184,14 +299,49 @@ def interpret_health_payload(obj: Dict[str, Any]) -> Tuple[bool, str]:
     return False, "health_contract_unrecognized"
 
 
+def _validated_port(parsed: urllib_parse.ParseResult) -> Optional[int]:
+    """Return validated TCP port or None when absent. Fail closed on malformed ports."""
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise LocalProviderError("config", f"invalid_port:{exc}") from exc
+    except Exception as exc:
+        raise LocalProviderError("config", f"invalid_port:{exc}") from exc
+    if port is None:
+        # Catch non-numeric port text that urlparse may not always raise for.
+        netloc = parsed.netloc or ""
+        if "@" in netloc:
+            netloc = netloc.rsplit("@", 1)[-1]
+        if netloc.startswith("["):
+            if "]" in netloc:
+                rest = netloc.split("]", 1)[1]
+                if rest.startswith(":"):
+                    raw_port = rest[1:]
+                    if raw_port and not raw_port.isdigit():
+                        raise LocalProviderError("config", "invalid_port:non_numeric")
+                    if raw_port.isdigit():
+                        port = int(raw_port)
+        elif ":" in netloc:
+            raw_port = netloc.rsplit(":", 1)[-1]
+            if raw_port and not raw_port.isdigit():
+                raise LocalProviderError("config", "invalid_port:non_numeric")
+            if raw_port.isdigit():
+                port = int(raw_port)
+    if port is None:
+        return None
+    if not isinstance(port, int) or port < MIN_TCP_PORT or port > MAX_TCP_PORT:
+        raise LocalProviderError("config", "invalid_port:out_of_range")
+    return port
+
+
 def _origin_hostport(parsed: urllib_parse.ParseResult) -> str:
     host = parsed.hostname or ""
-    if parsed.port:
+    port = _validated_port(parsed)
+    if port is not None:
         if ":" in host:
-            return f"[{host}]:{parsed.port}"
-        return f"{host}:{parsed.port}"
+            return f"[{host}]:{port}"
+        return f"{host}:{port}"
     return f"[{host}]" if ":" in host else host
-
 
 def resolve_openai_chat_endpoints(url: str) -> Tuple[str, str, str]:
     """
@@ -246,10 +396,14 @@ def safe_endpoint_summary(url: str) -> Dict[str, Any]:
         parsed = urllib_parse.urlparse(url)
         host = (parsed.hostname or "").strip("[]")
         classification = classify_endpoint_host(host) if host else "invalid"
+        try:
+            port = _validated_port(parsed)
+        except LocalProviderError:
+            return {"classification": "invalid"}
         return {
             "scheme": parsed.scheme,
             "host": host,
-            "port": parsed.port,
+            "port": port,
             "path": parsed.path,
             "classification": classification,
             "has_query": bool(parsed.query),
@@ -282,6 +436,9 @@ def validate_endpoint_url(url: str, *, allow_remote: bool = False) -> str:
     host = parsed.hostname
     if not host:
         raise LocalProviderError("config", "endpoint missing hostname")
+
+    # Fail closed on malformed / out-of-range ports before any derivation.
+    _validated_port(parsed)
 
     # Reject malformed IPv6 literals that urlparse might partially accept
     raw_netloc = parsed.netloc or ""
@@ -493,19 +650,21 @@ class LocalHttpTransport:
     def _build_openai_chat_payload(self, request: ModelRequest, *, model_id: str) -> Dict[str, Any]:
         sanitized = sanitize_model_request(request, include_tenant_session=False)
         messages: List[Dict[str, str]] = []
-        if sanitized.system:
+        if sanitized.system and str(sanitized.system).strip():
             messages.append({"role": "system", "content": str(sanitized.system)})
         for m in sanitized.messages:
             mapped = self._openai_role(m.role)
             if mapped is None:
                 continue
             messages.append({"role": mapped, "content": str(m.content or "")})
-        if not messages:
-            messages = [{"role": "user", "content": ""}]
+        # Fail closed: do not manufacture an empty user message.
+        if not messages or not any(str(item.get("content") or "").strip() for item in messages):
+            raise LocalProviderError("request", "empty_messages")
+        temperature = validate_openai_temperature(sanitized.temperature)
         payload: Dict[str, Any] = {
             "model": model_id,
             "messages": messages,
-            "temperature": float(sanitized.temperature),
+            "temperature": temperature,
             "max_tokens": self._apply_max_tokens_cap(sanitized.max_tokens),
             "stream": False,
         }
@@ -641,12 +800,17 @@ class LocalHttpTransport:
             raise LocalProviderError("model_mismatch", "models_list_unrecognized")
         ids: List[str] = []
         for item in data[:256]:
-            if isinstance(item, dict):
-                mid = item.get("id")
-                if isinstance(mid, str) and mid:
-                    ids.append(mid)
+            if not isinstance(item, dict):
+                raise LocalProviderError("malformed", "models_list_unrecognized")
+            mid = item.get("id")
+            if not isinstance(mid, str) or not mid.strip():
+                raise LocalProviderError("malformed", "model_id_invalid")
+            if len(mid.strip()) > MAX_MODEL_ID_CHARS:
+                raise LocalProviderError("malformed", "model_id_invalid")
+            ids.append(mid.strip())
         if model_id not in ids:
-            raise LocalProviderError("model_mismatch", f"model_id_not_listed:{model_id}")
+            # Do not echo the full configured ID (may be long); stable reason only.
+            raise LocalProviderError("model_mismatch", "model_id_not_listed")
 
     def _parse_siona_generate_response(self, obj: Dict[str, Any], *, provider_name: str) -> ModelResponse:
         text = obj.get("text")
@@ -746,10 +910,7 @@ class LocalOpenWeightProvider:
         verify_model_id: Optional[bool] = None,
         max_tokens_cap: Optional[int] = None,
     ) -> None:
-        self.model_id = resolve_model_id(model_id)
         self._allow_remote = allow_remote_endpoints() if allow_remote is None else bool(allow_remote)
-        self._timeout_s = float(timeout_s) if timeout_s is not None else _parse_timeout()
-        self._max_bytes = int(max_response_bytes) if max_response_bytes is not None else _parse_max_bytes()
         self._registry_entry = registry_entry
         self._capture_last_request = capture_last_request
         self._config_error: Optional[str] = None
@@ -760,8 +921,19 @@ class LocalOpenWeightProvider:
         self._api_dialect = DIALECT_SIONA_GENERATE
         self._verify_model_id = False
         self._max_tokens_cap: Optional[int] = None
+        self.model_id = ""
+        self._timeout_s = DEFAULT_TIMEOUT_S
+        self._max_bytes = DEFAULT_MAX_RESPONSE_BYTES
 
         try:
+            self._timeout_s = (
+                normalize_transport_timeout(timeout_s, explicit=True)
+                if timeout_s is not None
+                else _parse_timeout()
+            )
+            self._max_bytes = (
+                int(max_response_bytes) if max_response_bytes is not None else _parse_max_bytes()
+            )
             self._api_dialect = resolve_api_dialect(api_dialect)
             self._verify_model_id = resolve_verify_model_id(
                 self._api_dialect, explicit=verify_model_id
@@ -769,6 +941,11 @@ class LocalOpenWeightProvider:
             self._max_tokens_cap = resolve_max_tokens_cap(
                 self._api_dialect, explicit=max_tokens_cap
             )
+            raw_model = resolve_model_id(model_id)
+            if raw_model:
+                self.model_id = validate_model_id_value(raw_model, configured=True)
+            else:
+                self.model_id = ""
         except LocalProviderError as exc:
             self._config_error = f"{exc.category}:{exc}"
 
@@ -836,7 +1013,7 @@ class LocalOpenWeightProvider:
     @property
     def gateway_timeout_s(self) -> float:
         """Outer ModelGateway timeout: transport timeout + bounded margin."""
-        return float(self._timeout_s) + float(GATEWAY_TIMEOUT_MARGIN_S)
+        return compute_gateway_timeout_s(self._timeout_s)
 
     def _artifact_verification_status(self) -> str:
         entry = self._registry_entry
@@ -882,7 +1059,8 @@ class LocalOpenWeightProvider:
         transport_caps = {
             "chat": True,
             "streaming": False,
-            "tools_proposals": True,
+            # openai_chat ignores tool calls; siona_generate may carry proposals.
+            "tools_proposals": self._api_dialect != DIALECT_OPENAI_CHAT,
             "structured_json_transport": True,
             "api_dialect": self._api_dialect,
         }
@@ -967,11 +1145,10 @@ class LocalOpenWeightProvider:
         try:
             obj = self.transport.get_json(self.transport.health_url())
             ok, err = interpret_health_payload(obj)
-            raw_keys = ("ok", "status", "service", "error")
             result = {
                 **base,
                 "ok": ok,
-                "raw": {k: obj.get(k) for k in raw_keys if k in obj},
+                "raw": extract_health_raw(obj),
             }
             if not ok:
                 result["error"] = err

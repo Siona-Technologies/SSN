@@ -75,6 +75,18 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn("registry still pending", text.lower())
+        self.assertIn("siona_generate", text.lower())
+        experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
+        self.assertIn("EXP-3B-004", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND TESTED AGAINST DETERMINISTIC MOCKS",
+            experiment,
+        )
+        self.assertIn("REAL-RUNTIME PROVIDER VALIDATION PENDING", experiment)
+        gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
+        self.assertIn("siona_generate", gateway)
+        self.assertIn("openai_chat", gateway)
+        self.assertIn("SSN_LOCAL_MODEL_API_DIALECT", gateway)
         self.assertIn("unverified", text.lower())
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)

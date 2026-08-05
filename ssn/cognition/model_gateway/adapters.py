@@ -102,9 +102,12 @@ class ModelGatewayAsLLMProvider:
     ) -> None:
         self._provider = provider
         self.name = name or getattr(provider, "name", "model-gateway-llm-adapter")
-        self._default_timeout_s = (
-            float(default_timeout_s) if default_timeout_s is not None else None
-        )
+        if default_timeout_s is None:
+            self._default_timeout_s = None
+        else:
+            from ssn.cognition.model_gateway.local_provider import normalize_gateway_timeout
+
+            self._default_timeout_s = normalize_gateway_timeout(default_timeout_s)
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         model_req = ModelRequest.from_prompt(

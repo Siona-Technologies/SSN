@@ -31,6 +31,50 @@ SIONA does not currently own a trained foundation model.
    work remain **separate stages** and are not approved by this ADR.
 5. **No final runtime or model is approved by this ADR yet.**
 
+## Official-source research outcome (2026-08-05)
+
+Research recorded in
+[PHASE_3B_MODEL_RUNTIME_RESEARCH.md](../PHASE_3B_MODEL_RUNTIME_RESEARCH.md).
+
+### Provisional runtime direction (not approved)
+
+- **Primary first baseline:** llama.cpp native Windows x64 CPU build
+- **Later experiment only:** llama.cpp SYCL on Intel Iris Xe (no speed claim)
+- **Convenience comparison:** Ollama (deferred as first controlled baseline)
+- **Intel-optimized alternative research path:** OpenVINO GenAI (deferred)
+
+CPU baseline comes first because it minimizes driver/toolchain variables and
+preserves exact binary + model-file control. SYCL remains experimental until
+local benchmark. A background service is not preferred for the first controlled
+baseline.
+
+### Provisional model direction (not approved / not downloaded)
+
+- **Primary first integration candidate:** Qwen3-1.7B (transport/integration gate)
+  - Publisher GGUF currently publishes **Q8_0** (not Q4_K_M)
+  - Requested Q4_K_M exists on **ggml-org** with distinct quantizer attribution
+- **Second capability candidate:** Qwen3-4B Q4_K_M (official Qwen GGUF)
+- **Additional comparison:** IBM Granite 4.0 Micro Q4_K_M (official IBM GGUF)
+
+External models remain optional and replaceable. No SIONA-native foundation
+model claim is made.
+
+### Why no final approval is issued
+
+- Owner approval is required before any install or download
+- Local latency/RAM/thermal measurements are still outstanding
+- Artefact path for 1.7B Q4_K_M vs publisher Q8_0 still needs an owner choice
+- ADR status remains **Proposed** until those gates close
+
+### Conditions required before changing ADR status from Proposed
+
+1. Owner approves a specific runtime artefact (version + SHA256 + install path)
+2. Owner approves a specific model artefact (repo + filename + SHA256)
+3. Loopback-only install completes with checksum verification
+4. Provider tests and real-model evaluations are recorded honestly
+5. Deterministic CI remains free of real-model dependencies
+6. No change to owner-control / actuator authority semantics
+
 ## Alternatives
 
 | Alternative | Notes |
@@ -40,6 +84,9 @@ SIONA does not currently own a trained foundation model.
 | Hard-wire one runtime into core | Creates permanent lock-in; rejected |
 | Claim a SIONA-native foundation model now | False; SIONA does not own trained foundation weights |
 | Skip provenance/licence gates | Unacceptable for ownership and commercial-use clarity |
+| Ollama / LM Studio as first controlled baseline | Deferred — convenience over exact artefact control / service behaviour |
+| SYCL-first or Vulkan-first | Deferred — acceleration without CPU baseline evidence |
+| Phi-4 community GGUF / Qwen3.5-2B first | Deferred/rejected for first gate — provenance or multimodal complexity |
 
 ## Consequences
 

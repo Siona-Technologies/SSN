@@ -67,11 +67,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("d6c17d0", text)
         self.assertIn("2e6abb6", text)
         self.assertIn("Completed and hosted-CI accepted", text)
-        self.assertIn("Phase 3A completed; Phase 3B planning started", text)
+        self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
         self.assertIn(
-            "Planning and official-source research started — no runtime/model installed",
+            "official-source research matrix completed after coverage and traceability correction; provisional recommendation pending owner approval — no runtime/model installed",
             text,
         )
+        self.assertIn("not authorized", text.lower())
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
         self.assertIn("PHASE_3_ENGINEERING_SPEC.md", text)
@@ -82,7 +83,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertNotIn("not marked accepted until", text)
 
     def test_phase3_spec_status(self):
-        # Phase 3A completed/merged; Phase 3 overall in progress; Phase 3B planning docs exist.
+        # Phase 3A completed/merged; Phase 3 overall in progress; Phase 3B research recorded.
         text = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
         self.assertIn("phase 3a", text.lower())
         self.assertIn("completed", text.lower())
@@ -112,6 +113,65 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("Proposed", adr)
         self.assertIn("No final runtime or model is approved", adr)
+
+    def test_phase3b_official_research_gate(self):
+        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
+            encoding="utf-8"
+        )
+        # Research must contain completed comparisons, not only unresolved placeholders.
+        self.assertIn("Provisional runtime recommendation", research)
+        self.assertIn("PROVISIONAL — REQUIRES OWNER APPROVAL BEFORE INSTALLATION", research)
+        self.assertIn("PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED", research)
+        self.assertIn("llama.cpp native Windows", research)
+        self.assertIn("Qwen3-1.7B", research)
+        self.assertNotIn(
+            "Do not fill unstable facts from memory",
+            research,
+        )
+        # Ensure the document is not still the empty template form.
+        self.assertGreater(research.count("Officially stated"), 10)
+        # Full comparison coverage and traceability.
+        for heading in (
+            "### 1. llama.cpp native Windows CPU",
+            "### 2. llama.cpp Windows SYCL",
+            "### 3. llama.cpp Windows Vulkan",
+            "### 4. Ollama for Windows",
+            "### 5. LM Studio",
+            "### 6. OpenVINO GenAI",
+            "### 7. ONNX Runtime GenAI / WinML / DirectML",
+            "### Candidate A — Qwen3-1.7B",
+            "### Candidate B — Qwen3-4B",
+            "### Candidate C — IBM Granite 4.0 Micro",
+            "### Candidate D — Microsoft Phi-4-mini-instruct",
+            "### Candidate E — Qwen3.5-2B",
+        ):
+            self.assertIn(heading, research)
+        self.assertIn("## Source traceability appendix", research)
+        self.assertIn("Exact release, version, tag or revision examined", research)
+        self.assertIn("Original repository revision", research)
+        self.assertIn("Quantized repository revision", research)
+        self.assertIn("Not authorized", research)
+        self.assertIn("In progress", research)
+        self.assertIn("Phase 4", research)
+        self.assertIn("**Not started**", research)
+        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("no install authorized", runbook.lower())
+        self.assertIn("UNAPPROVED", runbook)
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertIn("not authorized", status.lower())
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
+        self.assertIn("Proposed", status_block)
+        self.assertNotIn("Accepted", status_block)
+        self.assertIn("no model download authorized", research.lower())
+        self.assertIn("installation", research.lower())
+        self.assertIn("not authorized", research.lower())
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

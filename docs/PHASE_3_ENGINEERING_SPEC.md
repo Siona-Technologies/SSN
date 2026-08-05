@@ -1,12 +1,12 @@
 # Phase 3 Engineering Specification
 
 **Working title:** SIONA Local Model and Evaluation Layer  
-**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline installed and artifact-verified locally with limited loopback probe  
+**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline installed and artifact-verified locally; controlled real-provider text path validated (runtime stopped)  
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
 **Phase 3B:** in progress — baseline installed/verified locally; limited loopback
-inference completed; `openai_chat` transport dialect implemented with
-deterministic mock tests; real-runtime activation, registry and full evaluation
-pending  
+inference completed; `openai_chat` transport dialect implemented; controlled
+real-provider text-path validation recorded (EXP-3B-005); registry, Gate E
+evaluation, broad capability verification and ADR acceptance pending  
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate
@@ -128,19 +128,21 @@ Phase 3B gates **passed** (local operator evidence, 2026-08-05):
 - Initial CPU-only loopback startup
 - Basic transport smoke probe
 - Normal non-force shutdown
+- Controlled real SIONA provider text-path validation (EXP-3B-005):
+  exact model-ID verification; LanguageEngine → local provider → llama.cpp;
+  deterministic fallback after shutdown
 
 Phase 3B gates remaining **open**:
 
-- Provider implementation/integration
 - Model registry activation
-- Security validation with real runtime
-- Structured-output validation
+- Security validation campaign with real runtime
+- Structured-output capability verification
 - Timeout/cancellation validation
 - Streaming validation
-- Behavioral evaluation
-- Capability verification
-- Full rollback/fallback validation
+- Behavioral / Gate E evaluation suite
+- Capability verification (beyond observed text path)
 - ADR acceptance
+- Phase 3B completion
 
 Additional standing gates:
 

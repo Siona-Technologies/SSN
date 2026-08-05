@@ -1,14 +1,14 @@
 # Phase 3B — Model and Runtime Research
 
 **Status:** Official-source research matrix completed; first baseline is
-**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**.
+**INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED**.
 
 **Source-access date:** 2026-08-05  
 **Hardware baseline:** HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe; ~15.73 GiB RAM; no CUDA  
 
-**Non-authorization:** No runtime install, no model download, no weights
-download, no runtime execution, no capability approval, and no ADR acceptance
-are issued by this document.
+**Non-authorization:** No SIONA provider integration, model-registry activation,
+capability approval, ADR acceptance, or Phase 4 work is issued by this
+document. Additional inference campaigns require further owner authorization.
 
 ## Research status
 
@@ -17,20 +17,25 @@ are issued by this document.
 | Official-source runtime research | **Completed with full field coverage** (2026-08-05) |
 | Official-source model research | **Completed with full field coverage** (2026-08-05) |
 | Source revisions pinned | **Yes** (see Source traceability appendix) |
-| Owner-approved first baseline | **Recorded — pre-installation verification only** |
-| Runtime installation | **Not authorized** |
-| Model download | **Not authorized** |
-| Weights | **Not downloaded** |
-| Runtime execution | **Not authorized** |
-| Real-model benchmark | **Not started** |
-| Capabilities | **Unverified** |
+| Owner-approved first baseline | **Recorded** |
+| Runtime installation | **Completed locally (operator evidence)** |
+| Model download | **Completed locally (operator evidence)** |
+| Local SHA256 verification | **MATCH for runtime archive and model** |
+| Limited loopback execution | **Completed; runtime currently stopped** |
+| Real-model production evaluation | **Not started** |
+| SIONA provider integration | **Pending — not authorized by this update** |
+| Capabilities | **Unverified beyond basic transport/inference probe** |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
 
 ## Owner-approved first baseline
 
-**Status wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
+**Prior status wording (selection gate):** OWNER-APPROVED FOR PRE-INSTALLATION
+VERIFICATION ONLY
+
+**Current local-evidence wording:** INSTALLED AND ARTIFACT-VERIFIED LOCALLY;
+LIMITED LOOPBACK EXECUTION COMPLETED
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -50,6 +55,28 @@ are issued by this document.
 | Model licence | Apache License 2.0 |
 | Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only |
 
+### Local operator evidence (2026-08-05)
+
+This subsection is **local operator evidence**, not a claim that GitHub
+independently verified installation.
+
+- Runtime archive `llama-b9968-bin-win-cpu-x64.zip`: 18211732 bytes; locally
+  calculated SHA256
+  `f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd` — **MATCH**
+- Portable extract to `C:\Users\njaji\SIONA\runtimes\llama.cpp\b9968` with
+  `llama-server.exe` / `llama-cli.exe` present; MIT licence copy preserved
+- Model `Qwen3-1.7B-Q4_K_M.gguf`: 1282439264 bytes; locally calculated SHA256
+  `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` — **MATCH**
+- Model directory `C:\Users\njaji\SIONA\models\Qwen3-1.7B-Q4_K_M`; Apache-2.0
+  licence copy preserved; quantizer remains **ggml-org**
+- CPU-only loopback run on `127.0.0.1:8080` loaded the model and generated text
+  for short probes; runtime is **currently stopped**; port 8080 not listening
+- Short probe is **insufficient** for broad behavioral or security capability
+  claims
+- SIONA provider integration has **not** started
+- The model remains external, optional and replaceable; **not** SIONA-native
+- No tool capability is approved; no production recommendation is issued
+
 Selection notes:
 
 - Q4_K_M was selected for the first integration because of the laptop's RAM,
@@ -60,12 +87,14 @@ Selection notes:
 - Publisher Q8_0 remains a possible later comparison.
 - Qwen3-4B and Granite remain later comparison candidates.
 - The first baseline is replaceable behind `ModelGateway`.
-- No runtime or model capability has been verified.
-- No model download or runtime installation is authorized.
+- Broad runtime/model capability remains unverified beyond the limited
+  loopback probe.
+- SIONA provider integration and additional inference campaigns still require
+  separate authorization.
 
 This is **not** SIONA's permanent reasoning model, a final production model, a
-SIONA-native model, a capability-approved model, an installed model, or a
-downloaded model.
+SIONA-native model, or a capability-approved model. The selected baseline is
+locally installed and artifact-verified; the runtime is currently stopped.
 
 ## Preserved later candidates (not authorized)
 
@@ -136,8 +165,8 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 | CPU suitability on i7-1165G7 | Suitable for small models on 4C/8T; latency REQUIRES LOCAL BENCHMARK |
 | Iris Xe path | NOT APPLICABLE (CPU baseline) |
 | Risks | Endpoint schema drift vs SIONA transport; no tokens/s claim |
-| Unresolved questions | Confirm exact `--help` flags on the extracted b9968 CPU binary before any install approval |
-| Selection status | **PROVISIONAL primary baseline — not installed / not approved** |
+| Unresolved questions | Initial binary flags were inspected during the owner-authorized baseline run; future governed execution must revalidate required flags before startup |
+| Selection status | **Historical provisional primary baseline at research gate; now locally installed/verified (runtime stopped)** |
 
 ### 2. llama.cpp Windows SYCL
 
@@ -449,21 +478,28 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 | Unresolved questions | Whether Phi-4 ONNX path should be a separate later track |
 | Selection status | **Deferred — not first GGUF baseline** |
 
-## Provisional runtime recommendation
+## Runtime recommendation history and current status
 
-**Status: PROVISIONAL — REQUIRES OWNER APPROVAL BEFORE INSTALLATION**
+**Historical selection status:** PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION
+
+**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED; PROVIDER INTEGRATION PENDING
 
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
 
-The owner has recorded this as the first baseline for
-**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**. Installation,
-download and execution remain unauthorized.
+The historical recommendation remains useful as decision provenance. It is
+**not** the current installation state. Installation occurred later under
+separate explicit owner authorization. Local operator evidence records
+artifact verification and a limited loopback probe; the runtime is currently
+stopped. Further execution campaigns and SIONA provider integration still
+require separate authorization.
+
+**Historical owner-selection gate wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
 Later experiment: **llama.cpp SYCL**. Convenience comparison: **Ollama**.
 Alternative research path: **OpenVINO GenAI**.
 
-No runtime is installed or finally approved.
+No final production runtime approval is issued by ADR 0003 (still Proposed).
 
 ---
 
@@ -515,8 +551,8 @@ No runtime is installed or finally approved.
 | Provenance risk | Low for publisher Q8_0; moderate for ggml-org Q4_K_M |
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
-| Local evaluation status | Not evaluated locally — no real-model benchmark completed |
-| Selection status | **OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY — no download authorized; quantizer = ggml-org** |
+| Local evaluation status | Limited local loopback smoke completed; governed real-model production evaluation suite not started |
+| Selection status | **OWNER-AUTHORIZED locally installed baseline (runtime currently stopped); provider integration pending** |
 
 ### Candidate B — Qwen3-4B
 
@@ -716,20 +752,36 @@ No runtime is installed or finally approved.
 | Runtime-maturity risk | Higher — newer multimodal architecture |
 | Local evaluation status | Not evaluated |
 | Selection status | **Research-only — rejected for first integration gate** |
-## Provisional first-model recommendation
+## First-model recommendation history and current status
 
-**Status: PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED**
+**Historical selection status:** PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED AT THE RESEARCH GATE
 
-Primary family remains **Qwen3-1.7B**. The owner selected
-`Qwen3-1.7B-Q4_K_M.gguf` from `ggml-org/Qwen3-1.7B-GGUF` revision
-`daeb8e2d528a760970442092f6bf1e55c3b659eb` as the
-**OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION VERIFICATION**.
+**Subsequent authorized outcome:** `Qwen3-1.7B-Q4_K_M.gguf` was downloaded under
+explicit owner authorization, verified locally at the pinned size
+(1282439264 bytes) and SHA256
+`d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`, loaded for
+a limited loopback probe, and retained on disk with the runtime stopped.
+
+Primary family remains **Qwen3-1.7B** from `ggml-org/Qwen3-1.7B-GGUF` revision
+`daeb8e2d528a760970442092f6bf1e55c3b659eb`.
+
+**Historical owner-selection gate wording:** OWNER-APPROVED FIRST BASELINE FOR
+PRE-INSTALLATION VERIFICATION
 
 Publisher Q8_0 remains a possible later comparison. Second: Qwen3-4B Q4_K_M.
 Comparison: Granite 4.0 Micro Q4_K_M.
 
-No model download is authorized. No weights have been downloaded. No real-model
-benchmark has been completed. Capabilities remain unverified.
+**Current restrictions:**
+
+- SIONA provider integration not authorized by this documentation PR
+- Model registry remains inactive
+- Additional inference campaigns require separate authorization
+- Capabilities remain unverified beyond the basic probe
+- ADR 0003 remains Proposed
+- Phase 3B remains in progress
+- Phase 4 remains not started
+
+No real-model production evaluation suite has been completed.
 
 ---
 

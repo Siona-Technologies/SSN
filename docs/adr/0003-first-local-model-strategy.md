@@ -36,7 +36,10 @@ SIONA does not currently own a trained foundation model.
 Research recorded in
 [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](../PHASE_3B_MODEL_RUNTIME_RESEARCH.md).
 
-### Provisional runtime direction (not approved)
+### Historical pre-install runtime direction
+
+*(State at the official-source research gate, before owner download/install
+authorization.)*
 
 - **Primary first baseline:** llama.cpp native Windows x64 CPU build
 - **Later experiment only:** llama.cpp SYCL on Intel Iris Xe (no speed claim)
@@ -48,7 +51,10 @@ preserves exact binary + model-file control. SYCL remains experimental until
 local benchmark. A background service is not preferred for the first controlled
 baseline.
 
-### Provisional model direction (not approved / not downloaded)
+### Historical pre-install model direction
+
+*(State at the official-source research gate, before owner download/install
+authorization.)*
 
 - **Primary first integration candidate:** Qwen3-1.7B (transport/integration gate)
   - Publisher GGUF currently publishes **Q8_0** (not Q4_K_M)
@@ -61,9 +67,17 @@ model claim is made.
 
 ## Owner-approved Phase 3B baseline
 
-The owner approved the first controlled baseline for **pre-installation
-verification only**. This selection does **not** constitute ADR acceptance.
-ADR status remains **Proposed**.
+**Historical owner-selection gate:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
+
+**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; RUNTIME CURRENTLY STOPPED
+
+These subsections above describe the state at the official-source research gate.
+The owner subsequently issued explicit download/install/execution authorization.
+The selected baseline is now locally installed and artifact-verified. Limited
+loopback execution completed and the runtime is stopped. This later
+authorization does **not** constitute ADR acceptance. Provider integration,
+registry activation, governed real-runtime evaluation, security testing and
+rollback/fallback validation remain pending. ADR status remains **Proposed**.
 
 | Item | Exact recorded value |
 |------|----------------------|
@@ -89,27 +103,41 @@ Clarifications:
 - No SIONA-native model claim is made.
 - Capability verification remains separate from artefact verification.
 - Failure of this baseline must not require a SIONA Core redesign.
-- Runtime installation, model download, runtime execution and capability
-  approval remain **unauthorized**.
+- SIONA provider integration, model-registry activation, capability approval and
+  ADR acceptance remain **outstanding**.
+
+## Local evidence (2026-08-05) — necessary but not sufficient
+
+Local operator evidence recorded outside Git (summarized in governed docs):
+
+- Artifact installation and checksum verification **passed** (runtime archive
+  and model SHA256 **MATCH**)
+- Portable CPU-only runtime loaded the selected model on loopback
+- Limited loopback probes **passed** (`/health`, `/v1/models`, basic chat,
+  arithmetic smoke)
+- Normal non-force process termination **passed**
+- Application-level graceful shutdown was **not** verified
+- Provider integration and governed evaluation remain **outstanding**
+
+These results are **necessary but not sufficient** for changing ADR status from
+**Proposed** to Accepted.
 
 ### Why ADR status remains Proposed
 
-- Runtime archive SHA256 and install path are not yet verified/approved
-- Read-only pre-install checklist is still pending
-- Loopback install, integration, security, rollback and real-model evaluation
-  have not run
-- ADR acceptance requires successful artefact verification, installation,
-  integration, security testing, rollback testing and real-model evaluation
+- SIONA provider integration is not wired to this baseline yet
+- Model registry activation has not occurred
+- Security, structured-output, timeout/cancellation, streaming and adversarial
+  evaluations against the real runtime are outstanding
+- Full rollback/fallback validation involving ModelGateway is outstanding
 - Deterministic CI must remain free of real-model dependencies
 - No change to owner-control / actuator authority semantics
 
 ### Conditions required before changing ADR status from Proposed
 
-1. Owner approves verified runtime artefact (version + SHA256 + install path)
-2. Owner approves verified model artefact (repo + filename + SHA256) after
-   download authorization
-3. Loopback-only install completes with checksum verification
-4. Provider tests and real-model evaluations are recorded honestly
+1. Owner-approved artifacts remain pinned and checksum-verified
+2. SIONA provider integration and registry activation complete under policy
+3. Provider tests and real-model evaluations are recorded honestly
+4. Security, structured-output, timeout/cancellation and streaming gates pass
 5. Deterministic CI remains free of real-model dependencies
 6. No change to owner-control / actuator authority semantics
 
@@ -128,13 +156,19 @@ Clarifications:
 
 ## Consequences
 
-- Planning and research may proceed without installing software.
-- Installation requires the staged approvals in
+- Historical research/planning could proceed without installing software; that
+  was the research-gate posture, not the current operator state.
+- The portable baseline is now **locally installed and artifact-verified** under
+  explicit owner authorization; the runtime is currently **stopped**.
+- Further governed integration (SIONA provider wiring, registry activation,
+  real-runtime evaluation, security and rollback/fallback validation) still
+  requires staged approvals in
   [PHASE_3B_INSTALLATION_RUNBOOK.md](../PHASE_3B_INSTALLATION_RUNBOOK.md).
 - CI remains deterministic; real models stay out of hosted gates unless a later
   ADR explicitly changes that policy.
 - Capability claims remain conservative until artefact and behavioural
-  verification are both recorded.
+  verification are both recorded; the limited loopback probe is not sufficient
+  for production capability approval.
 
 ## Ownership boundaries
 

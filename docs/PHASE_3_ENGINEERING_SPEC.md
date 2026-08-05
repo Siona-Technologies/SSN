@@ -1,9 +1,9 @@
 # Phase 3 Engineering Specification
 
 **Working title:** SIONA Local Model and Evaluation Layer  
-**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline owner-approved for pre-installation verification  
+**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline installed and artifact-verified locally with limited loopback probe  
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
-**Phase 3B:** in progress — owner-approved first baseline recorded for pre-installation verification only; installation and download remain unauthorized  
+**Phase 3B:** in progress — baseline installed/verified locally; limited loopback inference completed; provider integration and full evaluation pending  
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate
@@ -115,21 +115,29 @@ Phase 3 must **not**:
 
 Phase 3A acceptance gates are completed and merged.
 
-Phase 3B owner-selection gate: **passed** (documentation only —
-OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY).
+Phase 3B gates **passed** (local operator evidence, 2026-08-05):
 
-The following Phase 3B gates remain **open**:
-
+- Owner selection
 - Pre-install environment verification
-- Runtime artifact verification
-- Model artifact verification
-- Controlled installation
-- Loopback server verification
-- Provider integration
-- Security validation
-- Rollback validation
-- Baseline performance measurement
-- Real-model behavioral evaluation
+- Runtime artifact acquisition and local verification
+- Model artifact acquisition and local verification
+- Portable installation
+- Initial CPU-only loopback startup
+- Basic transport smoke probe
+- Normal non-force shutdown
+
+Phase 3B gates remaining **open**:
+
+- Provider implementation/integration
+- Model registry activation
+- Security validation with real runtime
+- Structured-output validation
+- Timeout/cancellation validation
+- Streaming validation
+- Behavioral evaluation
+- Capability verification
+- Full rollback/fallback validation
+- ADR acceptance
 
 Additional standing gates:
 

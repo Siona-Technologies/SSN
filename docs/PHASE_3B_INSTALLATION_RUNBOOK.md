@@ -1,25 +1,27 @@
 # Phase 3B — Installation Runbook
 
-**Status:** owner-approved first baseline recorded for **pre-installation
-verification only** — **no install authorized by this document**  
-**Rule:** each destructive or state-changing step requires **explicit approval**
-before execution
+**Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
+limited loopback execution completed and stopped — **SIONA provider integration
+not authorized by this document**  
+**Rule:** each destructive or state-changing step beyond the recorded baseline
+requires **explicit approval** before execution
 
-This runbook defines the ordered procedure for a future optional local runtime and
-single-model install. Completing documentation is not approval to install.
+This runbook defines the ordered procedure for the optional local runtime and
+single-model install. Completing documentation is not approval for provider
+integration, capability claims, or ADR acceptance.
 
 ## Approval gates
 
 Do not proceed past a stage without recorded approval.
 
-| Gate | Prerequisite | Approval required |
-|------|--------------|-------------------|
-| A — Environment | Hardware inventory current | Yes |
-| B — Runtime install | Runtime research complete + Gate A | Yes |
-| C — Model download | Model research + licence/provenance recorded + Gate B | Yes |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes |
-| E — Real-model eval | Gate D | Yes |
-| F — Rollback drill | Any prior install | Yes |
+| Gate | Prerequisite | Approval required | Local status (2026-08-05) |
+|------|--------------|-------------------|---------------------------|
+| A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
+| B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
+| C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | Health/chat smoke only; **provider integration pending** |
+| E — Real-model eval | Gate D | Yes | Pending |
+| F — Rollback drill | Any prior install | Yes | Portable layout ready; full provider-fallback drill pending |
 
 ## Provisional safety defaults
 
@@ -30,63 +32,68 @@ These defaults are **provisional**, not final production certification:
 - No automatic startup
 - No automatic model download
 - Tool execution disabled
-- Capability status unverified
+- Capability status unverified beyond basic transport/inference probe
 - Context initially bounded
 - Output tokens initially bounded
 - CPU-first baseline
 - No model used in CI
 
-## Owner-approved first baseline (pre-installation verification only)
+## Owner-approved first baseline — local installation record (2026-08-05)
 
-**Terminology:** this is the **OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION
-VERIFICATION**. It is **not** SIONA's permanent reasoning model, a final
-production model, a SIONA-native model, a capability-approved model, an
-installed model, or a downloaded model.
+**Terminology:** this remains the first controlled baseline for transport,
+integration preparation, safety, provenance, rollback and baseline-performance
+validation. It is **not** SIONA's permanent reasoning model, a final production
+model, a SIONA-native model, or a capability-approved model.
+
+**Evidence class:** local operator evidence (artifact hashes calculated on the
+operator machine). Do **not** state that GitHub independently verified local
+installation.
 
 | Field | Recorded value | Current status |
 |-------|----------------|----------------|
-| Runtime family | llama.cpp | Owner-approved baseline |
-| Runtime version | b9968 | Owner-approved baseline |
+| Runtime family | llama.cpp | Installed locally |
+| Runtime version | b9968 | Artifact-verified |
 | Runtime commit | `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f` | Source pinned |
-| Runtime archive | `llama-b9968-bin-win-cpu-x64.zip` | Approved for verification only |
-| Runtime SHA256 | REQUIRES PRE-INSTALL SOURCE VERIFICATION | Not yet verified |
-| Runtime mode | Windows x64 CPU-only | Owner-approved baseline |
-| Model family | Qwen3-1.7B | Owner-approved baseline |
+| Runtime archive | `llama-b9968-bin-win-cpu-x64.zip` | Downloaded |
+| Runtime archive size | 18211732 bytes | Locally measured |
+| Runtime SHA256 (locally calculated) | `f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd` | **MATCH** |
+| Runtime mode | Windows x64 CPU-only | Verified at run |
+| Portable extraction | completed | Outside Git |
+| Runtime directory | `C:\Users\njaji\SIONA\runtimes\llama.cpp\b9968` | Present |
+| Required executables | `llama-server.exe`, `llama-cli.exe` | Present |
+| MIT licence copy | `LICENSE-MIT.txt` preserved beside runtime | Present |
+| Model family | Qwen3-1.7B | Installed locally |
 | Original model publisher | Qwen Team / Alibaba Cloud | Source pinned |
-| Model repository | `ggml-org/Qwen3-1.7B-GGUF` | Owner-approved baseline |
+| Model repository | `ggml-org/Qwen3-1.7B-GGUF` | Downloaded |
 | Repository revision | `daeb8e2d528a760970442092f6bf1e55c3b659eb` | Source pinned |
-| GGUF filename | `Qwen3-1.7B-Q4_K_M.gguf` | Owner-approved baseline |
-| Published size | 1282439264 bytes | Expected only |
-| Expected SHA256 | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` | Expected only |
-| Model licence | Apache License 2.0 | Requires licence preservation |
+| GGUF filename | `Qwen3-1.7B-Q4_K_M.gguf` | Present |
+| Published / local size | 1282439264 bytes | **MATCH** |
+| Model SHA256 (locally calculated) | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` | **MATCH** |
+| Model directory | `C:\Users\njaji\SIONA\models\Qwen3-1.7B-Q4_K_M` | Present |
+| Apache-2.0 licence copy | `LICENSE-Apache-2.0.txt` preserved | Present |
 | Quantizer | ggml-org | Explicit provenance |
-| Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only | Scope limited |
-| Installation directory | PENDING READ-ONLY PRE-INSTALL CHECKLIST | Not approved |
-| Model storage directory | PENDING READ-ONLY PRE-INSTALL CHECKLIST | Not approved |
-| Host and port | Provisional intent `127.0.0.1:8080` | Not execution-approved |
-| Context size | Provisional intent 4096 | Not execution-approved |
-| Maximum output tokens | Provisional intent 512 | Not execution-approved |
-| CPU threads | PENDING LOCAL VERIFICATION | Not approved |
-| GPU layers | 0 for CPU baseline | Provisional |
-| Capability status | Unverified | Must remain unverified |
-| Download status | Not authorized | Blocked |
-| Installation status | Not authorized | Blocked |
-| Execution status | Not authorized | Blocked |
-| Rollback commands | `UNAPPROVED — stop process; delete runtime dir; delete GGUF; restore registry mock` | Not approved |
+| Host and port (executed) | `127.0.0.1:8080` | Stopped after test |
+| Context size (executed) | 4096 | Recorded |
+| Maximum output setting (executed) | 512 server default; probe used ≤64 | Recorded |
+| CPU threads (executed) | 4 | Recorded |
+| GPU layers (executed) | 0 | Recorded |
+| Capability status | Unverified beyond basic transport/inference probe | Must remain limited |
+| PATH modification | None | Confirmed |
+| Firewall rule | None | Confirmed |
+| Windows service | None | Confirmed |
+| Scheduled auto-start | None | Confirmed |
+| Registry modification | None | Confirmed |
+| Download status (this baseline) | Completed under owner authorization | Local evidence |
+| Installation status (this baseline) | Completed portable extract | Local evidence |
+| Execution status | Limited loopback probe completed; **runtime currently stopped** | Local evidence |
+| Portable rollback | Available (delete runtime/model/staging dirs; Core untouched) | Design verified |
+| Rollback commands for provider fallback | `UNAPPROVED — provider integration not yet wired` | Not approved |
 
-### Download / install gate (blocked)
+### Remaining authorization gate
 
-No download or state-changing command may be executed until:
-
-1. This documentation PR is reviewed and merged.
-2. Read-only pre-install checks pass.
-3. Runtime archive source and checksum handling are verified.
-4. Storage and free-RAM readings are refreshed.
-5. Exact installation and rollback paths are approved.
-6. The owner explicitly authorizes installation and model download.
-
-**No install authorized. No model download authorized. No runtime execution
-authorized.**
+No SIONA provider integration, model-registry activation, additional inference
+campaign, capability approval, ADR acceptance, or Phase 4 work may proceed
+without further explicit owner authorization.
 
 ## Stages
 

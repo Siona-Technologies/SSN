@@ -822,7 +822,8 @@ def handle_user_message(user_input: str, deps: dict, context: dict) -> dict:
             identity_verified=_is_owner(role),
         )
     except Exception:
-        response["runtime_mode"] = response.get("runtime_mode") or "legacy"
+        # Legacy compatibility: never inject Phase-2 metadata on failure.
+        pass
 
     return response
 
@@ -840,6 +841,9 @@ def _phase2_attach(
 ) -> dict:
     """
     Additive Phase 2 integration. Does not alter authoritative answer text.
+
+    Legacy mode returns the response unchanged (exact pre-Phase-2 chat shape).
+    Mode is exposed via health / diagnostic snapshot, not ordinary chat responses.
     """
     from ssn.integration.runtime_modes import RuntimeMode, get_runtime_mode
     from ssn.integration.trace_context import TraceContext
@@ -852,20 +856,26 @@ def _phase2_attach(
         except Exception:
             mode = get_runtime_mode()
 
-    response = dict(response)
-    response["runtime_mode"] = mode.value
-
-    if integration is None:
+    # Exact legacy Front Door compatibility — no additive chat fields.
+    if mode == RuntimeMode.LEGACY or integration is None:
         return response
 
-    trace = TraceContext.from_request(
+    response = dict(response)
+    trace = TraceContext.extract_or_create(
         context=ctx,
+        deps=deps,
         role=role,
-        session_id=str(ctx.get("session_id") or ""),
-        tenant_id=str(ctx.get("tenant_id") or "default"),
         source="front_door",
         runtime_mode=mode.value,
     )
+    # Propagate for child interface handlers on this request.
+    if isinstance(deps, dict):
+        deps["trace_context"] = trace
+    if isinstance(ctx, dict):
+        ctx["trace_id"] = trace.trace_id
+        ctx["correlation_id"] = trace.correlation_id
+
+    response["runtime_mode"] = mode.value
     response["trace_id"] = trace.trace_id
 
     # Flatten router result for observation

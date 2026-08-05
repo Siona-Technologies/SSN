@@ -8,8 +8,10 @@ Accepted (Phase 2)
 
 SIONA needs an event-driven cognitive foundation while preserving a working
 Orchestrator, BrainRouter, Front Door, tools, memory, and owner-controlled
-policy path. The development laptop has no CUDA GPU. Products (Pulse, Weza AI)
-must consume Core contracts without each rebuilding intelligence.
+policy path. The development laptop has no CUDA GPU. SIONA Core is being
+developed as an independent intelligence platform under Siona Technologies;
+integration with other Siona Technologies products is a future business and
+architectural decision and is outside the present scope.
 
 ## Decision
 

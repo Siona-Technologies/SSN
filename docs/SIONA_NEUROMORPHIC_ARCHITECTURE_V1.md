@@ -2,9 +2,11 @@
 
 ## Core platform
 
-SIONA (SSN) is a modular monolith cognitive runtime. Products such as Pulse and
-Weza AI consume it through stable contracts. The Jarvis deployment is the
-primary local-first mode; IoT and robotics attach via embodiment adapters.
+SIONA (SSN) is a modular monolith cognitive runtime. SIONA Core is being
+developed as an independent intelligence platform under Siona Technologies.
+Integration with other Siona Technologies products is a future business and
+architectural decision and is outside the present scope. The Jarvis deployment
+is the primary local-first mode; IoT and robotics attach via embodiment adapters.
 
 ## Hybrid LLM / SNN design
 

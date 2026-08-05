@@ -254,21 +254,21 @@ def handle_sense_tick(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
 
             mode = get_runtime_mode()
             if mode.value != "legacy":
-                tr = TraceContext(
+                # Reuse inbound TraceContext; role comes from authorization above.
+                tr = TraceContext.extract_or_create(
+                    context=req.context if isinstance(req.context, dict) else {},
+                    deps=depsd,
                     role=resp_role,
-                    runtime_mode=mode.value,
                     source="sense_tick",
-                    tenant_id=str((req.context or {}).get("tenant_id") or "default")
-                    if isinstance(req.context, dict)
-                    else "default",
-                    session_id=str((req.context or {}).get("session_id") or "")
-                    if isinstance(req.context, dict)
-                    else "",
+                    runtime_mode=mode.value,
                 )
                 tick_payload = dict(report)
                 if isinstance(out, dict) and isinstance(out.get("world_update"), dict):
                     tick_payload["world_update"] = out.get("world_update")
-                fallback = "Fallback synthetic" in str(report.get("note") or "") or perception_hub is None
+                fallback = (
+                    "Fallback synthetic" in str(report.get("note") or "")
+                    or perception_hub is None
+                )
                 integration.observe_sense_tick(
                     tick_result=tick_payload,
                     trace=tr,
@@ -276,7 +276,6 @@ def handle_sense_tick(req: InterfaceRequest, deps: Any) -> InterfaceResponse:
                 )
     except Exception:
         pass
-
     return InterfaceResponse(
         ok=bool(report["ok"]),
         action="sense_tick",

@@ -38,4 +38,4 @@ Do **not** start automatically; requires a new instruction.
 - Transactional world-model store
 - First MQTT or ROS 2 adapter (still gated, confirmation required)
 - Learned neuromorphic backends (snnTorch / Norse) as providers
-- Product API stability for Pulse / Weza AI
+- Explicit product-integration decisions (out of present Core scope)

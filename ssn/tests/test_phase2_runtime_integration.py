@@ -163,7 +163,13 @@ class TestFrontDoorModes(unittest.TestCase):
                 {"offline": True, "role": "GUEST"},
             )
             self.assertIn("Guest", out["answer"])
-            self.assertEqual(out.get("runtime_mode"), "legacy")
+            # Exact legacy chat shape — no Phase-2 metadata on ordinary responses
+            self.assertNotIn("runtime_mode", out)
+            self.assertNotIn("trace_id", out)
+            self.assertNotIn("integration", out)
+            # Mode remains visible on health / diagnostic, not chat
+            snap = rt.integration.diagnostic_snapshot()
+            self.assertEqual(snap.get("runtime_mode"), "legacy")
 
     def test_shadow_does_not_change_answer_or_duplicate_model(self):
         with mock.patch.dict(os.environ, {"SSN_COGNITIVE_MODE": "shadow", "SSN_OFFLINE": "1"}):

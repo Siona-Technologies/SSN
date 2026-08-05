@@ -305,3 +305,18 @@ class IntegrationFacade:
             trace=trace,
             count_execution=True,
         )
+
+    @property
+    def pending_observation_tasks(self) -> int:
+        return self.events.pending_task_count
+
+    async def drain(self, *, timeout_s: float = 5.0) -> None:
+        """Await pending observation tasks from EventBridge."""
+        await self.events.drain(timeout_s=timeout_s)
+
+    async def shutdown(self, *, timeout_s: float = 5.0) -> None:
+        """Drain observation tasks and close the event bridge."""
+        await self.events.shutdown(timeout_s=timeout_s)
+
+    def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+        self.events.shutdown_sync(timeout_s=timeout_s)

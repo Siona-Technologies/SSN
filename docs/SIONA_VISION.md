@@ -9,12 +9,14 @@ humanoid embodiments.
 
 ## Product relationship
 
+SIONA Core is being developed as an independent intelligence platform under
+Siona Technologies. Integration with other Siona Technologies products is a
+future business and architectural decision and is outside the present scope.
+
 | Product | Role |
 |---------|------|
 | **SIONA Core (SSN)** | Shared cognitive runtime, memory, world model, policy, tools, embodiment contracts |
-| **SIONA Pulse** | Product that consumes SIONA Core through stable APIs — does not reimplement the brain |
-| **Weza AI** | Product that consumes SIONA Core through stable APIs — does not reimplement the brain |
-| Future apps | Same rule: consume Core contracts; do not fork intelligence architecture |
+| Future apps | Consume Core contracts when an integration is explicitly approved; do not fork intelligence architecture |
 
 ## Deployment models
 

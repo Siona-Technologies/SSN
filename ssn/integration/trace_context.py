@@ -83,3 +83,53 @@ class TraceContext:
         out = self.to_dict()
         out.update(extra)
         return out
+
+    @classmethod
+    def extract_or_create(
+        cls,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+        deps: Optional[Dict[str, Any]] = None,
+        role: str = "GUEST",
+        source: str = "interface",
+        runtime_mode: Optional[str] = None,
+    ) -> "TraceContext":
+        """
+        Extract TraceContext from request context/deps, or create once at the boundary.
+
+        Does not invent OWNER for observation — callers pass the already-resolved role.
+        """
+        ctx = dict(context or {})
+        depsd = dict(deps or {})
+        # Prefer an already-attached object on deps for the request lifetime.
+        existing_obj = depsd.get("trace_context")
+        if isinstance(existing_obj, TraceContext):
+            if role and existing_obj.role != role:
+                existing_obj.role = str(role)
+            return existing_obj
+
+        meta = ctx.get("meta") if isinstance(ctx.get("meta"), dict) else {}
+        mode = runtime_mode or depsd.get("cognitive_mode") or get_runtime_mode().value
+        tr = cls.from_request(
+            context=ctx,
+            role=role,
+            session_id=str(ctx.get("session_id") or meta.get("session_id") or ""),
+            tenant_id=str(ctx.get("tenant_id") or meta.get("tenant_id") or "default"),
+            source=source,
+            runtime_mode=str(mode),
+        )
+        return tr
+
+    def bind_to_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Inject trace fields into a context dict for child handlers."""
+        ctx = dict(context or {})
+        ctx["trace_id"] = self.trace_id
+        ctx["correlation_id"] = self.correlation_id
+        ctx.setdefault("tenant_id", self.tenant_id)
+        ctx.setdefault("session_id", self.session_id)
+        return ctx
+
+    def bind_to_deps(self, deps: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        depsd = dict(deps or {})
+        depsd["trace_context"] = self
+        return depsd

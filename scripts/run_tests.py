@@ -53,6 +53,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_cognitive_runtime_hardening",
     # Phase 2 runtime integration
     "ssn.tests.test_phase2_runtime_integration",
+    "ssn.tests.test_phase2_integration_hardening",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

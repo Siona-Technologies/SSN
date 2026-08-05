@@ -34,6 +34,14 @@ class SSNRuntime:
     # Phase-2 integration facade (observation / experimental)
     integration: Any = None
 
+    def shutdown_sync(self, *, timeout_s: float = 5.0) -> None:
+        """Drain/cancel pending observation tasks on teardown."""
+        integ = self.integration
+        if integ is not None:
+            fn = getattr(integ, "shutdown_sync", None)
+            if callable(fn):
+                fn(timeout_s=timeout_s)
+
 
 class _DummyPerceptionHub:
     """
@@ -385,30 +393,10 @@ class SSNRuntimeBuilder:
             _safe_setattr(self.orchestrator, "cognitive_runtime", cognitive_runtime)
             _safe_setattr(self.orchestrator, "integration", integration)
 
-            # Soft BrainRouter observation hook (does not change route outputs).
-            if self.brain_router is not None:
-                try:
-                    def _router_observer(payload: dict) -> None:
-                        try:
-                            from ssn.integration.trace_context import TraceContext
-
-                            tr = TraceContext(
-                                role=str(payload.get("role") or "GUEST"),
-                                runtime_mode=integration.mode.value,
-                                source="brain_router",
-                            )
-                            integration.model.on_routing_selected(
-                                mode=str(payload.get("mode") or ""),
-                                role=tr.role,
-                                note=str(payload.get("note") or ""),
-                                trace=tr,
-                            )
-                        except Exception:
-                            pass
-
-                    setattr(self.brain_router, "integration_observer", _router_observer)
-                except Exception:
-                    pass
+            # Canonical routing.selected is emitted once from
+            # IntegrationFacade.observe_authoritative_chat (same Front Door TraceContext).
+            # Do not attach BrainRouter.integration_observer — that duplicated events
+            # with a fresh unrelated trace_id.
 
             if isinstance(deps, dict):
                 deps["cognitive_runtime"] = cognitive_runtime

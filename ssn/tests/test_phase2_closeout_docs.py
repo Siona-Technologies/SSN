@@ -75,9 +75,14 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Completed and hosted-CI accepted", text)
         self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
         self.assertIn(
-            "baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); registry and broad capability verification still pending",
+            "baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped)",
             text,
         )
+        self.assertIn(
+            "governed prompt-context bridge implemented (EXP-3B-006, deterministic only)",
+            text,
+        )
+        self.assertIn("registry and broad capability verification still pending", text)
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn("registry and broad capability verification still pending", text.lower())
@@ -94,9 +99,20 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             experiment,
         )
         self.assertIn("LIMITED TEXT-TRANSPORT GATE ONLY", experiment)
+        self.assertIn("EXP-3B-006", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY",
+            experiment,
+        )
+        self.assertIn("NO ACTIVE PERSONAL RECORDS", experiment)
+        self.assertIn("NO MODEL TRAINING", experiment)
+        self.assertIn("NO REGISTRY ACTIVATION", experiment)
+        self.assertIn("REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)
+        self.assertIn("EXP-3B-006", gateway)
+        self.assertIn("SSN_GOVERNED_CONTEXT", gateway)
         self.assertIn("SSN_LOCAL_MODEL_API_DIALECT", gateway)
         self.assertIn("EXP-3B-005", gateway)
         self.assertIn("unverified", text.lower())

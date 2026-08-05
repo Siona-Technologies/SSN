@@ -39,11 +39,27 @@ from ssn.governance.policy import (
     decide_training,
     validate_policy_context,
 )
+from ssn.governance.runtime_context import (
+    GOVERNED_INPUT_KEY,
+    ContextAudience,
+    GovernedContextAssembler,
+    GovernedContextInput,
+    GovernedContextLLMProvider,
+    GovernedContextResult,
+    is_governed_context_enabled,
+    prepare_llm_request,
+)
 
 __all__ = [
     "AllowedUse",
     "ApprovalStatus",
     "ConsentRecord",
+    "ContextAudience",
+    "GOVERNED_INPUT_KEY",
+    "GovernedContextAssembler",
+    "GovernedContextInput",
+    "GovernedContextLLMProvider",
+    "GovernedContextResult",
     "IdentityFactRecord",
     "InformationClass",
     "PolicyContext",
@@ -65,8 +81,10 @@ __all__ = [
     "decide_training",
     "delegation_allows",
     "inherit_strictest_classification",
+    "is_governed_context_enabled",
     "is_valid_iso_instant",
     "other_cofounder_cannot_approve_private",
+    "prepare_llm_request",
     "validate_consent",
     "validate_fact_record",
     "validate_policy_context",

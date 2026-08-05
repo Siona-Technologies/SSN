@@ -1,12 +1,12 @@
 # Phase 3 Engineering Specification
 
 **Working title:** SIONA Local Model and Evaluation Layer  
-**Status:** Specified — **not started**  
-**Recommended future branch:** `feat/siona-local-model-evals-v3`  
-**Do not create that branch or implement this specification in the present closeout.**
+**Status:** Phase 3A **in progress** on `feat/siona-local-model-evals-v3`  
+**Phase 3A:** provider foundation + evaluation scaffold (deterministic/mock only)  
+**Phase 3B:** deferred — real open-weight selection and verification  
 
-This document defines Phase 3 engineering intent only. It does not authorize
-implementation, downloads, training, hardware purchases, or product integrations.
+This document remains the Phase 3 engineering specification. Phase 3A does **not**
+install or download a real model.
 
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
 

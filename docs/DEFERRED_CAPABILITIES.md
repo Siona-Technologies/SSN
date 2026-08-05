@@ -15,12 +15,12 @@ Durable IDs for work that is architecturally prepared but not executed on the cu
 
 ### ID: HW-LLM-001
 - **Capability:** Large local language-model inference
-- **Status:** Gateway contracts ready; weights/runtime deferred
+- **Status:** Phase 3A foundation ready; real weights/runtime deferred to Phase 3B
 - **Reason:** No mandatory large downloads; laptop CPU-first policy
-- **Current implementation:** Dummy + deterministic providers
-- **Remaining work:** Local adapter (llama.cpp/Ollama HTTP) behind ModelProvider
-- **Target phase:** Phase 3–4
-- **Acceptance evidence:** Offline fallback still works; local model optional
+- **Current implementation:** Dummy + deterministic providers; optional LocalOpenWeightProvider (disabled by default; loopback-only)
+- **Remaining work:** Select/verify real open-weight model + runtime adapter (Ollama/llama.cpp/etc.)
+- **Target phase:** Phase 3B–4
+- **Acceptance evidence:** Offline fallback still works; local model optional; real-model eval report
 
 ### ID: HW-LLM-002
 - **Capability:** SIONA-native model pretraining

@@ -57,18 +57,23 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
     def test_phase_status_labels(self):
         text = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
         self.assertIn("7b92114", text)
-        self.assertIn("5f0d3ae", text)
+        self.assertIn("19b3b13", text)
         self.assertNotIn("Final branch tip", text)
-        self.assertIn("Specified but not started", text)
+        self.assertIn("Phase 3A provider and evaluation foundation", text)
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
         self.assertIn("PHASE_3_ENGINEERING_SPEC.md", text)
+        self.assertIn("not started", text.lower())  # Phase 4 remains not started
 
     def test_phase3_spec_not_started(self):
+        # Phase 3A is in progress; Phase 3B / full Phase 3 acceptance remain deferred.
         text = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
-        self.assertIn("not started", text.lower())
         self.assertIn("feat/siona-local-model-evals-v3", text)
-        self.assertIn("Do not create that branch", text)
+        self.assertIn("phase 3a", text.lower())
+        self.assertIn("in progress", text.lower())
+        self.assertIn("phase 3b", text.lower())
+        self.assertIn("does **not**", text.lower())
+        self.assertIn("install or download a real model", text.lower())
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

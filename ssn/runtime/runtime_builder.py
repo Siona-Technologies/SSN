@@ -29,6 +29,8 @@ class SSNRuntime:
     world_context_provider: Any = None
     perception_hub: Any = None
     tool_registry: Any = None
+    # Phase-1 cognitive foundation (additive; does not replace Orchestrator)
+    cognitive_runtime: Any = None
 
 
 class _DummyPerceptionHub:
@@ -352,6 +354,22 @@ class SSNRuntimeBuilder:
             # - FrontDoor/CLI can set deps["offline"]=True and tools will honor it
             deps.setdefault("offline", False)
 
+        # Additive cognitive foundation (event bus / workspace / gateways).
+        # Does not replace Orchestrator, BrainRouter, policy, or owner-control paths.
+        cognitive_runtime = None
+        try:
+            from ssn.cognition.loop import CognitiveRuntime  # type: ignore
+
+            cognitive_runtime = CognitiveRuntime.create(
+                memory_hub=self.memory_hub,
+                world_model=self.world_model,
+            )
+            _safe_setattr(self.orchestrator, "cognitive_runtime", cognitive_runtime)
+            if isinstance(deps, dict):
+                deps["cognitive_runtime"] = cognitive_runtime
+        except Exception:
+            cognitive_runtime = None
+
         shell = AgentShell(gateway=gateway, default_role=self.default_role)
 
         return SSNRuntime(
@@ -368,4 +386,5 @@ class SSNRuntimeBuilder:
             world_context_provider=self.world_context_provider,
             perception_hub=self.perception_hub,
             tool_registry=self.tool_registry,
+            cognitive_runtime=cognitive_runtime,
         )

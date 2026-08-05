@@ -69,10 +69,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Completed and hosted-CI accepted", text)
         self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
         self.assertIn(
-            "official-source research matrix completed after coverage and traceability correction; provisional recommendation pending owner approval — no runtime/model installed",
+            "first runtime/model baseline owner-approved for pre-installation verification; installation and download remain unauthorized",
             text,
         )
         self.assertIn("not authorized", text.lower())
+        self.assertIn("unverified", text.lower())
         self.assertIn("SIONA_VISION_CHARTER.md", text)
         self.assertIn("PHASE_2_ACCEPTANCE.md", text)
         self.assertIn("PHASE_3_ENGINEERING_SPEC.md", text)
@@ -172,6 +173,48 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("no model download authorized", research.lower())
         self.assertIn("installation", research.lower())
         self.assertIn("not authorized", research.lower())
+
+    def test_phase3b_owner_approved_baseline(self):
+        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
+            encoding="utf-8"
+        )
+        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
+            encoding="utf-8"
+        )
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
+        combined = "\n".join([research, runbook, status, adr, experiment])
+        self.assertIn("llama.cpp", combined)
+        self.assertIn("b9968", combined)
+        self.assertIn("1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f", combined)
+        self.assertIn("Qwen3-1.7B-Q4_K_M.gguf", combined)
+        self.assertIn("ggml-org", combined)
+        self.assertIn("daeb8e2d528a760970442092f6bf1e55c3b659eb", combined)
+        self.assertIn(
+            "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
+            combined,
+        )
+        self.assertIn("pre-installation verification", combined.lower())
+        self.assertIn("OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY", research)
+        self.assertIn("not authorized", runbook.lower())
+        self.assertIn("not authorized", status.lower())
+        self.assertIn("unverified", status.lower())
+        self.assertIn("In progress", status)
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Proposed", status_block)
+        self.assertNotIn("Accepted", status_block)
+        self.assertIn("## Owner-approved Phase 3B baseline", adr)
+        self.assertIn("EXP-3B-002", experiment)
+        self.assertIn("quantizer", runbook.lower())
+        # Quantizer must be identified as ggml-org for the approved Q4_K_M path.
+        self.assertIn("Quantizer | ggml-org", runbook.replace("`", ""))
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

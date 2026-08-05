@@ -59,17 +59,55 @@ baseline.
 External models remain optional and replaceable. No SIONA-native foundation
 model claim is made.
 
-### Why no final approval is issued
+## Owner-approved Phase 3B baseline
 
-- Owner approval is required before any install or download
-- Local latency/RAM/thermal measurements are still outstanding
-- Artefact path for 1.7B Q4_K_M vs publisher Q8_0 still needs an owner choice
-- ADR status remains **Proposed** until those gates close
+The owner approved the first controlled baseline for **pre-installation
+verification only**. This selection does **not** constitute ADR acceptance.
+ADR status remains **Proposed**.
+
+| Item | Exact recorded value |
+|------|----------------------|
+| Runtime family | llama.cpp |
+| Runtime release | b9968 |
+| Runtime source revision | `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f` |
+| Runtime platform | Windows x64 CPU-only |
+| Expected runtime archive | `llama-b9968-bin-win-cpu-x64.zip` |
+| Model family | Qwen3-1.7B |
+| Model artifact | `Qwen3-1.7B-Q4_K_M.gguf` |
+| Model repository | `ggml-org/Qwen3-1.7B-GGUF` |
+| Model repository revision | `daeb8e2d528a760970442092f6bf1e55c3b659eb` |
+| Expected model size | 1282439264 bytes |
+| Expected model SHA256 | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` |
+| Original publisher | Qwen Team / Alibaba Cloud |
+| Quantizer | ggml-org |
+| Model licence | Apache License 2.0 |
+| Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only |
+
+Clarifications:
+
+- The external model remains optional and replaceable behind `ModelGateway`.
+- No SIONA-native model claim is made.
+- Capability verification remains separate from artefact verification.
+- Failure of this baseline must not require a SIONA Core redesign.
+- Runtime installation, model download, runtime execution and capability
+  approval remain **unauthorized**.
+
+### Why ADR status remains Proposed
+
+- Runtime archive SHA256 and install path are not yet verified/approved
+- Read-only pre-install checklist is still pending
+- Loopback install, integration, security, rollback and real-model evaluation
+  have not run
+- ADR acceptance requires successful artefact verification, installation,
+  integration, security testing, rollback testing and real-model evaluation
+- Deterministic CI must remain free of real-model dependencies
+- No change to owner-control / actuator authority semantics
 
 ### Conditions required before changing ADR status from Proposed
 
-1. Owner approves a specific runtime artefact (version + SHA256 + install path)
-2. Owner approves a specific model artefact (repo + filename + SHA256)
+1. Owner approves verified runtime artefact (version + SHA256 + install path)
+2. Owner approves verified model artefact (repo + filename + SHA256) after
+   download authorization
 3. Loopback-only install completes with checksum verification
 4. Provider tests and real-model evaluations are recorded honestly
 5. Deterministic CI remains free of real-model dependencies

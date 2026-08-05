@@ -1,14 +1,14 @@
 # Phase 3B — Model and Runtime Research
 
-**Status:** Official-source research matrix completed after coverage and
-traceability correction; provisional recommendation remains pending owner
-approval.
+**Status:** Official-source research matrix completed; first baseline is
+**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**.
 
 **Source-access date:** 2026-08-05  
 **Hardware baseline:** HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe; ~15.73 GiB RAM; no CUDA  
 
-**Non-authorization:** No runtime install, no model download, no weights, no
-final selection, and no ADR acceptance are issued by this document.
+**Non-authorization:** No runtime install, no model download, no weights
+download, no runtime execution, no capability approval, and no ADR acceptance
+are issued by this document.
 
 ## Research status
 
@@ -17,21 +17,60 @@ final selection, and no ADR acceptance are issued by this document.
 | Official-source runtime research | **Completed with full field coverage** (2026-08-05) |
 | Official-source model research | **Completed with full field coverage** (2026-08-05) |
 | Source revisions pinned | **Yes** (see Source traceability appendix) |
-| Provisional recommendation | **Recorded — requires owner approval** |
+| Owner-approved first baseline | **Recorded — pre-installation verification only** |
 | Runtime installation | **Not authorized** |
 | Model download | **Not authorized** |
 | Weights | **Not downloaded** |
+| Runtime execution | **Not authorized** |
 | Real-model benchmark | **Not started** |
+| Capabilities | **Unverified** |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
 
-## Preserved provisional decisions (not approved)
+## Owner-approved first baseline
 
-- **Runtime direction:** llama.cpp native Windows x64 CPU baseline
+**Status wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
+
+| Item | Exact recorded value |
+|------|----------------------|
+| Runtime family | llama.cpp |
+| Runtime release | b9968 |
+| Runtime source revision | `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f` |
+| Runtime platform | Windows x64 CPU-only |
+| Expected runtime archive | `llama-b9968-bin-win-cpu-x64.zip` |
+| Model family | Qwen3-1.7B |
+| Model artifact | `Qwen3-1.7B-Q4_K_M.gguf` |
+| Model repository | `ggml-org/Qwen3-1.7B-GGUF` |
+| Model repository revision | `daeb8e2d528a760970442092f6bf1e55c3b659eb` |
+| Expected model size | 1282439264 bytes |
+| Expected model SHA256 | `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5` |
+| Original model publisher | Qwen Team / Alibaba Cloud |
+| Quantizer | ggml-org |
+| Model licence | Apache License 2.0 |
+| Purpose | Transport, integration, safety, provenance, rollback and baseline-performance validation only |
+
+Selection notes:
+
+- Q4_K_M was selected for the first integration because of the laptop's RAM,
+  storage and CPU constraints.
+- The Q4_K_M quantization is from **ggml-org**, not the Qwen publisher.
+- The original model remains Qwen3-1.7B by Qwen Team.
+- The selection prioritizes controlled integration and lower memory use.
+- Publisher Q8_0 remains a possible later comparison.
+- Qwen3-4B and Granite remain later comparison candidates.
+- The first baseline is replaceable behind `ModelGateway`.
+- No runtime or model capability has been verified.
+- No model download or runtime installation is authorized.
+
+This is **not** SIONA's permanent reasoning model, a final production model, a
+SIONA-native model, a capability-approved model, an installed model, or a
+downloaded model.
+
+## Preserved later candidates (not authorized)
+
 - **Later experiment:** llama.cpp SYCL
-- **First model family:** Qwen3-1.7B
-- **Owner decision still pending:** publisher Q8_0 versus ggml-org Q4_K_M
+- **Publisher Q8_0 comparison:** `Qwen/Qwen3-1.7B-GGUF` Q8_0
 - **Second candidate:** Qwen3-4B Q4_K_M
 - **Comparison candidate:** IBM Granite 4.0 Micro Q4_K_M
 
@@ -417,6 +456,10 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
 
+The owner has recorded this as the first baseline for
+**OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY**. Installation,
+download and execution remain unauthorized.
+
 Later experiment: **llama.cpp SYCL**. Convenience comparison: **Ollama**.
 Alternative research path: **OpenVINO GenAI**.
 
@@ -473,7 +516,7 @@ No runtime is installed or finally approved.
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
 | Local evaluation status | Not evaluated locally — no real-model benchmark completed |
-| Selection status | **PROVISIONAL first family — no download authorized; owner chooses publisher Q8_0 versus ggml-org Q4_K_M** |
+| Selection status | **OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY — no download authorized; quantizer = ggml-org** |
 
 ### Candidate B — Qwen3-4B
 
@@ -677,17 +720,16 @@ No runtime is installed or finally approved.
 
 **Status: PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED**
 
-Primary family remains **Qwen3-1.7B**. Because publisher revision
-`90862c4b9d2787eaed51d12237eafdfe7c5f6077` of `Qwen/Qwen3-1.7B-GGUF` contains
-**only** `Qwen3-1.7B-Q8_0.gguf`, the owner must still choose:
+Primary family remains **Qwen3-1.7B**. The owner selected
+`Qwen3-1.7B-Q4_K_M.gguf` from `ggml-org/Qwen3-1.7B-GGUF` revision
+`daeb8e2d528a760970442092f6bf1e55c3b659eb` as the
+**OWNER-APPROVED FIRST BASELINE FOR PRE-INSTALLATION VERIFICATION**.
 
-1. Publisher Q8_0 (stronger provenance), or
-2. ggml-org Q4_K_M (requested quant; quantizer = ggml-org)
-
-Second: Qwen3-4B Q4_K_M. Comparison: Granite 4.0 Micro Q4_K_M.
+Publisher Q8_0 remains a possible later comparison. Second: Qwen3-4B Q4_K_M.
+Comparison: Granite 4.0 Micro Q4_K_M.
 
 No model download is authorized. No weights have been downloaded. No real-model
-benchmark has been completed.
+benchmark has been completed. Capabilities remain unverified.
 
 ---
 

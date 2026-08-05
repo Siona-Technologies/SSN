@@ -1,9 +1,9 @@
 # Phase 3 Engineering Specification
 
 **Working title:** SIONA Local Model and Evaluation Layer  
-**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B official-source research recorded  
+**Status:** Phase 3 **in progress** — Phase 3A completed and merged (`d6c17d0` → `2e6abb6`, PR #2); Phase 3B first baseline owner-approved for pre-installation verification  
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
-**Phase 3B:** in progress — research matrix completed after coverage/traceability correction; provisional recommendation pending owner approval — no runtime/model installed  
+**Phase 3B:** in progress — owner-approved first baseline recorded for pre-installation verification only; installation and download remain unauthorized  
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate
@@ -112,6 +112,26 @@ Phase 3 must **not**:
 ---
 
 ## Acceptance gates
+
+Phase 3A acceptance gates are completed and merged.
+
+Phase 3B owner-selection gate: **passed** (documentation only —
+OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY).
+
+The following Phase 3B gates remain **open**:
+
+- Pre-install environment verification
+- Runtime artifact verification
+- Model artifact verification
+- Controlled installation
+- Loopback server verification
+- Provider integration
+- Security validation
+- Rollback validation
+- Baseline performance measurement
+- Real-model behavioral evaluation
+
+Additional standing gates:
 
 Phase 3 may be accepted only when:
 

@@ -30,6 +30,12 @@ CORE_DOCS = [
     ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
     ROOT / "docs" / "SIONA_BUILD_PLAN.md",
     ROOT / "docs" / "SIONA_AWS_ARCHITECTURE_SHOWCASE.md",
+    ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md",
+    ROOT / "docs" / "SIONA_INFORMATION_CLASSIFICATION.md",
+    ROOT / "docs" / "SIONA_CONSENT_AND_REVOCATION.md",
+    ROOT / "docs" / "SIONA_PUBLIC_PROFILE_POLICY.md",
+    ROOT / "docs" / "SIONA_PRIVATE_CONTEXT_POLICY.md",
+    ROOT / "docs" / "SIONA_WEBSITE_CONTENT_AUDIT_PLAN.md",
 ]
 
 BANNED_PRODUCT = re.compile(r"\b(Pulse|Weza AI|Weza|Jarvis)\b", re.IGNORECASE)
@@ -436,6 +442,45 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Production certification not issued", why)
         self.assertIn("Phase 3B not complete", why)
         self.assertNotIn("not wired to this baseline yet", why)
+
+    def test_identity_information_governance_docs(self):
+        identity = (ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md").read_text(
+            encoding="utf-8"
+        )
+        public = (ROOT / "docs" / "SIONA_PUBLIC_PROFILE_POLICY.md").read_text(encoding="utf-8")
+        consent = (ROOT / "docs" / "SIONA_CONSENT_AND_REVOCATION.md").read_text(
+            encoding="utf-8"
+        )
+        private = (ROOT / "docs" / "SIONA_PRIVATE_CONTEXT_POLICY.md").read_text(
+            encoding="utf-8"
+        )
+        website = (ROOT / "docs" / "SIONA_WEBSITE_CONTENT_AUDIT_PLAN.md").read_text(
+            encoding="utf-8"
+        )
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("SIONA Technologies", identity)
+        self.assertIn("Samson Sibona Njaji", identity)
+        self.assertIn("James Ndodana Njaji", identity)
+        self.assertIn("Co-founder", identity)
+        self.assertIn("personal_email: excluded", public)
+        self.assertIn(
+            "cannot authorize another co-founder's private information",
+            consent.lower(),
+        )
+        self.assertIn("Secrets are never ordinary memory", private)
+        self.assertIn("`TRAINING_DATASET` is **denied**", consent)
+        self.assertIn("later authorized", website.lower())
+        self.assertIn("Do **not** modify the website during this task", website)
+        self.assertIn("in progress", status.lower())
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertIn("inactive", status.lower())
+        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        gmail_marker = "@" + "gmail.com"
+        for text in (identity, public, consent, private, website):
+            self.assertNotIn(gmail_marker, text.lower())
 
     def test_no_banned_product_names_in_core_docs(self):
         for path in CORE_DOCS:

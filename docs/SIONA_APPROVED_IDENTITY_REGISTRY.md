@@ -85,7 +85,12 @@ Hard limits:
 ## Strict loader behaviour
 
 - local JSON only; no network or URL following
+- independent canonical manifest in `ssn/governance/identity_registry.py`
+  pins every approved field; unauthorized JSON edits fail atomically
+- file size checked via `stat` before bounded binary read (max 64 KiB + 1)
 - atomic failure — any invalid record rejects the entire load
+- intended and prohibited uses must match exact approved sets (no extras,
+  no duplicates, no missing entries)
 - deterministic ordering by `subject_id`
 - duplicate subject IDs or statements rejected
 - only `PUBLIC_COMPANY` and `PUBLIC_PROFESSIONAL` classifications

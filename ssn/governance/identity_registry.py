@@ -8,10 +8,11 @@ Does not inject records into LanguageEngine, memory, world model, or providers.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, FrozenSet, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, FrozenSet, Mapping, Optional, Tuple
 
 from ssn.governance.identity_records import (
     IdentityFactRecord,
@@ -36,8 +37,28 @@ EXPECTED_RECORD_COUNT = 3
 MAX_SELECT_SUBJECT_IDS = 16
 SUPPORTED_SCHEMA_VERSION = 1
 MAX_SUBJECT_ID_LEN = 256
+MAX_REGISTRY_READ_BYTES = MAX_REGISTRY_FILE_BYTES + 1
 
 REQUIRED_APPROVED_BY = "person:samson-sibona-njaji"
+APPROVED_SOURCE_TYPE = "owner_approval"
+APPROVED_SOURCE_REFERENCE = (
+    "docs/SIONA_APPROVED_IDENTITY_REGISTRY.md#approval-record-2026-08-06"
+)
+APPROVED_TIMESTAMP = "2026-08-06T08:20:00Z"
+APPROVED_REVIEW_DATE = "2027-08-06"
+APPROVED_REVOCATION_STATUS = "none"
+APPROVED_EXCLUSION_MARKER = "excluded"
+APPROVED_NOTES = ""
+
+_APPROVED_INTENDED_USES: Tuple[AllowedUse, ...] = (
+    AllowedUse.PUBLIC_RESPONSE,
+    AllowedUse.MODEL_PROMPT,
+    AllowedUse.RETRIEVAL,
+)
+_APPROVED_PROHIBITED_USES: Tuple[AllowedUse, ...] = (AllowedUse.TRAINING_DATASET,)
+_APPROVED_INTENDED_SET: FrozenSet[AllowedUse] = frozenset(_APPROVED_INTENDED_USES)
+_APPROVED_PROHIBITED_SET: FrozenSet[AllowedUse] = frozenset(_APPROVED_PROHIBITED_USES)
+
 REQUIRED_SUBJECT_IDS: FrozenSet[str] = frozenset(
     {
         "company:siona-technologies",
@@ -45,16 +66,107 @@ REQUIRED_SUBJECT_IDS: FrozenSet[str] = frozenset(
         "person:samson-sibona-njaji",
     }
 )
+
+
+@dataclass(frozen=True)
+class _ApprovedManifestEntry:
+    subject: str
+    subject_id: str
+    subject_type: SubjectType
+    classification: InformationClass
+    statement: str
+    source_type: str
+    source_reference: str
+    approval_status: ApprovalStatus
+    approved_by: str
+    approval_timestamp: str
+    intended_uses: Tuple[AllowedUse, ...]
+    prohibited_uses: Tuple[AllowedUse, ...]
+    review_date: str
+    revocation_status: str
+    personal_email: str
+    personal_phone: str
+    personal_address: str
+    notes: str
+
+
+_APPROVED_MANIFEST: Dict[str, _ApprovedManifestEntry] = {
+    "company:siona-technologies": _ApprovedManifestEntry(
+        subject="SIONA Technologies",
+        subject_id="company:siona-technologies",
+        subject_type=SubjectType.COMPANY,
+        classification=InformationClass.PUBLIC_COMPANY,
+        statement=(
+            "SIONA Technologies is an African-founded technology company developing "
+            "software, intelligent systems and digital infrastructure."
+        ),
+        source_type=APPROVED_SOURCE_TYPE,
+        source_reference=APPROVED_SOURCE_REFERENCE,
+        approval_status=ApprovalStatus.APPROVED,
+        approved_by=REQUIRED_APPROVED_BY,
+        approval_timestamp=APPROVED_TIMESTAMP,
+        intended_uses=_APPROVED_INTENDED_USES,
+        prohibited_uses=_APPROVED_PROHIBITED_USES,
+        review_date=APPROVED_REVIEW_DATE,
+        revocation_status=APPROVED_REVOCATION_STATUS,
+        personal_email=APPROVED_EXCLUSION_MARKER,
+        personal_phone=APPROVED_EXCLUSION_MARKER,
+        personal_address=APPROVED_EXCLUSION_MARKER,
+        notes=APPROVED_NOTES,
+    ),
+    "product:siona": _ApprovedManifestEntry(
+        subject="SIONA",
+        subject_id="product:siona",
+        subject_type=SubjectType.PRODUCT,
+        classification=InformationClass.PUBLIC_COMPANY,
+        statement=(
+            "SIONA is the unified intelligence engine and platform developed by "
+            "SIONA Technologies."
+        ),
+        source_type=APPROVED_SOURCE_TYPE,
+        source_reference=APPROVED_SOURCE_REFERENCE,
+        approval_status=ApprovalStatus.APPROVED,
+        approved_by=REQUIRED_APPROVED_BY,
+        approval_timestamp=APPROVED_TIMESTAMP,
+        intended_uses=_APPROVED_INTENDED_USES,
+        prohibited_uses=_APPROVED_PROHIBITED_USES,
+        review_date=APPROVED_REVIEW_DATE,
+        revocation_status=APPROVED_REVOCATION_STATUS,
+        personal_email=APPROVED_EXCLUSION_MARKER,
+        personal_phone=APPROVED_EXCLUSION_MARKER,
+        personal_address=APPROVED_EXCLUSION_MARKER,
+        notes=APPROVED_NOTES,
+    ),
+    "person:samson-sibona-njaji": _ApprovedManifestEntry(
+        subject="Samson Sibona Njaji",
+        subject_id="person:samson-sibona-njaji",
+        subject_type=SubjectType.PERSON,
+        classification=InformationClass.PUBLIC_PROFESSIONAL,
+        statement=(
+            "Samson Sibona Njaji is a Kenyan software engineer and technology "
+            "entrepreneur, a co-founder of SIONA Technologies, and is involved in the "
+            "design and development of SIONA."
+        ),
+        source_type=APPROVED_SOURCE_TYPE,
+        source_reference=APPROVED_SOURCE_REFERENCE,
+        approval_status=ApprovalStatus.APPROVED,
+        approved_by=REQUIRED_APPROVED_BY,
+        approval_timestamp=APPROVED_TIMESTAMP,
+        intended_uses=_APPROVED_INTENDED_USES,
+        prohibited_uses=_APPROVED_PROHIBITED_USES,
+        review_date=APPROVED_REVIEW_DATE,
+        revocation_status=APPROVED_REVOCATION_STATUS,
+        personal_email=APPROVED_EXCLUSION_MARKER,
+        personal_phone=APPROVED_EXCLUSION_MARKER,
+        personal_address=APPROVED_EXCLUSION_MARKER,
+        notes=APPROVED_NOTES,
+    ),
+}
+
 PUBLIC_CLASSIFICATIONS: FrozenSet[InformationClass] = frozenset(
     {InformationClass.PUBLIC_COMPANY, InformationClass.PUBLIC_PROFESSIONAL}
 )
-REQUIRED_INTENDED_USES: FrozenSet[AllowedUse] = frozenset(
-    {
-        AllowedUse.PUBLIC_RESPONSE,
-        AllowedUse.MODEL_PROMPT,
-        AllowedUse.RETRIEVAL,
-    }
-)
+REQUIRED_INTENDED_USES: FrozenSet[AllowedUse] = _APPROVED_INTENDED_SET
 
 _RECORD_FIELDS = frozenset(
     {
@@ -95,40 +207,38 @@ class ApprovedIdentityRegistry:
         return self.records
 
     def get_by_subject_id(self, subject_id: str) -> Optional[IdentityFactRecord]:
-        if type(subject_id) is not str:
-            return None
-        key = subject_id.strip()
-        if not key:
+        if type(subject_id) is not str or not subject_id:
             return None
         for record in self.records:
-            if record.subject_id == key:
+            if record.subject_id == subject_id:
                 return record
         return None
 
     def select_by_subject_ids(
-        self, subject_ids: Sequence[str]
+        self, subject_ids: Tuple[str, ...] | list[str]
     ) -> Tuple[IdentityFactRecord, ...]:
-        if not isinstance(subject_ids, (tuple, list)):
+        if type(subject_ids) is not tuple and type(subject_ids) is not list:
             raise ApprovedIdentityRegistryError("invalid_subject_ids")
-        if len(subject_ids) > MAX_SELECT_SUBJECT_IDS:
+        candidate_count = len(subject_ids)
+        if candidate_count > MAX_SELECT_SUBJECT_IDS:
             raise ApprovedIdentityRegistryError("deny_subject_id_limit")
         seen: set[str] = set()
         selected: list[IdentityFactRecord] = []
-        for raw_id in subject_ids:
+        for index in range(candidate_count):
+            raw_id = subject_ids[index]
             if type(raw_id) is not str:
+                raise ApprovedIdentityRegistryError("invalid_subject_ids")
+            if not raw_id or raw_id in seen:
                 continue
-            key = raw_id.strip()
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            record = self.get_by_subject_id(key)
+            seen.add(raw_id)
+            record = self.get_by_subject_id(raw_id)
             if record is not None:
                 selected.append(record)
         selected.sort(key=lambda r: r.subject_id)
         return tuple(selected)
 
     def public_response_records(
-        self, subject_ids: Optional[Sequence[str]] = None
+        self, subject_ids: Optional[Tuple[str, ...] | list[str]] = None
     ) -> Tuple[IdentityFactRecord, ...]:
         if subject_ids is None:
             return self.records
@@ -138,6 +248,24 @@ class ApprovedIdentityRegistry:
 def get_default_approved_identity_registry_path() -> Path:
     """Repository-relative default path for the approved identity registry."""
     return _REPO_ROOT / _DEFAULT_REGISTRY_REL
+
+
+def _read_registry_file_bytes(path: Path) -> bytes:
+    """Read registry bytes with stat-first and bounded read enforcement."""
+    try:
+        stat_result = os.stat(path)
+    except OSError:
+        raise ApprovedIdentityRegistryError("registry_file_not_found")
+    if stat_result.st_size > MAX_REGISTRY_FILE_BYTES:
+        raise ApprovedIdentityRegistryError("registry_file_too_large")
+    try:
+        with path.open("rb") as handle:
+            data = handle.read(MAX_REGISTRY_READ_BYTES)
+    except OSError:
+        raise ApprovedIdentityRegistryError("registry_file_not_found")
+    if len(data) > MAX_REGISTRY_FILE_BYTES:
+        raise ApprovedIdentityRegistryError("registry_file_too_large")
+    return data
 
 
 def load_approved_identity_registry(
@@ -157,9 +285,7 @@ def load_approved_identity_registry(
     if not registry_path.is_file():
         raise ApprovedIdentityRegistryError("registry_file_not_found")
 
-    raw_bytes = registry_path.read_bytes()
-    if len(raw_bytes) > MAX_REGISTRY_FILE_BYTES:
-        raise ApprovedIdentityRegistryError("registry_file_too_large")
+    raw_bytes = _read_registry_file_bytes(registry_path)
 
     try:
         text = raw_bytes.decode("utf-8")
@@ -201,6 +327,7 @@ def load_approved_identity_registry(
             raise ApprovedIdentityRegistryError(f"registry_record_not_object:{index}")
         record = _parse_record_object(item, index=index)
         _validate_registry_record(record, today=today_value)
+        _validate_approved_manifest(record)
         parsed.append(record)
 
     subject_ids: list[str] = []
@@ -214,8 +341,8 @@ def load_approved_identity_registry(
         statements.append(record.statement)
 
     found_ids = frozenset(subject_ids)
-    if found_ids != REQUIRED_SUBJECT_IDS:
-        raise ApprovedIdentityRegistryError("registry_required_subject_ids_mismatch")
+    if found_ids != frozenset(_APPROVED_MANIFEST.keys()):
+        raise ApprovedIdentityRegistryError("registry_approved_manifest_mismatch")
 
     parsed.sort(key=lambda r: r.subject_id)
     return ApprovedIdentityRegistry(
@@ -309,8 +436,10 @@ def _parse_record_object(item: Mapping[str, Any], *, index: int) -> IdentityFact
         item.get("personal_address"),
         f"registry_record_invalid_personal_address:{index}",
     )
-    notes = item.get("notes", "")
-    if notes is not None and type(notes) is not str:
+    notes_raw = item.get("notes", "")
+    if notes_raw is None:
+        notes_raw = ""
+    if type(notes_raw) is not str:
         raise ApprovedIdentityRegistryError(f"registry_record_invalid_notes:{index}")
 
     return IdentityFactRecord(
@@ -328,7 +457,7 @@ def _parse_record_object(item: Mapping[str, Any], *, index: int) -> IdentityFact
         review_date=review_date,
         revocation_status=revocation_status,
         subject_id=subject_id,
-        notes=notes or "",
+        notes=notes_raw,
         personal_email=personal_email,
         personal_phone=personal_phone,
         personal_address=personal_address,
@@ -364,6 +493,51 @@ def _parse_use_tuple(value: Any, code: str) -> Tuple[AllowedUse, ...]:
     return tuple(uses)
 
 
+def _validate_approved_manifest(record: IdentityFactRecord) -> None:
+    entry = _APPROVED_MANIFEST.get(record.subject_id)
+    if entry is None:
+        raise ApprovedIdentityRegistryError("registry_approved_manifest_mismatch")
+
+    if record.statement != entry.statement:
+        raise ApprovedIdentityRegistryError("registry_approved_statement_mismatch")
+
+    metadata_pairs = (
+        ("subject", record.subject),
+        ("subject_id", record.subject_id),
+        ("subject_type", record.subject_type),
+        ("classification", record.classification),
+        ("source_type", record.source_type),
+        ("source_reference", record.source_reference),
+        ("approval_status", record.approval_status),
+        ("approved_by", record.approved_by),
+        ("approval_timestamp", record.approval_timestamp),
+        ("review_date", record.review_date),
+        ("revocation_status", record.revocation_status),
+        ("personal_email", record.personal_email),
+        ("personal_phone", record.personal_phone),
+        ("personal_address", record.personal_address),
+        ("notes", record.notes),
+    )
+    for field_name, actual in metadata_pairs:
+        expected = getattr(entry, field_name)
+        if actual != expected:
+            raise ApprovedIdentityRegistryError("registry_approved_metadata_mismatch")
+
+    intended_set = frozenset(record.intended_uses)
+    if (
+        intended_set != _APPROVED_INTENDED_SET
+        or len(record.intended_uses) != len(_APPROVED_INTENDED_USES)
+    ):
+        raise ApprovedIdentityRegistryError("registry_intended_uses_mismatch")
+
+    prohibited_set = frozenset(record.prohibited_uses)
+    if (
+        prohibited_set != _APPROVED_PROHIBITED_SET
+        or len(record.prohibited_uses) != len(_APPROVED_PROHIBITED_USES)
+    ):
+        raise ApprovedIdentityRegistryError("registry_prohibited_uses_mismatch")
+
+
 def _validate_registry_record(record: IdentityFactRecord, *, today: date) -> None:
     ok, reason = validate_fact_record(record)
     if not ok:
@@ -371,33 +545,6 @@ def _validate_registry_record(record: IdentityFactRecord, *, today: date) -> Non
 
     if record.approval_status is not ApprovalStatus.APPROVED:
         raise ApprovedIdentityRegistryError("registry_record_not_approved")
-
-    if record.classification not in PUBLIC_CLASSIFICATIONS:
-        raise ApprovedIdentityRegistryError("registry_record_non_public_classification")
-
-    intended = set(record.intended_uses)
-    if not REQUIRED_INTENDED_USES.issubset(intended):
-        raise ApprovedIdentityRegistryError("registry_record_missing_required_use")
-
-    if AllowedUse.TRAINING_DATASET in intended:
-        raise ApprovedIdentityRegistryError("registry_record_training_allowed")
-
-    prohibited = set(record.prohibited_uses)
-    if AllowedUse.TRAINING_DATASET not in prohibited:
-        raise ApprovedIdentityRegistryError("registry_record_training_not_prohibited")
-
-    if AllowedUse.PUBLIC_WEBSITE in intended:
-        raise ApprovedIdentityRegistryError("registry_record_public_website_not_allowed")
-
-    if record.approved_by != REQUIRED_APPROVED_BY:
-        raise ApprovedIdentityRegistryError("registry_record_invalid_approved_by")
-
-    if record.personal_email != "excluded":
-        raise ApprovedIdentityRegistryError("registry_record_personal_email_not_excluded")
-    if record.personal_phone != "excluded":
-        raise ApprovedIdentityRegistryError("registry_record_personal_phone_not_excluded")
-    if record.personal_address != "excluded":
-        raise ApprovedIdentityRegistryError("registry_record_personal_address_not_excluded")
 
     if (record.revocation_status or "").strip().lower() == "revoked":
         raise ApprovedIdentityRegistryError("registry_record_revoked")

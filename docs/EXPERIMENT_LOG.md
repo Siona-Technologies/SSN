@@ -423,6 +423,8 @@ Result: IMPLEMENTED AND VALIDATED DETERMINISTICALLY; THREE OWNER-APPROVED PUBLIC
 Evidence:
   config/governance/approved_identity_records.json (schema_version 1, 3 records)
   Strict atomic loader with file-size and record-count bounds
+  Independent canonical manifest pins exact approved field values
+  Bounded stat-first file read (no unrestricted Path.read_bytes)
   Explicit retrieval API (no LanguageEngine auto-injection)
   GovernedContextAssembler integration for PUBLIC_RESPONSE guest path
   decide_public / decide_model_prompt permit; decide_training denies

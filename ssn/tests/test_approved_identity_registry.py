@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List
 from unittest import mock
 
@@ -24,10 +25,12 @@ from ssn.governance.identity_registry import (
     ApprovedIdentityRegistryError,
     EXPECTED_RECORD_COUNT,
     MAX_REGISTRY_FILE_BYTES,
+    MAX_REGISTRY_READ_BYTES,
     MAX_SELECT_SUBJECT_IDS,
     REQUIRED_APPROVED_BY,
     REQUIRED_SUBJECT_IDS,
     SUPPORTED_SCHEMA_VERSION,
+    _read_registry_file_bytes,
     get_default_approved_identity_registry_path,
     load_approved_identity_registry,
 )
@@ -90,6 +93,253 @@ def _write_registry(directory: Path, payload: Dict[str, Any]) -> Path:
     path = directory / "registry.json"
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def _mutate_record(
+    directory: Path, subject_id: str, **changes: Any
+) -> Path:
+    payload = _default_registry_dict()
+    for record in payload["records"]:
+        if record["subject_id"] == subject_id:
+            record.update(changes)
+    return _write_registry(directory, payload)
+
+
+class TestApprovedManifestIntegrity(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._tmp = Path(self._tmpdir.name)
+
+    def tearDown(self) -> None:
+        self._tmpdir.cleanup()
+
+    def test_changed_company_statement_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "company:siona-technologies",
+            statement="Tampered company statement.",
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_statement_mismatch")
+
+    def test_changed_siona_statement_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", statement="Tampered SIONA.")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_statement_mismatch")
+
+    def test_changed_samson_statement_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "person:samson-sibona-njaji",
+            statement="Tampered Samson statement.",
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_statement_mismatch")
+
+    def test_changed_subject_name_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", subject="SIONA Tampered")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_subject_type_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", subject_type="COMPANY")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_classification_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "person:samson-sibona-njaji",
+            classification="PUBLIC_COMPANY",
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_source_type_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", source_type="website")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_source_reference_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", source_reference="docs/other")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_approval_timestamp_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp, "product:siona", approval_timestamp="2026-08-07T00:00:00Z"
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_review_date_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", review_date="2028-01-01")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_changed_revocation_status_fails(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", revocation_status="revoked")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_revoked")
+
+    def test_additional_intended_use_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "product:siona",
+            intended_uses=[
+                "PUBLIC_RESPONSE",
+                "MODEL_PROMPT",
+                "RETRIEVAL",
+                "PUBLIC_WEBSITE",
+            ],
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_intended_uses_mismatch")
+
+    def test_duplicate_intended_use_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "product:siona",
+            intended_uses=["PUBLIC_RESPONSE", "PUBLIC_RESPONSE", "MODEL_PROMPT", "RETRIEVAL"],
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_intended_uses_mismatch")
+
+    def test_reordered_intended_uses_pass_exact_set(self) -> None:
+        payload = _default_registry_dict()
+        payload["records"][1]["intended_uses"] = [
+            "RETRIEVAL",
+            "MODEL_PROMPT",
+            "PUBLIC_RESPONSE",
+        ]
+        path = _write_registry(self._tmp, payload)
+        registry = load_approved_identity_registry(path)
+        self.assertEqual(len(registry.all_records()), 3)
+
+    def test_additional_prohibited_use_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "product:siona",
+            prohibited_uses=["TRAINING_DATASET", "PUBLIC_WEBSITE"],
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_prohibited_uses_mismatch")
+
+    def test_duplicate_prohibited_use_fails(self) -> None:
+        path = _mutate_record(
+            self._tmp,
+            "product:siona",
+            prohibited_uses=["TRAINING_DATASET", "TRAINING_DATASET"],
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_prohibited_uses_mismatch")
+
+    def test_unapproved_notes_fail(self) -> None:
+        path = _mutate_record(self._tmp, "product:siona", notes="unapproved note")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+
+    def test_stat_limit_rejects_before_open(self) -> None:
+        path = (self._tmp / "registry.json").resolve()
+        path.write_bytes(b"{}")
+        with mock.patch(
+            "ssn.governance.identity_registry.os.stat",
+            return_value=SimpleNamespace(st_size=MAX_REGISTRY_FILE_BYTES + 1),
+        ):
+            with mock.patch("io.open") as mock_open:
+                with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+                    _read_registry_file_bytes(path)
+                self.assertEqual(str(ctx.exception), "registry_file_too_large")
+                mock_open.assert_not_called()
+
+    def test_bounded_read_max_bytes(self) -> None:
+        path = (self._tmp / "small.json").resolve()
+        path.write_bytes(b"{}")
+        read_sizes: list[int] = []
+
+        class _TrackingReader:
+            def __init__(self, data: bytes) -> None:
+                self._data = data
+
+            def read(self, size: int = -1) -> bytes:
+                if size < 0:
+                    chunk = self._data
+                else:
+                    chunk = self._data[:size]
+                    self._data = self._data[len(chunk):]
+                read_sizes.append(len(chunk))
+                return chunk
+
+            def __enter__(self) -> "_TrackingReader":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+        with mock.patch(
+            "ssn.governance.identity_registry.os.stat",
+            return_value=SimpleNamespace(st_size=2),
+        ):
+            with mock.patch("io.open", return_value=_TrackingReader(b"{}")):
+                data = _read_registry_file_bytes(path)
+        self.assertEqual(data, b"{}")
+        self.assertLessEqual(sum(read_sizes), MAX_REGISTRY_READ_BYTES)
+
+    def test_post_stat_growth_rejected(self) -> None:
+        path = (self._tmp / "registry.json").resolve()
+        path.write_bytes(b"x")
+        with mock.patch(
+            "ssn.governance.identity_registry.os.stat",
+            return_value=SimpleNamespace(st_size=1),
+        ):
+            with mock.patch(
+                "io.open",
+                mock.mock_open(read_data=b"x" * (MAX_REGISTRY_FILE_BYTES + 1)),
+            ):
+                with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+                    _read_registry_file_bytes(path)
+                self.assertEqual(str(ctx.exception), "registry_file_too_large")
+
+    def test_selection_list_subclass_rejected(self) -> None:
+        registry = load_approved_identity_registry()
+
+        class _SubList(list):
+            pass
+
+        with self.assertRaises(ApprovedIdentityRegistryError):
+            registry.select_by_subject_ids(_SubList(["product:siona"]))
+
+    def test_selection_generator_rejected(self) -> None:
+        registry = load_approved_identity_registry()
+        with self.assertRaises(ApprovedIdentityRegistryError):
+            registry.select_by_subject_ids(iter(["product:siona"]))
+
+    def test_selection_malformed_id_rejected(self) -> None:
+        registry = load_approved_identity_registry()
+        with self.assertRaises(ApprovedIdentityRegistryError):
+            registry.select_by_subject_ids(["product:siona", 42])
+
+    def test_selection_exact_casing_required(self) -> None:
+        registry = load_approved_identity_registry()
+        self.assertIsNone(registry.get_by_subject_id("Product:siona"))
+        selected = registry.select_by_subject_ids(["Product:siona"])
+        self.assertEqual(len(selected), 0)
 
 
 class TestApprovedIdentityRegistry(unittest.TestCase):
@@ -451,13 +701,13 @@ class TestApprovedIdentityRegistry(unittest.TestCase):
         self.assertNotIn(STMT_PERSON, result.context_text)
 
     def test_45_no_network_access(self) -> None:
-        # Loader uses pathlib read only; no HTTP client imports in module.
         import ssn.governance.identity_registry as mod
 
         source = Path(mod.__file__).read_text(encoding="utf-8")
         self.assertNotIn("urllib", source)
         self.assertNotIn("requests", source)
         self.assertNotIn("httpx", source)
+        self.assertIn("open(\"rb\")", source.replace("'", '"'))
 
     def test_46_no_subprocess_starts(self) -> None:
         with mock.patch("subprocess.Popen") as popen:

@@ -192,7 +192,7 @@ def _run_single_probe(
         structured_present=observability["structured_present"],
         reply_excerpt=sanitize_excerpt(reply),
     )
-    verify_governed_invariants(record, probe.subject_ids)
+    verify_governed_invariants(record, probe.subject_ids, selected_records)
     return record
 
 

@@ -266,6 +266,11 @@ def _record_id(record: IdentityFactRecord, index: int) -> str:
     return _record_id_from_strings(record.subject_id, record.subject, index)
 
 
+def governed_diagnostic_record_id(record: IdentityFactRecord, input_index: int) -> str:
+    """Diagnostic record ID assigned by GovernedContextAssembler for an input index."""
+    return _record_id(record, input_index)
+
+
 def _sort_key(record: IdentityFactRecord) -> Tuple[str, str, str]:
     return (
         record.subject_id.strip(),

@@ -250,6 +250,18 @@ class ApprovedIdentityRegistry:
         return self.select_by_subject_ids(subject_ids)
 
 
+def governed_diagnostic_record_ids_for_selection(
+    records: Tuple[IdentityFactRecord, ...],
+) -> Tuple[str, ...]:
+    """Diagnostic IDs for explicitly selected records in assembler input order."""
+    from ssn.governance.runtime_context import governed_diagnostic_record_id
+
+    return tuple(
+        governed_diagnostic_record_id(record, index)
+        for index, record in enumerate(records)
+    )
+
+
 def get_default_approved_identity_registry_path() -> Path:
     """Repository-relative default path for the approved identity registry."""
     return _REPO_ROOT / _DEFAULT_REGISTRY_REL

@@ -764,9 +764,21 @@ class LocalHttpTransport:
         if finish not in ALLOWED_FINISH_REASONS:
             finish = "unknown"
 
-        usage_raw = obj.get("usage") if isinstance(obj.get("usage"), dict) else {}
-        usage = self._parse_usage(usage_raw)
-        ignored_tools = bool(message.get("tool_calls")) or bool(first.get("tool_calls"))
+        usage_raw = obj.get("usage")
+        if isinstance(usage_raw, dict):
+            usage = self._parse_usage(usage_raw)
+            provider_usage_reported = True
+        else:
+            usage = ModelUsage()
+            provider_usage_reported = False
+
+        raw_tool_calls = message.get("tool_calls")
+        if raw_tool_calls is None:
+            raw_tool_calls = first.get("tool_calls")
+        if not isinstance(raw_tool_calls, list):
+            raw_tool_calls = []
+        observed_tool_count = len(raw_tool_calls)
+        ignored_tools = observed_tool_count > 0
         structured = None
         stripped = text.strip()
         if stripped.startswith("{") and stripped.endswith("}"):
@@ -790,6 +802,10 @@ class LocalHttpTransport:
                 "local_open_weight": True,
                 "api_dialect": DIALECT_OPENAI_CHAT,
                 "openai_tool_calls_ignored": ignored_tools,
+                "provider_tool_calls_observed_count": observed_tool_count,
+                "provider_tool_calls_observed": observed_tool_count > 0,
+                "provider_tool_calls_ignored": ignored_tools,
+                "provider_usage_reported": provider_usage_reported,
             },
         )
 

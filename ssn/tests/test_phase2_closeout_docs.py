@@ -132,6 +132,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "CAMPAIGN ACCEPTANCE WAS NOT MET",
             experiment,
         )
+        self.assertIn("CAPTURED SANITIZED RESPONSE EXCERPTS", experiment)
         self.assertIn("RUNTIME WAS SHUT DOWN AFTER TESTING", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)

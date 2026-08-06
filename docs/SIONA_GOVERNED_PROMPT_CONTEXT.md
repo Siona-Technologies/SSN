@@ -216,5 +216,7 @@ governed-context campaign is **not** started. Active Samson / personal identity
 records are **not** ingested in this step. Phase 3B remains **in progress**.
 ADR 0003 remains **Proposed**. Phase 4 remains **not started**.
 
-Next separately approved step may create and approve exact identity records
-and authorize a controlled local-model context campaign.
+Next separately approved step may authorize a controlled local-model identity
+or governed-context campaign. Approved public identity records are available
+via `ApprovedIdentityRegistry` (EXP-3B-007); see
+[docs/SIONA_APPROVED_IDENTITY_REGISTRY.md](SIONA_APPROVED_IDENTITY_REGISTRY.md).

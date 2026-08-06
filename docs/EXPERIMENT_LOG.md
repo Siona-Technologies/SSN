@@ -402,3 +402,49 @@ Artifact references: docs/SIONA_GOVERNED_PROMPT_CONTEXT.md,
                       ssn/tests/test_governed_runtime_context.py
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_runtime_context
 ```
+
+### EXP-3B-007 — First approved public identity registry
+
+```text
+Experiment ID: EXP-3B-007
+Date: 2026-08-06
+Git commit: 6aba5119989846afef4328141d688e19cdd96f1f
+Runtime mode: offline deterministic validation only
+Dataset: three owner-approved public IdentityFactRecord entries in
+          config/governance/approved_identity_records.json
+Model/provider: none; LocalDummyLLMProvider for integration tests only
+Neuromorphic backend: n/a
+Hardware: n/a (no local model started)
+Configuration:
+  SSN_OFFLINE=1
+  Explicit ApprovedIdentityRegistry retrieval → GovernedContextInput only
+Metrics: none (no live inference campaign)
+Result: IMPLEMENTED AND VALIDATED DETERMINISTICALLY; THREE OWNER-APPROVED PUBLIC IDENTITY RECORDS AVAILABLE THROUGH EXPLICIT GOVERNED RETRIEVAL; NO AUTOMATIC MODEL INJECTION; NO MODEL TRAINING; NO EMBEDDINGS; NO MODEL REGISTRY ACTIVATION; REAL LOCAL-MODEL IDENTITY CAMPAIGN NOT STARTED.
+Evidence:
+  config/governance/approved_identity_records.json (schema_version 1, 3 records)
+  Strict atomic loader with file-size and record-count bounds
+  Independent canonical manifest (_APPROVED_MANIFEST MappingProxyType) pins exact
+  approved fields; entries frozen; tampered statement/metadata/uses fail atomically
+  Strict JSON object_pairs_hook rejects duplicate keys at all object levels
+  notes absent or exact empty only; JSON null rejected (registry_record_invalid_notes)
+  Bounded stat-first file read max 65537 bytes (no unrestricted Path.read_bytes)
+  select_by_subject_ids: plain list/tuple only; max 16 IDs; exact casing
+  Explicit retrieval API (no LanguageEngine auto-injection)
+  GovernedContextAssembler integration for PUBLIC_RESPONSE guest path
+  decide_public / decide_model_prompt permit; decide_training denies
+  PUBLIC_WEBSITE not in intended uses; personal contact markers excluded
+  Focused suite 99 pass; full offline suite 550 pass, 4 skipped
+  No network/subprocess/llama.cpp/GGUF in focused tests
+  No ssn/data or world_model.json mutation
+Outstanding: real local-model identity campaign; model registry activation;
+             Gate E; ADR 0003 acceptance; Phase 3B completion; website-specific
+             PUBLIC_WEBSITE approval (separate)
+Limitations: deterministic providers only; no embeddings; no active personal
+             contacts in registry; ADR 0003 Proposed; Phase 3B in progress;
+             Phase 4 not started
+Artifact references: docs/SIONA_APPROVED_IDENTITY_REGISTRY.md,
+                      config/governance/approved_identity_records.json,
+                      ssn/governance/identity_registry.py,
+                      ssn/tests/test_approved_identity_registry.py
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_approved_identity_registry
+```

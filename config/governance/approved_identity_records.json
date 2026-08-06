@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "subject": "SIONA Technologies",
+      "subject_id": "company:siona-technologies",
+      "subject_type": "COMPANY",
+      "classification": "PUBLIC_COMPANY",
+      "statement": "SIONA Technologies is an African-founded technology company developing software, intelligent systems and digital infrastructure.",
+      "source_type": "owner_approval",
+      "source_reference": "docs/SIONA_APPROVED_IDENTITY_REGISTRY.md#approval-record-2026-08-06",
+      "approval_status": "APPROVED",
+      "approved_by": "person:samson-sibona-njaji",
+      "approval_timestamp": "2026-08-06T08:20:00Z",
+      "intended_uses": [
+        "PUBLIC_RESPONSE",
+        "MODEL_PROMPT",
+        "RETRIEVAL"
+      ],
+      "prohibited_uses": [
+        "TRAINING_DATASET"
+      ],
+      "review_date": "2027-08-06",
+      "revocation_status": "none",
+      "personal_email": "excluded",
+      "personal_phone": "excluded",
+      "personal_address": "excluded"
+    },
+    {
+      "subject": "SIONA",
+      "subject_id": "product:siona",
+      "subject_type": "PRODUCT",
+      "classification": "PUBLIC_COMPANY",
+      "statement": "SIONA is the unified intelligence engine and platform developed by SIONA Technologies.",
+      "source_type": "owner_approval",
+      "source_reference": "docs/SIONA_APPROVED_IDENTITY_REGISTRY.md#approval-record-2026-08-06",
+      "approval_status": "APPROVED",
+      "approved_by": "person:samson-sibona-njaji",
+      "approval_timestamp": "2026-08-06T08:20:00Z",
+      "intended_uses": [
+        "PUBLIC_RESPONSE",
+        "MODEL_PROMPT",
+        "RETRIEVAL"
+      ],
+      "prohibited_uses": [
+        "TRAINING_DATASET"
+      ],
+      "review_date": "2027-08-06",
+      "revocation_status": "none",
+      "personal_email": "excluded",
+      "personal_phone": "excluded",
+      "personal_address": "excluded"
+    },
+    {
+      "subject": "Samson Sibona Njaji",
+      "subject_id": "person:samson-sibona-njaji",
+      "subject_type": "PERSON",
+      "classification": "PUBLIC_PROFESSIONAL",
+      "statement": "Samson Sibona Njaji is a Kenyan software engineer and technology entrepreneur, a co-founder of SIONA Technologies, and is involved in the design and development of SIONA.",
+      "source_type": "owner_approval",
+      "source_reference": "docs/SIONA_APPROVED_IDENTITY_REGISTRY.md#approval-record-2026-08-06",
+      "approval_status": "APPROVED",
+      "approved_by": "person:samson-sibona-njaji",
+      "approval_timestamp": "2026-08-06T08:20:00Z",
+      "intended_uses": [
+        "PUBLIC_RESPONSE",
+        "MODEL_PROMPT",
+        "RETRIEVAL"
+      ],
+      "prohibited_uses": [
+        "TRAINING_DATASET"
+      ],
+      "review_date": "2027-08-06",
+      "revocation_status": "none",
+      "personal_email": "excluded",
+      "personal_phone": "excluded",
+      "personal_address": "excluded"
+    }
+  ]
+}

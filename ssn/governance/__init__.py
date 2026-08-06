@@ -18,6 +18,12 @@ from ssn.governance.identity_records import (
     is_valid_iso_instant,
     validate_fact_record,
 )
+from ssn.governance.identity_registry import (
+    ApprovedIdentityRegistry,
+    ApprovedIdentityRegistryError,
+    get_default_approved_identity_registry_path,
+    load_approved_identity_registry,
+)
 from ssn.governance.information_classes import (
     AllowedUse,
     ApprovalStatus,
@@ -54,6 +60,8 @@ from ssn.governance.runtime_context import (
 __all__ = [
     "AllowedUse",
     "ApprovalStatus",
+    "ApprovedIdentityRegistry",
+    "ApprovedIdentityRegistryError",
     "ConsentRecord",
     "ContextAudience",
     "GOVERNED_INPUT_KEY",
@@ -82,9 +90,11 @@ __all__ = [
     "decide_public",
     "decide_training",
     "delegation_allows",
+    "get_default_approved_identity_registry_path",
     "inherit_strictest_classification",
     "is_governed_context_enabled",
     "is_valid_iso_instant",
+    "load_approved_identity_registry",
     "other_cofounder_cannot_approve_private",
     "prepare_llm_request",
     "validate_consent",

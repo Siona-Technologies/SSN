@@ -91,6 +91,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
+            "governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009",
+            text,
+        )
+        self.assertIn(
             "model registry activation and Gate E breadth still pending",
             text,
         )
@@ -134,6 +138,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("CAPTURED SANITIZED RESPONSE EXCERPTS", experiment)
         self.assertIn("RUNTIME WAS SHUT DOWN AFTER TESTING", experiment)
+        self.assertIn("EXP-3B-009", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND VALIDATED OFFLINE — EXPLICIT GOVERNED IDENTITY RESPONSE",
+            experiment,
+        )
+        self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)

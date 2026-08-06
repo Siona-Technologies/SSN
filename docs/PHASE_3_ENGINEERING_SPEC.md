@@ -13,7 +13,7 @@ implemented and offline-validated with fail-closed hardening (EXP-3B-009);
 controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded
 finals passed; model-native structured JSON remains unverified; deterministic
 JSON fallback contained failures; runtime shut down); model registry activation,
-Gate E evaluation, broad capability verification and ADR acceptance pending  
+Gate E evaluation recorded (EXP-3B-011); broad capability registry activation and ADR acceptance pending  
 
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
@@ -147,7 +147,9 @@ Phase 3B gates remaining **open**:
 - Structured-output capability verification
 - Timeout/cancellation validation
 - Streaming validation
-- Behavioral / Gate E evaluation suite
+- Behavioral / Gate E evaluation suite — **recorded** as EXP-3B-011 (see
+  [SIONA_GATE_E_BREADTH_EVALUATION.md](SIONA_GATE_E_BREADTH_EVALUATION.md));
+  streaming remains unsupported on the pinned baseline; registry not activated
 - Capability verification (beyond observed text path)
 - ADR acceptance
 - Phase 3B completion

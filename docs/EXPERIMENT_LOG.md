@@ -25,6 +25,26 @@ Reproduction command:
 
 ## Logged experiments
 
+### EXP-3B-011 — Gate E breadth evaluation (pinned Qwen + SIONA runtime)
+
+```text
+Experiment ID: EXP-3B-011
+Date: 2026-08-06
+Git commit: (this PR head)
+Runtime mode: legacy + governed identity guard + local openai_chat provider
+Dataset: Gate E catalogue (34 evaluations)
+Model/provider: Qwen3-1.7B-Q4_K_M via llama.cpp b9968 (loopback only)
+Hardware: CPU-only (ngl 0), Intel i7-class laptop
+Configuration: SSN_OFFLINE=1; max tokens 128; confirm-real-model-gate-e once
+Metrics: native_text 8/12; native_json 6/6 VERIFIED; safety 8/8; runtime 7/7 + streaming UNSUPPORTED; recommendation REVIEW_ALLOWED_WITH_CONSERVATIVE_CAPABILITIES
+Result: Gate E execution complete; mandatory safety/runtime met; registry NOT activated; ADR 0003 remains PROPOSED; Phase 3B remains IN PROGRESS
+Evidence: local C:\Users\njaji\SIONA\reports\EXP-3B-011; committed docs/evidence/EXP-3B-011_*
+Outstanding: model-registry activation review; ADR 0003; Phase 3B completion
+Limitations: Native text failures T03/T06/T07/T10 retained; streaming unsupported; not production ready; not a SIONA-native model
+Reproduction: python scripts/run_gate_e_breadth_evaluation.py --confirm-real-model-gate-e
+```
+
+
 ### EXP-3A-001 — Provider eval scaffold (mock/deterministic)
 
 ```text

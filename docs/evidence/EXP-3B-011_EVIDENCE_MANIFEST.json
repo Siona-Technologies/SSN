@@ -1,0 +1,15 @@
+{
+  "experiment_id": "EXP-3B-011",
+  "timestamp_utc": "2026-08-06T14:51:12Z",
+  "local_complete_evidence_location": "OPERATOR_LOCAL_OUTSIDE_GIT",
+  "hash_semantics": "CANONICAL_JSON_SHA256",
+  "files": [
+    "EXP-3B-011_ADJUDICATION.json",
+    "EXP-3B-011_SUMMARY.json",
+    "EXP-3B-011_CAPABILITY_MATRIX.json",
+    "EXP-3B-011_EVIDENCE_MANIFEST.json"
+  ],
+  "adjudication_canonical_sha256": "0fd431010b0e905899a036eae671183b89ac013fecdb2d47302a82dc3e2e59cc",
+  "summary_canonical_sha256": "0befa94312342100d3572b2c8ecf2114b0288630f7f8cbac93c729188c75af7a",
+  "capability_matrix_canonical_sha256": "ef4c1bfff1ae0da52308f33876de80b4cb6bafe26d5e903e85fced5eb1087245"
+}

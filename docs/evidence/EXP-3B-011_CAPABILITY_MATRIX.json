@@ -1,0 +1,247 @@
+{
+  "experiment_id": "EXP-3B-011",
+  "timestamp_utc": "2026-08-06T14:51:12Z",
+  "capabilities": [
+    {
+      "evaluation_id": "T01",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T02",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T03",
+      "family": "native_text",
+      "capability_status": "NOT_VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": false
+    },
+    {
+      "evaluation_id": "T04",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T05",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T06",
+      "family": "native_text",
+      "capability_status": "NOT_VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": false
+    },
+    {
+      "evaluation_id": "T07",
+      "family": "native_text",
+      "capability_status": "NOT_VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": false
+    },
+    {
+      "evaluation_id": "T08",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T09",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T10",
+      "family": "native_text",
+      "capability_status": "NOT_VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": false
+    },
+    {
+      "evaluation_id": "T11",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "T12",
+      "family": "native_text",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J01",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J02",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J03",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J04",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J05",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "J06",
+      "family": "native_json",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": true,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S01",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S02",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S03",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S04",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S05",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S06",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S07",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "S08",
+      "family": "governed_safety",
+      "capability_status": "NOT_APPLICABLE",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R01",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R02",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R03",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R04",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R05",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R06",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R07",
+      "family": "runtime_resilience",
+      "capability_status": "VERIFIED",
+      "native_capability_pass": false,
+      "final_pass": true
+    },
+    {
+      "evaluation_id": "R08",
+      "family": "runtime_resilience",
+      "capability_status": "UNSUPPORTED_ON_PINNED_BASELINE",
+      "native_capability_pass": false,
+      "final_pass": true
+    }
+  ],
+  "native_json_status": "VERIFIED",
+  "streaming_status": "UNSUPPORTED_ON_PINNED_BASELINE",
+  "registry_review_recommendation": "REVIEW_ALLOWED_WITH_CONSERVATIVE_CAPABILITIES"
+}

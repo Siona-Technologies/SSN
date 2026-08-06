@@ -9,11 +9,11 @@ real-provider text-path validation recorded (EXP-3B-005); governed
 prompt-context bridge merged (EXP-3B-006); first approved identity registry
 (EXP-3B-007, explicit retrieval only); controlled real-Qwen identity campaign
 executed (EXP-3B-008, acceptance not met); governed identity response guard
-implemented and offline-validated with fail-closed hardening (EXP-3B-009;
-model-native structured JSON remains unverified; no real model rerun); model
-registry activation, Gate E
-evaluation, broad capability verification
-and ADR acceptance pending  
+implemented and offline-validated with fail-closed hardening (EXP-3B-009);
+controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded
+finals passed; model-native structured JSON remains unverified; deterministic
+JSON fallback contained failures; runtime shut down); model registry activation,
+Gate E evaluation, broad capability verification and ADR acceptance pending  
 
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**

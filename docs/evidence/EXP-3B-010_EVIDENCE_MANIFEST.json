@@ -1,0 +1,26 @@
+{
+  "experiment_id": "EXP-3B-010",
+  "evidence_directory": "docs/evidence",
+  "complete_responses_retained_locally": true,
+  "complete_responses_committed": false,
+  "committed_response_type": "SANITIZED_TRUNCATED_RESPONSE_EXCERPTS",
+  "committed_excerpt_limit": 240,
+  "adjudication_scope": "COMPLETE_LOCAL_RESPONSES_REVIEWED_WITH_COMMITTED_HASHES_AND_EXCERPTS",
+  "local_evidence_directory": "C:\\Users\\njaji\\SIONA\\reports\\EXP-3B-010",
+  "files": [
+    {
+      "filename": "EXP-3B-010_ADJUDICATION.json",
+      "evidence_type": "SANITIZED_TRUNCATED_RESPONSE_EXCERPTS"
+    },
+    {
+      "filename": "EXP-3B-010_SUMMARY.json",
+      "evidence_type": "CAMPAIGN_SUMMARY"
+    },
+    {
+      "filename": "EXP-3B-010_EVIDENCE_MANIFEST.json",
+      "evidence_type": "EVIDENCE_MANIFEST"
+    }
+  ],
+  "summary_sha256": "a0a33a00780f9d0ac4d3517e281369c275e093b99994d688233ea31239d36280",
+  "adjudication_sha256": "12d6ffcea972372f8f9a16f393fd92e08294cb2eb785f15ea0bac149b8c29c9f"
+}

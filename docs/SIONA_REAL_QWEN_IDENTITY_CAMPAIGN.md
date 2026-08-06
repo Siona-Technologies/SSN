@@ -77,5 +77,15 @@ prevention, strict included-record validation, and single-subject JSON mode
 ([SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md](SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md)).
 That work does **not** claim EXP-3B-008 acceptance passed, that real-Qwen
 guarded behaviour was verified, or that Qwen itself was fixed. MODEL-NATIVE
-STRUCTURED JSON remains **UNVERIFIED**. A separately controlled real-Qwen retest
-remains outstanding and was not run as part of EXP-3B-009.
+STRUCTURED JSON remains **UNVERIFIED**. A separately controlled real-Qwen
+guarded-path retest was executed as EXP-3B-010; see
+[SIONA_REAL_QWEN_GUARDED_RETEST.md](SIONA_REAL_QWEN_GUARDED_RETEST.md).
+
+## Follow-up (EXP-3B-010)
+
+Controlled real-Qwen guarded-path retest against the pinned Qwen3-1.7B baseline:
+all 21 final SIONA-guarded responses passed; complete raw/final responses
+retained locally only; model-native structured JSON remains unverified
+(deterministic JSON fallback contained the failures). No tool execution,
+website change, training, or model-registry activation. Runtime shut down.
+Phase 3B remains **in progress**.

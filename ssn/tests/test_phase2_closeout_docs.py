@@ -95,13 +95,17 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "model registry activation and Gate E breadth still pending",
+            "controlled real-Qwen guarded-path retest executed (EXP-3B-010",
+            text,
+        )
+        self.assertIn(
+            "model registry activation, Gate E breadth, ADR 0003 acceptance and Phase 3B completion decision still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation and gate e breadth still pending",
+            "model registry activation, gate e breadth, adr 0003 acceptance and phase 3b completion decision still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())
@@ -144,6 +148,15 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             experiment,
         )
         self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
+        self.assertIn("EXP-3B-010", experiment)
+        self.assertIn(
+            "CONTROLLED REAL LOCAL-MODEL GUARDED-PATH RETEST EXECUTED AGAINST THE",
+            experiment,
+        )
+        self.assertIn(
+            "ALL 21 FINAL SIONA-GUARDED RESPONSES PASSED",
+            experiment,
+        )
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)

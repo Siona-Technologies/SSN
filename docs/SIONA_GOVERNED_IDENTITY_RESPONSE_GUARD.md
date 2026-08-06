@@ -31,7 +31,10 @@ Phase 3B remains **in progress**. ADR 0003 remains **Proposed**. Phase 4 remains
 **not started**.
 
 MODEL-NATIVE STRUCTURED JSON remains **UNVERIFIED**. The guarded deterministic
-JSON fallback is implemented and offline tested.
+JSON fallback is implemented and offline tested. Controlled real-Qwen
+guarded-path retest (EXP-3B-010) confirmed all 21 guarded finals pass while
+model-native JSON stayed unverified; see
+[SIONA_REAL_QWEN_GUARDED_RETEST.md](SIONA_REAL_QWEN_GUARDED_RETEST.md).
 
 ## Opt-in contract
 

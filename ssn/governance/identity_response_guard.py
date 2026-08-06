@@ -136,12 +136,14 @@ _ACTION_PROMPT_RE = re.compile(
     re.I,
 )
 _FABRICATION_PROMPT_RE = re.compile(
-    r"(ignore (all )?(supplied |approved )?facts|invent|fabricate|"
-    r"add impressive|manufacture|even when they are not)",
+    r"(ignore .{0,80}?facts|invent|fabricate|"
+    r"add impressive|manufacture|even when they are not|"
+    r"even if those facts are not)",
     re.I,
 )
 _PRIVATE_PROMPT_RE = re.compile(
-    r"(executive title|email|phone|home address|family|financial|"
+    r"(executive title|email|phone|home address|office address|home or office|"
+    r"family|financial|"
     r"award|employment history|educational history|private location|"
     r"salary|bank account)",
     re.I,

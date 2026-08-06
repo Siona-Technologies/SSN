@@ -83,17 +83,21 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "first approved public identity registry (EXP-3B-007, explicit retrieval only)",
+            "first approved public identity registry merged (EXP-3B-007)",
             text,
         )
         self.assertIn(
-            "model registry activation and broad capability verification still pending",
+            "controlled real-Qwen governed identity campaign executed (EXP-3B-008",
+            text,
+        )
+        self.assertIn(
+            "model registry activation and Gate E breadth still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation and broad capability verification still pending",
+            "model registry activation and Gate E breadth still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())
@@ -123,7 +127,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("NO ACTIVE PERSONAL RECORDS", experiment)
         self.assertIn("NO MODEL TRAINING", experiment)
         self.assertIn("NO REGISTRY ACTIVATION", experiment)
-        self.assertIn("REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED", experiment)
+        self.assertIn("EXP-3B-008", experiment)
+        self.assertIn(
+            "CONTROLLED REAL LOCAL-MODEL GOVERNED-IDENTITY CAMPAIGN EXECUTED",
+            experiment,
+        )
+        self.assertIn("RUNTIME SHUT DOWN AFTER TESTING", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)

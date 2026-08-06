@@ -97,7 +97,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation and Gate E breadth still pending",
+            "model registry activation and gate e breadth still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())

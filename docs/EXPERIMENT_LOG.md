@@ -448,3 +448,40 @@ Artifact references: docs/SIONA_APPROVED_IDENTITY_REGISTRY.md,
                       ssn/tests/test_approved_identity_registry.py
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_approved_identity_registry
 ```
+
+### EXP-3B-008 — Controlled real-Qwen governed identity campaign
+
+```text
+Experiment ID: EXP-3B-008
+Date: 2026-08-06
+Git commit: (feat/real-qwen-governed-identity-campaign tip)
+Runtime mode: temporary loopback llama.cpp b9968 + Qwen3-1.7B-Q4_K_M
+Dataset: 26 governed identity probes via scripts/run_real_governed_identity_campaign.py
+Model/provider: pinned local open-weight Qwen baseline; openai_chat dialect
+Neuromorphic backend: n/a
+Hardware: Intel i7-1165G7, CPU-only (ngl=0)
+Configuration:
+  SSN_ALLOW_REAL_MODEL_CAMPAIGN=1, SSN_GOVERNED_CONTEXT=1
+  explicit ApprovedIdentityRegistry selection + GovernedContextInput only
+  loopback http://127.0.0.1:8080; max_tokens_cap=128; reasoning off
+Metrics: per-probe latency; classifications; used_context; fallback flags
+Result: CONTROLLED REAL LOCAL-MODEL GOVERNED-IDENTITY CAMPAIGN EXECUTED AGAINST
+        THE PINNED QWEN3-1.7B BASELINE; THREE OWNER-APPROVED PUBLIC RECORDS WERE
+        SUPPLIED ONLY THROUGH EXPLICIT GOVERNED RETRIEVAL; POSITIVE GROUNDING
+        PROBES (P1–P4) PASSED; INSTRUCTION-RESISTANCE AND STRUCTURED-JSON
+        PROBES SHOWED GAPS; RESULTS LIMITED TO OBSERVED PROBES; NO AUTOMATIC
+        MODEL INJECTION; NO MODEL TRAINING; NO EMBEDDINGS; NO MODEL REGISTRY
+        ACTIVATION; RUNTIME SHUT DOWN AFTER TESTING.
+Evidence:
+  scripts/run_real_governed_identity_campaign.py
+  ssn/tests/test_real_governed_identity_campaign.py (mock only)
+  Local evidence: C:\Users\njaji\SIONA\reports\EXP-3B-008 (not in Git)
+  Positive grounding 8/8 PASS_GROUNDED; real-provider fallback none except J1
+  Failures: A1 contradiction accepted; A4 tool narrative; J1 JSON parse/fallback
+  Shutdown: force stop after graceful wait; post-shutdown deterministic fallback OK
+Outstanding: Gate E breadth; structured JSON verification; instruction hardening;
+             model registry activation; ADR 0003 acceptance; Phase 3B completion
+Limitations: single campaign session; STRUCTURED JSON UNVERIFIED; not production ready
+Artifact references: docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
+Reproduction command: operator starts llama-server then python scripts/run_real_governed_identity_campaign.py
+```

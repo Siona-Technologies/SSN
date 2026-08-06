@@ -1,7 +1,7 @@
 # SIONA Approved Identity Registry
 
 **Status:** IMPLEMENTED — explicit governed retrieval only  
-**Experiment:** EXP-3B-007  
+**Experiment:** EXP-3B-007 (registry); EXP-3B-008 (controlled real-Qwen campaign)  
 **Approval record:** 2026-08-06 (`#approval-record-2026-08-06`)
 
 ## Purpose

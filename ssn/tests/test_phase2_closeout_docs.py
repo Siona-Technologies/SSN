@@ -79,13 +79,23 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "governed prompt-context bridge implemented (EXP-3B-006, deterministic only)",
+            "governed prompt-context bridge merged (EXP-3B-006)",
             text,
         )
-        self.assertIn("registry and broad capability verification still pending", text)
+        self.assertIn(
+            "first approved public identity registry (EXP-3B-007, explicit retrieval only)",
+            text,
+        )
+        self.assertIn(
+            "model registry activation and broad capability verification still pending",
+            text,
+        )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
-        self.assertIn("registry and broad capability verification still pending", text.lower())
+        self.assertIn(
+            "model registry activation and broad capability verification still pending",
+            text.lower(),
+        )
         self.assertIn("siona_generate", text.lower())
         experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
         self.assertIn("EXP-3B-004", experiment)
@@ -104,6 +114,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY",
             experiment,
         )
+        self.assertIn("EXP-3B-007", experiment)
+        self.assertIn(
+            "IMPLEMENTED AND VALIDATED DETERMINISTICALLY",
+            experiment,
+        )
+        self.assertIn("NO AUTOMATIC MODEL INJECTION", experiment)
         self.assertIn("NO ACTIVE PERSONAL RECORDS", experiment)
         self.assertIn("NO MODEL TRAINING", experiment)
         self.assertIn("NO REGISTRY ACTIVATION", experiment)

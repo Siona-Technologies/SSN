@@ -6,8 +6,9 @@
 **Phase 3B:** in progress — baseline installed/verified locally; limited loopback
 inference completed; `openai_chat` transport dialect implemented; controlled
 real-provider text-path validation recorded (EXP-3B-005); governed
-prompt-context bridge implemented and validated against deterministic providers
-only (EXP-3B-006); registry, Gate E evaluation, broad capability verification
+prompt-context bridge merged (EXP-3B-006); first approved identity registry
+(EXP-3B-007, explicit retrieval only); model registry activation, Gate E
+evaluation, broad capability verification
 and ADR acceptance pending  
 
 

@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge implemented (EXP-3B-006, deterministic only); registry and broad capability verification still pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry (EXP-3B-007, explicit retrieval only); model registry activation and broad capability verification still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -95,10 +95,12 @@ evaluation, capability approval, and ADR acceptance remain **pending** and are
 - Controlled real-provider validation (EXP-3B-005): exact model-ID verify;
   direct provider text probe; LanguageEngine end-to-end; tool proposals absent;
   deterministic fallback after shutdown; offline tests/eval/smoke green
-- Governed prompt-context bridge (EXP-3B-006): opt-in request-time assembler
-  validated against deterministic providers only; no active personal records;
-  no model training; no registry activation; real local-model context campaign
-  not started. See [SIONA_GOVERNED_PROMPT_CONTEXT.md](SIONA_GOVERNED_PROMPT_CONTEXT.md).
+- Governed prompt-context bridge (EXP-3B-006): merged on main; opt-in assembler
+  validated against deterministic providers only
+- First approved public identity registry (EXP-3B-007): three owner-approved
+  records; explicit `GovernedContextInput` selection only; no automatic injection;
+  no model training; no embeddings; no model registry activation. See
+  [SIONA_APPROVED_IDENTITY_REGISTRY.md](SIONA_APPROVED_IDENTITY_REGISTRY.md).
 
 ### Still pending
 

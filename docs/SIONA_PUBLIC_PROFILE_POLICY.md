@@ -72,6 +72,14 @@ or conversation history.
 
 No executive titles unless both co-founders explicitly approve later.
 
+## Approved identity registry (EXP-3B-007)
+
+Three owner-approved public records are available in
+`config/governance/approved_identity_records.json` for **explicit** selection
+via `ApprovedIdentityRegistry` and `GovernedContextInput`. The registry does
+not auto-inject into this bridge. See
+[SIONA_APPROVED_IDENTITY_REGISTRY.md](SIONA_APPROVED_IDENTITY_REGISTRY.md).
+
 ## Non-automatic sources
 
 - Public website content is not automatically trusted or imported

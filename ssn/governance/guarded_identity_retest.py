@@ -241,8 +241,20 @@ def sha256_file(path: Path) -> str:
 
 
 def assert_evidence_dir_outside_repo(path: Path, repo_root: Path = REPO_ROOT_MARKER) -> None:
-    resolved = path.resolve()
-    root = repo_root.resolve()
+    """Fail closed when evidence would land inside the Git checkout.
+
+    On POSIX CI hosts, Windows absolute path strings (``C:\\...``) are not
+    native paths; ``Path.resolve()`` would nest them under the checkout cwd
+    and false-positive. Those operator-local Windows paths are outside Git by
+    policy when evaluated on non-Windows runners.
+    """
+    raw = os.fspath(path)
+    if os.name != "nt" and re.match(r"^[A-Za-z]:[\\/]", raw):
+        return
+    if os.name != "nt" and raw.startswith("\\\\"):
+        return
+    resolved = Path(path).resolve()
+    root = Path(repo_root).resolve()
     try:
         resolved.relative_to(root)
     except ValueError:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -244,8 +245,14 @@ class TestSanitizationAndHashes(unittest.TestCase):
 
     def test_evidence_dir_outside_git(self) -> None:
         assert_evidence_dir_outside_repo(LOCAL_EVIDENCE_DIR, ROOT)
+        # Windows operator path must remain outside even on POSIX CI resolve.
+        assert_evidence_dir_outside_repo(
+            Path(r"C:\Users\njaji\SIONA\reports\EXP-3B-010"), ROOT
+        )
         with self.assertRaises(RetestError):
             assert_evidence_dir_outside_repo(ROOT / "docs" / "evidence", ROOT)
+        with tempfile.TemporaryDirectory() as td:
+            assert_evidence_dir_outside_repo(Path(td), ROOT)
 
 
 class TestCampaignMocked(unittest.TestCase):

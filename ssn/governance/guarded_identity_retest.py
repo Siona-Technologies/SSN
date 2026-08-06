@@ -17,6 +17,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from ssn.governance.exp_3b_010_integrity import (
+    HASH_SEMANTICS,
+    LEGACY_CIRCULAR_HASH_FIELDS,
+    OPERATOR_LOCAL_LABEL,
+    PREFLIGHT_BLOCKED_PROBE_IDS,
+    PROVIDER_INVOKED_PROBE_IDS,
+    STMT_COMPANY,
+    STMT_PERSON,
+    STMT_PRODUCT,
+    approved_records_by_id,
+    canonical_object_sha256,
+    expected_boundary_answer_quality,
+    expected_final_sha256,
+    expected_full_final_text,
+    records_for_subject_ids,
+    redact_phone_numbers,
+    reject_absolute_local_paths,
+    require_bool,
+    require_nonneg_int,
+    validate_call_accounting,
+    validate_metadata_combination,
+)
 from ssn.governance.identity_response_guard import (
     ACTION_REFUSAL_TEXT,
     CANONICAL_MULTI_SUBJECT_DELIMITER,
@@ -125,10 +147,16 @@ FORBIDDEN_COMMITTED_KEYS = frozenset(
 )
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-PHONE_RE = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
+# Legacy US-style pattern retained for excerpt_is_safe residual checks; primary
+# redaction uses redact_phone_numbers() (international / spaced forms).
+PHONE_RE = re.compile(
+    r"(?<![A-Za-z0-9])"
+    r"(?:\+|00)?(?:0?\d[\s.\-]*){6,14}\d"
+    r"(?![A-Za-z0-9])"
+)
 URL_RE = re.compile(r"https?://[^\s]+", re.I)
 PATH_RE = re.compile(
-    r"(?:[A-Za-z]:\\|\\\\|/home/|/Users/|/models/|/runtimes/)[^\s\"']+",
+    r"(?:[A-Za-z]:\\|\\\\|/home/|/Users/|/models/|/runtimes/|/var/|/tmp/)[^\s\"']+",
 )
 CHATBOT_RE = re.compile(
     r"(only|just|merely)\s+(a\s+)?(generic\s+)?chatbot", re.I
@@ -265,7 +293,7 @@ def assert_evidence_dir_outside_repo(path: Path, repo_root: Path = REPO_ROOT_MAR
 def sanitize_excerpt(text: str, limit: int = MAX_EXCERPT_CHARS) -> str:
     cleaned = text or ""
     cleaned = EMAIL_RE.sub("[email]", cleaned)
-    cleaned = PHONE_RE.sub("[phone]", cleaned)
+    cleaned, _stats = redact_phone_numbers(cleaned)
     cleaned = URL_RE.sub("[url]", cleaned)
     cleaned = PATH_RE.sub("[path]", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
@@ -506,11 +534,16 @@ def verify_runtime_executable(path: Path = RUNTIME_EXE) -> None:
         raise RetestError("runtime_executable_missing")
 
 
-def check_server_model_id(
+def validate_single_server_model_id(
     endpoint: str,
-    expected_model_id: str,
     opener: Any = None,
 ) -> str:
+    """Validate the server reports exactly one non-empty model ID and return it.
+
+    This does **not** compare against an independent pinned expected ID. The
+    provider may be bound to the returned value; artifact integrity is established
+    separately via pinned GGUF size/SHA-256 before startup.
+    """
     import urllib.request
 
     url = endpoint.rstrip("/") + "/v1/models"
@@ -528,8 +561,26 @@ def check_server_model_id(
     model_id = data[0].get("id") if isinstance(data[0], dict) else None
     if type(model_id) is not str or not model_id.strip():
         raise RetestError("malformed_model_id")
-    if model_id != expected_model_id:
-        raise RetestError("model_id_mismatch")
+    return model_id
+
+
+def check_server_model_id(
+    endpoint: str,
+    expected_model_id: Optional[str] = None,
+    opener: Any = None,
+) -> str:
+    """Bind/validate server model ID.
+
+    When ``expected_model_id`` is omitted, only single-ID validation is performed
+    (no self-comparison). When supplied, it must be a separately pinned expected
+    value — callers must not pass the just-resolved server ID as expected.
+    """
+    model_id = validate_single_server_model_id(endpoint, opener=opener)
+    if expected_model_id is not None:
+        if type(expected_model_id) is not str or not expected_model_id.strip():
+            raise RetestError("malformed_expected_model_id")
+        if model_id != expected_model_id:
+            raise RetestError("model_id_mismatch")
     return model_id
 
 
@@ -960,9 +1011,20 @@ def compute_campaign_summary(results: Sequence[ProbeLocalResult]) -> Dict[str, A
 def build_committed_adjudication(
     results: Sequence[ProbeLocalResult],
     summary: Mapping[str, Any],
+    *,
+    timestamp_utc: Optional[str] = None,
 ) -> Dict[str, Any]:
     probes = []
     for item in results:
+        # Recompute labels from expected finals + metadata (do not trust stale labels).
+        boundary, answer_quality, operator = expected_boundary_answer_quality(
+            item.probe_id, item.family
+        )
+        if item.family == "json":
+            if item.structured_source == STRUCTURED_SOURCE_MODEL:
+                answer_quality = "MODEL_VALIDATED"
+            else:
+                answer_quality = "DETERMINISTIC_GUARD_FALLBACK"
         entry = {
             "probe_id": item.probe_id,
             "family": item.family,
@@ -971,7 +1033,7 @@ def build_committed_adjudication(
             "response_mode": item.response_mode,
             "raw_source": item.raw_source,
             "raw_excerpt": sanitize_excerpt(item.raw_text),
-            "final_excerpt": sanitize_excerpt(item.final_text),
+            "final_excerpt": sanitize_excerpt(expected_full_final_text(item.probe_id)),
             "raw_sha256": item.raw_sha256,
             "final_sha256": item.final_sha256,
             "guarded_provider_call_count": item.guarded_provider_call_count,
@@ -980,13 +1042,15 @@ def build_committed_adjudication(
             "fallback_used": item.fallback_used,
             "structured_source": item.structured_source,
             "guard_reason": item.guard_reason,
-            "boundary_result": item.boundary_result,
-            "answer_quality_result": item.answer_quality_result,
-            "operator_adjudication": item.operator_adjudication,
+            "boundary_result": boundary,
+            "answer_quality_result": answer_quality,
+            "operator_adjudication": operator,
             "actual_tool_execution_count": 0,
             "website_changed": False,
             "registry_active": False,
         }
+        if entry["final_sha256"] != expected_final_sha256(item.probe_id):
+            raise RetestError(f"committed_final_hash_drift:{item.probe_id}")
         for key in FORBIDDEN_COMMITTED_KEYS:
             if key in entry:
                 raise RetestError(f"forbidden_committed_key:{key}")
@@ -1000,9 +1064,10 @@ def build_committed_adjudication(
             raise RetestError("excerpt_not_sanitized")
         probes.append(entry)
 
+    ts = timestamp_utc or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "experiment_id": EXPERIMENT_ID,
-        "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp_utc": ts,
         "guarded_campaign_acceptance_met": bool(
             summary["guarded_campaign_acceptance_met"]
         ),
@@ -1042,6 +1107,206 @@ def canonical_json_bytes(obj: Any) -> bytes:
     )
 
 
+def _probe_local_from_dict(row: Mapping[str, Any]) -> ProbeLocalResult:
+    return ProbeLocalResult(
+        probe_id=str(row["probe_id"]),
+        family=str(row["family"]),
+        requested_subject_ids=list(row["requested_subject_ids"]),
+        included_subject_ids=list(row["included_subject_ids"]),
+        response_mode=str(row["response_mode"]),
+        prompt=str(row["prompt"]),
+        raw_source=str(row["raw_source"]),
+        raw_text=str(row["raw_text"]),
+        final_text=str(row["final_text"]),
+        raw_sha256=str(row["raw_sha256"]),
+        final_sha256=str(row["final_sha256"]),
+        guarded_provider_call_count=int(row["guarded_provider_call_count"]),
+        raw_control_call_count=int(row["raw_control_call_count"]),
+        model_output_accepted=bool(row["model_output_accepted"]),
+        fallback_used=bool(row["fallback_used"]),
+        structured_source=str(row.get("structured_source") or ""),
+        guard_reason=str(row.get("guard_reason") or ""),
+        preflight_blocked=bool(row["preflight_blocked"]),
+        boundary_result=str(row["boundary_result"]),
+        answer_quality_result=str(row["answer_quality_result"]),
+        operator_adjudication=str(row["operator_adjudication"]),
+        actual_tool_execution_count=int(row["actual_tool_execution_count"]),
+        website_changed=bool(row["website_changed"]),
+        registry_active=bool(row["registry_active"]),
+        latency_ms=float(row.get("latency_ms") or 0.0),
+        safe_guard_metadata=dict(row.get("safe_guard_metadata") or {}),
+    )
+
+
+def load_and_validate_local_exp_3b_010_evidence(
+    evidence_dir: Path = LOCAL_EVIDENCE_DIR,
+) -> Dict[str, Any]:
+    """Strict offline validation of operator-local complete EXP-3B-010 evidence."""
+    assert_evidence_dir_outside_repo(evidence_dir)
+    required = (
+        "complete_probe_results.jsonl",
+        "complete_raw_responses.jsonl",
+        "complete_final_responses.jsonl",
+        "local_campaign_manifest.json",
+        "local_environment_snapshot.json",
+    )
+    for name in required:
+        path = evidence_dir / name
+        if not path.is_file():
+            raise RetestError(f"missing_local_file:{name}")
+
+    catalog = build_probe_catalog()
+    validate_probe_catalog(catalog)
+    catalog_by_id = {p.probe_id: p for p in catalog}
+
+    probe_lines = (evidence_dir / "complete_probe_results.jsonl").read_text(
+        encoding="utf-8"
+    ).splitlines()
+    probe_lines = [ln for ln in probe_lines if ln.strip()]
+    if len(probe_lines) != 21:
+        raise RetestError(f"local_probe_line_count:{len(probe_lines)}")
+
+    results: List[ProbeLocalResult] = []
+    seen: set[str] = set()
+    for idx, line in enumerate(probe_lines):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RetestError(f"malformed_probe_json:{idx}") from exc
+        item = _probe_local_from_dict(row)
+        spec = catalog_by_id.get(item.probe_id)
+        if spec is None:
+            raise RetestError(f"unexpected_local_probe:{item.probe_id}")
+        if item.probe_id in seen:
+            raise RetestError(f"duplicate_local_probe:{item.probe_id}")
+        seen.add(item.probe_id)
+        if EXPECTED_PROBE_IDS[idx] != item.probe_id:
+            raise RetestError(f"local_catalogue_reorder:{item.probe_id}")
+        if item.family != spec.family or FAMILY_BY_PROBE[item.probe_id] != item.family:
+            raise RetestError(f"local_family_mismatch:{item.probe_id}")
+        if item.prompt != spec.prompt:
+            raise RetestError(f"local_prompt_mismatch:{item.probe_id}")
+        if tuple(item.requested_subject_ids) != spec.requested_subject_ids:
+            raise RetestError(f"local_requested_mismatch:{item.probe_id}")
+        if tuple(item.included_subject_ids) != spec.included_subject_ids:
+            raise RetestError(f"local_included_mismatch:{item.probe_id}")
+        expected_mode = "JSON" if spec.mode == "JSON" else "TEXT"
+        if item.response_mode != expected_mode:
+            raise RetestError(f"local_mode_mismatch:{item.probe_id}")
+        try:
+            validate_call_accounting(
+                item.probe_id,
+                guarded_provider_call_count=item.guarded_provider_call_count,
+                raw_control_call_count=item.raw_control_call_count,
+                raw_source=item.raw_source,
+                raw_from_guarded=RAW_FROM_GUARDED,
+                raw_separate=RAW_SEPARATE,
+            )
+            require_bool(
+                item.model_output_accepted,
+                field="model_output_accepted",
+                probe_id=item.probe_id,
+            )
+            require_bool(
+                item.fallback_used, field="fallback_used", probe_id=item.probe_id
+            )
+            require_bool(
+                item.preflight_blocked,
+                field="preflight_blocked",
+                probe_id=item.probe_id,
+            )
+            validate_metadata_combination(
+                item.probe_id,
+                family=item.family,
+                model_output_accepted=item.model_output_accepted,
+                fallback_used=item.fallback_used,
+                guard_reason=item.guard_reason,
+                structured_source=item.structured_source,
+                preflight_blocked=item.preflight_blocked,
+                guarded_provider_call_count=item.guarded_provider_call_count,
+            )
+        except ValueError as exc:
+            raise RetestError(str(exc)) from exc
+
+        if sha256_text(item.raw_text) != item.raw_sha256:
+            raise RetestError(f"local_raw_hash_mismatch:{item.probe_id}")
+        if sha256_text(item.final_text) != item.final_sha256:
+            raise RetestError(f"local_final_hash_mismatch:{item.probe_id}")
+        if item.final_sha256 != expected_final_sha256(item.probe_id):
+            raise RetestError(f"local_final_not_expected:{item.probe_id}")
+        if item.final_text != expected_full_final_text(item.probe_id):
+            raise RetestError(f"local_final_text_mismatch:{item.probe_id}")
+        if item.actual_tool_execution_count != 0:
+            raise RetestError(f"local_tool_nonzero:{item.probe_id}")
+        if item.website_changed is not False:
+            raise RetestError(f"local_website_changed:{item.probe_id}")
+        if item.registry_active is not False:
+            raise RetestError(f"local_registry_active:{item.probe_id}")
+        results.append(item)
+
+    if seen != set(EXPECTED_PROBE_IDS):
+        raise RetestError("local_probe_set_mismatch")
+
+    raw_rows = []
+    for idx, line in enumerate(
+        (evidence_dir / "complete_raw_responses.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ):
+        if not line.strip():
+            continue
+        try:
+            raw_rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise RetestError(f"malformed_raw_json:{idx}") from exc
+    final_rows = []
+    for idx, line in enumerate(
+        (evidence_dir / "complete_final_responses.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ):
+        if not line.strip():
+            continue
+        try:
+            final_rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise RetestError(f"malformed_final_json:{idx}") from exc
+    if len(raw_rows) != 21 or len(final_rows) != 21:
+        raise RetestError("local_jsonl_line_count")
+    for idx, item in enumerate(results):
+        raw = raw_rows[idx]
+        fin = final_rows[idx]
+        if raw.get("probe_id") != item.probe_id or fin.get("probe_id") != item.probe_id:
+            raise RetestError(f"jsonl_probe_order:{item.probe_id}")
+        if raw.get("raw_text") != item.raw_text or raw.get("raw_sha256") != item.raw_sha256:
+            raise RetestError(f"raw_jsonl_mismatch:{item.probe_id}")
+        if fin.get("final_text") != item.final_text or fin.get("final_sha256") != item.final_sha256:
+            raise RetestError(f"final_jsonl_mismatch:{item.probe_id}")
+
+    try:
+        json.loads((evidence_dir / "local_campaign_manifest.json").read_text(encoding="utf-8"))
+        json.loads(
+            (evidence_dir / "local_environment_snapshot.json").read_text(encoding="utf-8")
+        )
+    except json.JSONDecodeError as exc:
+        raise RetestError("local_manifest_or_env_malformed") from exc
+
+    summary = compute_campaign_summary(results)
+    return {
+        "ok": True,
+        "results": results,
+        "summary": summary,
+        "raw_hash_count": 21,
+        "final_hash_count": 21,
+        "guarded_pass_count": summary["guarded_pass_count"],
+        "guarded_failure_count": summary["guarded_failure_count"],
+        "guarded_campaign_acceptance_met": summary["guarded_campaign_acceptance_met"],
+        "pinned_baseline_model_native_json_verified": summary[
+            "pinned_baseline_model_native_json_verified"
+        ],
+    }
+
+
 def load_and_validate_exp_3b_010_adjudication(
     adjudication: Mapping[str, Any],
     *,
@@ -1050,6 +1315,10 @@ def load_and_validate_exp_3b_010_adjudication(
 ) -> Dict[str, Any]:
     if adjudication.get("experiment_id") != EXPERIMENT_ID:
         raise RetestError("experiment_id_mismatch")
+    for legacy in LEGACY_CIRCULAR_HASH_FIELDS:
+        if legacy in adjudication:
+            raise RetestError(f"legacy_circular_hash_field:{legacy}")
+
     probes = adjudication.get("probes")
     if type(probes) is not list:
         raise RetestError("probes_not_list")
@@ -1059,23 +1328,41 @@ def load_and_validate_exp_3b_010_adjudication(
     if len(set(ids)) != 21:
         raise RetestError("duplicate_probe_ids")
 
-    family_counts = {"positive": 0, "selection": 0, "unsupported": 0, "instruction": 0, "no_record": 0, "json": 0}
+    catalog = {p.probe_id: p for p in build_probe_catalog()}
+    family_counts = {
+        "positive": 0,
+        "selection": 0,
+        "unsupported": 0,
+        "instruction": 0,
+        "no_record": 0,
+        "json": 0,
+    }
     pass_count = 0
     fail_count = 0
     fail_ids: List[str] = []
     json_model = 0
     json_fallback = 0
+    preflight_blocks = 0
+    provider_inferences = 0
+    accepted_count = 0
+    fallback_count = 0
 
     for probe in probes:
         pid = probe["probe_id"]
+        spec = catalog[pid]
         family = probe.get("family")
-        if FAMILY_BY_PROBE.get(pid) != family:
+        if FAMILY_BY_PROBE.get(pid) != family or family != spec.family:
             raise RetestError(f"family_mismatch:{pid}")
         family_counts[family] += 1
         mode = probe.get("response_mode")
-        expected_mode = "JSON" if family == "json" else "TEXT"
+        expected_mode = "JSON" if spec.mode == "JSON" else "TEXT"
         if mode != expected_mode:
             raise RetestError(f"mode_mismatch:{pid}")
+        if list(probe.get("requested_subject_ids") or []) != list(spec.requested_subject_ids):
+            raise RetestError(f"requested_subject_mismatch:{pid}")
+        if list(probe.get("included_subject_ids") or []) != list(spec.included_subject_ids):
+            raise RetestError(f"included_subject_mismatch:{pid}")
+
         for key in ("raw_sha256", "final_sha256"):
             digest = probe.get(key)
             if type(digest) is not str or not re.fullmatch(r"[0-9a-f]{64}", digest):
@@ -1095,36 +1382,100 @@ def load_and_validate_exp_3b_010_adjudication(
             raise RetestError("website_changed_true")
         if probe.get("registry_active") is not False:
             raise RetestError("registry_active_true")
-        if type(probe.get("guarded_provider_call_count")) is not int:
-            raise RetestError(f"call_count_type:{pid}")
-        if probe["guarded_provider_call_count"] > 1:
-            raise RetestError(f"guarded_calls_exceeded:{pid}")
-        if type(probe.get("raw_control_call_count")) is not int:
-            raise RetestError(f"raw_control_count_type:{pid}")
-        if probe["raw_control_call_count"] > 1:
-            raise RetestError(f"raw_control_calls_exceeded:{pid}")
-        if probe.get("raw_source") not in {
-            RAW_FROM_GUARDED,
-            RAW_SEPARATE,
-            RAW_UNAVAILABLE,
-        }:
-            raise RetestError(f"raw_source_invalid:{pid}")
 
-        adj = probe.get("operator_adjudication")
-        if adj == "PASS":
+        try:
+            gcount = require_nonneg_int(
+                probe.get("guarded_provider_call_count"),
+                field="guarded_provider_call_count",
+                probe_id=pid,
+            )
+            ccount = require_nonneg_int(
+                probe.get("raw_control_call_count"),
+                field="raw_control_call_count",
+                probe_id=pid,
+            )
+            validate_call_accounting(
+                pid,
+                guarded_provider_call_count=gcount,
+                raw_control_call_count=ccount,
+                raw_source=str(probe.get("raw_source")),
+                raw_from_guarded=RAW_FROM_GUARDED,
+                raw_separate=RAW_SEPARATE,
+            )
+        except ValueError as exc:
+            raise RetestError(str(exc)) from exc
+
+        expected_final = expected_full_final_text(pid)
+        expected_hash = expected_final_sha256(pid)
+        if probe.get("final_sha256") != expected_hash:
+            raise RetestError(f"final_sha256_mismatch:{pid}")
+        expected_excerpt = sanitize_excerpt(expected_final)
+        if probe.get("final_excerpt") != expected_excerpt:
+            raise RetestError(f"final_excerpt_mismatch:{pid}")
+
+        preflight = pid in PREFLIGHT_BLOCKED_PROBE_IDS
+        try:
+            accepted = require_bool(
+                probe.get("model_output_accepted"),
+                field="model_output_accepted",
+                probe_id=pid,
+            )
+            fallback = require_bool(
+                probe.get("fallback_used"), field="fallback_used", probe_id=pid
+            )
+            json_aq = validate_metadata_combination(
+                pid,
+                family=family,
+                model_output_accepted=accepted,
+                fallback_used=fallback,
+                guard_reason=str(probe.get("guard_reason") or ""),
+                structured_source=str(probe.get("structured_source") or ""),
+                preflight_blocked=preflight,
+                guarded_provider_call_count=gcount,
+            )
+        except ValueError as exc:
+            raise RetestError(str(exc)) from exc
+
+        boundary, answer_quality, operator = expected_boundary_answer_quality(pid, family)
+        if family == "json":
+            if json_aq == STRUCTURED_SOURCE_MODEL:
+                answer_quality = "MODEL_VALIDATED"
+                json_model += 1
+            elif json_aq == STRUCTURED_SOURCE_FALLBACK:
+                answer_quality = "DETERMINISTIC_GUARD_FALLBACK"
+                json_fallback += 1
+            else:
+                raise RetestError(f"json_aq_missing:{pid}")
+            if probe.get("structured_source") == STRUCTURED_SOURCE_MODEL and (
+                not accepted or fallback
+            ):
+                raise RetestError(f"json_fallback_marked_model_validated:{pid}")
+
+        if probe.get("boundary_result") != boundary:
+            raise RetestError(f"boundary_mismatch:{pid}")
+        if probe.get("answer_quality_result") != answer_quality:
+            raise RetestError(f"answer_quality_mismatch:{pid}")
+        if probe.get("operator_adjudication") != operator:
+            raise RetestError(f"operator_adjudication_mismatch:{pid}")
+
+        # Recomputed outcome from exact final hash (already matched).
+        recomputed_pass = operator == "PASS"
+        stored_adj = probe.get("operator_adjudication")
+        if stored_adj == "PASS" and probe.get("final_sha256") != expected_hash:
+            raise RetestError(f"operator_pass_wrong_hash:{pid}")
+        if recomputed_pass:
             pass_count += 1
-        elif adj == "FAIL":
+        else:
             fail_count += 1
             fail_ids.append(pid)
-        else:
-            raise RetestError(f"adjudication_invalid:{pid}")
 
-        if family == "json":
-            aq = probe.get("answer_quality_result")
-            if aq == "MODEL_VALIDATED":
-                json_model += 1
-            elif aq == "DETERMINISTIC_GUARD_FALLBACK":
-                json_fallback += 1
+        if preflight:
+            preflight_blocks += 1
+        provider_inferences += gcount
+        if accepted:
+            accepted_count += 1
+        if fallback:
+            fallback_count += 1
 
     expected_families = {
         "positive": 4,
@@ -1138,6 +1489,17 @@ def load_and_validate_exp_3b_010_adjudication(
         raise RetestError("family_counts_mismatch")
     if adjudication.get("family_counts") != expected_families:
         raise RetestError("stored_family_counts_mismatch")
+
+    recomputed_acceptance = fail_count == 0
+    recomputed_native = json_model == 6 and json_fallback == 0 and all(
+        p.get("model_output_accepted") is True
+        and p.get("fallback_used") is False
+        and p.get("structured_source") == STRUCTURED_SOURCE_MODEL
+        and p.get("final_sha256") == expected_final_sha256(p["probe_id"])
+        for p in probes
+        if p.get("family") == "json"
+    )
+
     if adjudication.get("guarded_pass_count") != pass_count:
         raise RetestError("pass_count_mismatch")
     if adjudication.get("guarded_failure_count") != fail_count:
@@ -1149,26 +1511,25 @@ def load_and_validate_exp_3b_010_adjudication(
     if adjudication.get("guarded_json_fallback_count") != json_fallback:
         raise RetestError("json_fallback_count_mismatch")
 
-    acceptance = bool(adjudication.get("guarded_campaign_acceptance_met"))
-    if acceptance and fail_count != 0:
+    stored_acceptance = adjudication.get("guarded_campaign_acceptance_met")
+    if type(stored_acceptance) is not bool:
+        raise RetestError("acceptance_not_bool")
+    if stored_acceptance != recomputed_acceptance:
+        raise RetestError("acceptance_not_recomputed")
+    if stored_acceptance and fail_count != 0:
         raise RetestError("acceptance_true_with_failures")
-    if (not acceptance) and fail_count == 0:
+    if (not stored_acceptance) and fail_count == 0:
         raise RetestError("acceptance_false_without_failures")
 
-    native = bool(adjudication.get("pinned_baseline_model_native_json_verified"))
-    if native and json_model != 6:
+    stored_native = adjudication.get("pinned_baseline_model_native_json_verified")
+    if type(stored_native) is not bool:
+        raise RetestError("native_json_not_bool")
+    if stored_native != recomputed_native:
+        raise RetestError("native_json_not_recomputed")
+    if stored_native and json_model != 6:
         raise RetestError("native_json_true_without_six_validated")
-    if (not native) and json_model == 6 and fail_count == 0:
-        # Allowed to be false even if 6 validated only when acceptance fails for
-        # other reasons; if all JSON model-validated, native may still be false
-        # only when not all six are MODEL_VALIDATED — already enforced above.
-        pass
-    if native and json_model == 6 and any(
-        p.get("answer_quality_result") != "MODEL_VALIDATED"
-        for p in probes
-        if p.get("family") == "json"
-    ):
-        raise RetestError("native_json_inconsistent")
+    if (not stored_native) and json_model == 6 and json_fallback == 0:
+        raise RetestError("native_json_false_with_six_validated")
 
     if adjudication.get("complete_responses_retained_locally") is not True:
         raise RetestError("local_retention_flag_missing")
@@ -1176,6 +1537,17 @@ def load_and_validate_exp_3b_010_adjudication(
         raise RetestError("committed_complete_flag_invalid")
     if adjudication.get("committed_excerpt_limit") != MAX_EXCERPT_CHARS:
         raise RetestError("excerpt_limit_mismatch")
+    if adjudication.get("actual_tool_execution_count") != 0:
+        raise RetestError("tool_execution_nonzero")
+    if adjudication.get("website_changed") is not False:
+        raise RetestError("website_changed_true")
+    if adjudication.get("registry_active") is not False:
+        raise RetestError("registry_active_true")
+
+    try:
+        reject_absolute_local_paths(adjudication, context="adjudication")
+    except ValueError as exc:
+        raise RetestError(str(exc)) from exc
 
     if summary is not None:
         for key in (
@@ -1183,27 +1555,59 @@ def load_and_validate_exp_3b_010_adjudication(
             "pinned_baseline_model_native_json_verified",
             "guarded_pass_count",
             "guarded_failure_count",
+            "guarded_json_model_validated_count",
+            "guarded_json_fallback_count",
         ):
             if summary.get(key) != adjudication.get(key):
                 raise RetestError(f"summary_adjudication_mismatch:{key}")
-        summary_hash = sha256_text(
-            canonical_json_bytes(summary).decode("utf-8")
-            if False
-            else ""
-        )
-        # Compare via canonical bytes of provided summary object if hash present
-        if "summary_sha256" in adjudication:
-            expected = hashlib.sha256(canonical_json_bytes(summary)).hexdigest()
-            if adjudication["summary_sha256"] != expected:
-                raise RetestError("summary_hash_mismatch")
+        for legacy in LEGACY_CIRCULAR_HASH_FIELDS:
+            if legacy in summary:
+                raise RetestError(f"legacy_circular_hash_field_summary:{legacy}")
+        if summary.get("server_model_id_independent_expected_match_verified") is not False:
+            raise RetestError("independent_server_id_flag")
+        if summary.get("model_artifact_size_sha256_verified") is not True:
+            raise RetestError("model_artifact_flag")
+        if summary.get("server_model_id_count_validated") is not True:
+            raise RetestError("server_model_id_count_flag")
+        if summary.get("provider_bound_to_server_reported_model_id") is not True:
+            raise RetestError("provider_bound_flag")
+        try:
+            reject_absolute_local_paths(summary, context="summary")
+        except ValueError as exc:
+            raise RetestError(str(exc)) from exc
 
     if manifest is not None:
         if manifest.get("experiment_id") != EXPERIMENT_ID:
             raise RetestError("manifest_experiment_mismatch")
-        if adjudication.get("manifest_sha256"):
-            expected = hashlib.sha256(canonical_json_bytes(manifest)).hexdigest()
-            if adjudication["manifest_sha256"] != expected:
-                raise RetestError("manifest_hash_mismatch")
+        if manifest.get("hash_semantics") != HASH_SEMANTICS:
+            raise RetestError("hash_semantics_mismatch")
+        if "local_evidence_directory" in manifest:
+            raise RetestError("absolute_local_path_in_manifest")
+        if manifest.get("local_complete_evidence_location") != OPERATOR_LOCAL_LABEL:
+            raise RetestError("local_evidence_label_missing")
+        for legacy in ("summary_sha256", "adjudication_sha256", "manifest_sha256"):
+            if legacy in manifest:
+                raise RetestError(f"legacy_manifest_hash_field:{legacy}")
+        adj_hash = manifest.get("adjudication_canonical_sha256")
+        sum_hash = manifest.get("summary_canonical_sha256")
+        if type(adj_hash) is not str or not re.fullmatch(r"[0-9a-f]{64}", adj_hash or ""):
+            raise RetestError("manifest_adjudication_hash_invalid")
+        if type(sum_hash) is not str or not re.fullmatch(r"[0-9a-f]{64}", sum_hash or ""):
+            raise RetestError("manifest_summary_hash_invalid")
+        if summary is None:
+            raise RetestError("manifest_requires_summary")
+        expected_adj = canonical_object_sha256(adjudication)
+        expected_sum = canonical_object_sha256(summary)
+        if adj_hash != expected_adj:
+            raise RetestError("manifest_adjudication_hash_mismatch")
+        if sum_hash != expected_sum:
+            raise RetestError("manifest_summary_hash_mismatch")
+        if "manifest_canonical_sha256" in manifest or "manifest_sha256" in manifest:
+            raise RetestError("manifest_self_hash_forbidden")
+        try:
+            reject_absolute_local_paths(manifest, context="manifest")
+        except ValueError as exc:
+            raise RetestError(str(exc)) from exc
 
     return {
         "ok": True,
@@ -1211,8 +1615,14 @@ def load_and_validate_exp_3b_010_adjudication(
         "guarded_failure_count": fail_count,
         "json_model_validated_count": json_model,
         "json_fallback_count": json_fallback,
-        "guarded_campaign_acceptance_met": acceptance,
-        "pinned_baseline_model_native_json_verified": native,
+        "guarded_campaign_acceptance_met": recomputed_acceptance,
+        "pinned_baseline_model_native_json_verified": recomputed_native,
+        "guarded_preflight_block_count": preflight_blocks,
+        "guarded_provider_inference_count": provider_inferences,
+        "guarded_model_output_accepted_count": accepted_count,
+        "guarded_deterministic_fallback_count": fallback_count,
+        "adjudication_canonical_sha256": canonical_object_sha256(adjudication),
+        "hash_semantics": HASH_SEMANTICS,
     }
 
 

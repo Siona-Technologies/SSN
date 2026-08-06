@@ -615,7 +615,5 @@
       "website_changed": false,
       "registry_active": false
     }
-  ],
-  "summary_sha256": "a0a33a00780f9d0ac4d3517e281369c275e093b99994d688233ea31239d36280",
-  "manifest_sha256": "bfed4ea5b09a8b09ba15a250c45d09697ad637dd85015d4e7af147e66957ee7a"
+  ]
 }

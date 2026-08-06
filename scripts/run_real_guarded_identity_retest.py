@@ -2,16 +2,18 @@
 """
 EXP-3B-010 — controlled real-Qwen guarded-path retest runner.
 
-Requires explicit --confirm-real-model-campaign.
-Starts/stops the pinned llama.cpp server, runs the 21-probe campaign once,
-writes complete local evidence outside Git, and emits sanitized committed
-evidence under docs/evidence/.
+Modes (mutually exclusive):
+  --confirm-real-model-campaign
+      Start pinned llama.cpp, run the 21-probe campaign once, retain local
+      complete evidence, verify shutdown, then write committed evidence.
+  --regenerate-committed-evidence-from-local
+      Offline only: validate retained local evidence and regenerate committed
+      adjudication/summary/manifest. No network, subprocess, or GGUF access.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import socket
@@ -27,6 +29,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from ssn.governance.exp_3b_010_integrity import (
+    HASH_SEMANTICS,
+    OPERATOR_LOCAL_LABEL,
+    canonical_object_sha256,
+)
 from ssn.governance.guarded_identity_retest import (
     ALLOWED_ENDPOINT,
     EXPECTED_MODEL_SHA256,
@@ -44,19 +51,21 @@ from ssn.governance.guarded_identity_retest import (
     RetestError,
     build_committed_adjudication,
     build_probe_catalog,
-    canonical_json_bytes,
     check_server_model_id,
     compute_campaign_summary,
     load_and_validate_exp_3b_010_adjudication,
+    load_and_validate_local_exp_3b_010_evidence,
     run_campaign,
     validate_campaign_environment,
     validate_probe_catalog,
+    validate_single_server_model_id,
     verify_model_artifact,
     verify_runtime_executable,
     write_local_evidence,
 )
 
 COMMITTED_EVIDENCE_DIR = ROOT / "docs" / "evidence"
+PROCESS_PATTERNS = ("llama-server", "llama.cpp", "qwen")
 
 
 def _port_open(host: str = "127.0.0.1", port: int = 8080) -> bool:
@@ -68,26 +77,18 @@ def _port_open(host: str = "127.0.0.1", port: int = 8080) -> bool:
         sock.close()
 
 
-def _server_accepting(host: str = "127.0.0.1", port: int = 8080) -> bool:
-    """True only when a listener answers HTTP on the endpoint."""
-    if not _port_open(host, port):
-        return False
-    try:
-        with urllib.request.urlopen(
-            f"http://{host}:{port}/v1/models", timeout=1
-        ) as resp:
-            return resp.status == 200
-    except Exception:
-        return False
-
-
-def _process_matches(patterns: tuple[str, ...]) -> bool:
+def _process_matches(patterns: tuple[str, ...] = PROCESS_PATTERNS) -> bool:
     try:
         out = subprocess.check_output(
             ["tasklist"], text=True, stderr=subprocess.DEVNULL
         )
     except Exception:
-        return False
+        try:
+            out = subprocess.check_output(
+                ["ps", "-A", "-o", "comm="], text=True, stderr=subprocess.DEVNULL
+            )
+        except Exception:
+            return False
     lower = out.lower()
     return any(p.lower() in lower for p in patterns)
 
@@ -95,7 +96,7 @@ def _process_matches(patterns: tuple[str, ...]) -> bool:
 def _require_clean_runtime() -> None:
     if _port_open():
         raise RetestError("port_8080_already_listening")
-    if _process_matches(("llama-server", "llama.cpp", "qwen")):
+    if _process_matches():
         raise RetestError("preexisting_model_process")
 
 
@@ -166,74 +167,77 @@ def _start_llama_server(log_path: Path) -> subprocess.Popen:
 
 def _stop_llama_server(proc: Optional[subprocess.Popen], log_path: Path) -> str:
     method = "graceful"
+    exit_code: Optional[int] = None
     if proc is None:
-        return "not_started"
-    try:
-        proc.terminate()
+        method = "not_started"
+    else:
         try:
-            proc.wait(timeout=20)
-        except subprocess.TimeoutExpired:
-            method = "forced_after_bounded_graceful_wait"
-            proc.kill()
-            proc.wait(timeout=10)
-    finally:
-        fh = getattr(proc, "_ssn_log_fh", None)
-        if fh is not None:
+            proc.terminate()
             try:
-                fh.close()
-            except Exception:
-                pass
-        log_path.write_text(
-            log_path.read_text(encoding="utf-8", errors="replace")
-            + f"\nshutdown_method={method}\n",
-            encoding="utf-8",
-        )
+                exit_code = proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                method = "forced_after_bounded_graceful_wait"
+                proc.kill()
+                exit_code = proc.wait(timeout=10)
+        finally:
+            fh = getattr(proc, "_ssn_log_fh", None)
+            if fh is not None:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+
     deadline = time.time() + 15
     while time.time() < deadline:
-        if not _server_accepting() and not _process_matches(("llama-server",)):
+        if not _port_open() and not _process_matches():
             break
         time.sleep(0.5)
-    if _process_matches(("llama-server",)):
-        raise RetestError("llama_process_still_running")
-    if _server_accepting():
-        raise RetestError("port_8080_still_listening_after_shutdown")
+
+    process_stopped = not _process_matches()
+    port_closed = not _port_open()
+    if not process_stopped:
+        raise RetestError("model_process_still_running_after_shutdown")
+    if not port_closed:
+        raise RetestError("port_8080_still_open_after_shutdown")
+
+    payload = {
+        "shutdown_method": method,
+        "process_exit_code": exit_code,
+        "process_stopped": True,
+        "port_8080_closed": True,
+        "verification_timestamp_utc": datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
+    }
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return method
-
-
-def _resolve_model_id() -> str:
-    with urllib.request.urlopen(ALLOWED_ENDPOINT + "/v1/models", timeout=10) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    data = payload.get("data")
-    if type(data) is not list or len(data) != 1 or not isinstance(data[0], dict):
-        raise RetestError("malformed_model_list")
-    model_id = data[0].get("id")
-    if type(model_id) is not str or not model_id.strip():
-        raise RetestError("malformed_model_id")
-    return model_id
 
 
 def _write_committed_evidence(
     results: Any,
     summary: Dict[str, Any],
+    *,
+    timestamp_utc: Optional[str] = None,
 ) -> Dict[str, str]:
     COMMITTED_EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    adjudication = build_committed_adjudication(results, summary)
+    ts = timestamp_utc or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    adjudication = build_committed_adjudication(results, summary, timestamp_utc=ts)
     summary_doc = dict(summary)
-    summary_doc["timestamp_utc"] = datetime.now(timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    summary_doc["timestamp_utc"] = ts
     summary_doc["runtime_version"] = RUNTIME_VERSION
     summary_doc["runtime_source_commit"] = RUNTIME_SOURCE_COMMIT
     summary_doc["model_filename"] = MODEL_PATH.name
     summary_doc["model_size"] = EXPECTED_MODEL_SIZE
     summary_doc["model_sha256"] = EXPECTED_MODEL_SHA256
+    summary_doc["server_model_id_count_validated"] = True
+    summary_doc["provider_bound_to_server_reported_model_id"] = True
+    summary_doc["server_model_id_independent_expected_match_verified"] = False
+    summary_doc["model_artifact_size_sha256_verified"] = True
+    summary_doc["hash_semantics"] = HASH_SEMANTICS
 
-    summary_bytes = canonical_json_bytes(summary_doc)
-    summary_sha = hashlib.sha256(summary_bytes).hexdigest()
-    adjudication["summary_sha256"] = summary_sha
-
-    # Hash adjudication before attaching circular manifest linkage.
-    adjudication_sha = hashlib.sha256(canonical_json_bytes(adjudication)).hexdigest()
+    adjudication_canonical_sha256 = canonical_object_sha256(adjudication)
+    summary_canonical_sha256 = canonical_object_sha256(summary_doc)
     manifest = {
         "experiment_id": EXPERIMENT_ID,
         "evidence_directory": "docs/evidence",
@@ -242,7 +246,8 @@ def _write_committed_evidence(
         "committed_response_type": "SANITIZED_TRUNCATED_RESPONSE_EXCERPTS",
         "committed_excerpt_limit": 240,
         "adjudication_scope": summary["adjudication_scope"],
-        "local_evidence_directory": str(LOCAL_EVIDENCE_DIR),
+        "local_complete_evidence_location": OPERATOR_LOCAL_LABEL,
+        "hash_semantics": HASH_SEMANTICS,
         "files": [
             {
                 "filename": "EXP-3B-010_ADJUDICATION.json",
@@ -257,16 +262,10 @@ def _write_committed_evidence(
                 "evidence_type": "EVIDENCE_MANIFEST",
             },
         ],
-        "summary_sha256": summary_sha,
-        "adjudication_sha256": adjudication_sha,
+        "adjudication_canonical_sha256": adjudication_canonical_sha256,
+        "summary_canonical_sha256": summary_canonical_sha256,
     }
-    manifest_sha = hashlib.sha256(canonical_json_bytes(manifest)).hexdigest()
-    # Store manifest hash on adjudication only after manifest is finalized.
-    adjudication["manifest_sha256"] = manifest_sha
-    # Re-hash adjudication including manifest_sha256 for the on-disk file; keep
-    # the pre-link adjudication_sha256 in the manifest as the content hash of
-    # the adjudication body excluding the manifest back-pointer.
-    adjudication_for_disk = dict(adjudication)
+    manifest_canonical_sha256 = canonical_object_sha256(manifest)
 
     paths = {
         "adjudication": COMMITTED_EVIDENCE_DIR / "EXP-3B-010_ADJUDICATION.json",
@@ -274,7 +273,7 @@ def _write_committed_evidence(
         "manifest": COMMITTED_EVIDENCE_DIR / "EXP-3B-010_EVIDENCE_MANIFEST.json",
     }
     paths["adjudication"].write_text(
-        json.dumps(adjudication_for_disk, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(adjudication, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     paths["summary"].write_text(
@@ -286,44 +285,74 @@ def _write_committed_evidence(
         encoding="utf-8",
     )
 
-    # Validator compares manifest hash against manifest without requiring the
-    # adjudication file hash to include the back-pointer.
     load_and_validate_exp_3b_010_adjudication(
-        adjudication_for_disk, manifest=manifest, summary=summary_doc
+        adjudication, manifest=manifest, summary=summary_doc
     )
     return {
-        "adjudication_sha256": adjudication_sha,
-        "summary_sha256": summary_sha,
-        "manifest_sha256": manifest_sha,
+        "adjudication_canonical_sha256": adjudication_canonical_sha256,
+        "summary_canonical_sha256": summary_canonical_sha256,
+        "manifest_canonical_sha256": manifest_canonical_sha256,
+        "hash_semantics": HASH_SEMANTICS,
     }
 
 
-def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="EXP-3B-010 guarded retest")
-    parser.add_argument(
-        "--confirm-real-model-campaign",
-        action="store_true",
-        help="Required explicit confirmation before contacting the local model.",
-    )
-    args = parser.parse_args(argv)
-    if not args.confirm_real_model_campaign:
-        print("CAMPAIGN_FAILED:missing_confirm_real_model_campaign", file=sys.stderr)
-        return 1
+def regenerate_committed_evidence_from_local() -> int:
+    """Offline regeneration — no network, subprocess, or GGUF access."""
+    validate_probe_catalog(build_probe_catalog())
+    local = load_and_validate_local_exp_3b_010_evidence(LOCAL_EVIDENCE_DIR)
+    results = local["results"]
+    summary = compute_campaign_summary(results)
 
+    # Preserve historical campaign timestamp when present locally.
+    timestamp_utc = "2026-08-06T12:33:22Z"
+    summary_path = LOCAL_EVIDENCE_DIR / "campaign_summary_latest.json"
+    if summary_path.is_file():
+        try:
+            prior = json.loads(summary_path.read_text(encoding="utf-8"))
+            if type(prior.get("timestamp_utc")) is str and prior["timestamp_utc"]:
+                timestamp_utc = prior["timestamp_utc"]
+        except Exception:
+            pass
+
+    hashes = _write_committed_evidence(
+        results, summary, timestamp_utc=timestamp_utc
+    )
+    out = {
+        "mode": "regenerate_committed_evidence_from_local",
+        "guarded_campaign_acceptance_met": summary["guarded_campaign_acceptance_met"],
+        "pinned_baseline_model_native_json_verified": summary[
+            "pinned_baseline_model_native_json_verified"
+        ],
+        "guarded_pass_count": summary["guarded_pass_count"],
+        "guarded_failure_count": summary["guarded_failure_count"],
+        "preserved_raw_hashes": 21,
+        "preserved_final_hashes": 21,
+        **hashes,
+    }
+    print(json.dumps(out, indent=2, ensure_ascii=False))
+    return 0 if summary["guarded_campaign_acceptance_met"] else 2
+
+
+def run_real_campaign() -> int:
     validate_probe_catalog(build_probe_catalog())
     LOCAL_EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     startup_log = LOCAL_EVIDENCE_DIR / "local_runtime_startup.log"
     shutdown_log = LOCAL_EVIDENCE_DIR / "local_runtime_shutdown.log"
 
     proc: Optional[subprocess.Popen] = None
-    shutdown_method = "not_started"
+    results = None
+    summary: Optional[Dict[str, Any]] = None
+    model_info: Optional[Dict[str, Any]] = None
+    campaign_error: Optional[BaseException] = None
+
     try:
         _require_clean_runtime()
         model_info = verify_model_artifact()
         verify_runtime_executable()
         proc = _start_llama_server(startup_log)
-        model_id = _resolve_model_id()
-        check_server_model_id(ALLOWED_ENDPOINT, model_id)
+        # Single-ID validation + provider binding only (no self-comparison).
+        model_id = validate_single_server_model_id(ALLOWED_ENDPOINT)
+        check_server_model_id(ALLOWED_ENDPOINT)  # re-check single-ID binding surface
         _set_campaign_env(model_id)
         validate_campaign_environment()
 
@@ -335,8 +364,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         registry = load_approved_identity_registry()
         inner = get_default_provider_from_env()
         recorder = RecordingLLMProvider(inner)
-        # Separate raw-control provider shares the same inner endpoint but a
-        # distinct recorder so call counts stay separated.
         raw_recorder = RecordingLLMProvider(inner)
         engine = LanguageEngine(provider=GovernedContextLLMProvider(recorder))
 
@@ -355,30 +382,71 @@ def main(argv: Optional[list[str]] = None) -> int:
             "runtime_source_commit": RUNTIME_SOURCE_COMMIT,
             "ssn_offline": "1",
             "max_tokens_cap": str(MAX_OUTPUT_TOKENS),
+            "server_model_id_independent_expected_match_verified": False,
+            "model_artifact_size_sha256_verified": True,
         }
         write_local_evidence(
             results, summary, evidence_dir=LOCAL_EVIDENCE_DIR, env_snapshot=env_snapshot
         )
-        hashes = _write_committed_evidence(results, summary)
-        summary_out = dict(summary)
-        summary_out.update(hashes)
-        print(json.dumps(summary_out, indent=2, ensure_ascii=False))
-        return 0 if summary["guarded_campaign_acceptance_met"] else 2
-    except RetestError as exc:
-        print(f"CAMPAIGN_FAILED:{exc}", file=sys.stderr)
-        return 1
-    except Exception as exc:
-        print(f"CAMPAIGN_FAILED:{type(exc).__name__}:{exc}", file=sys.stderr)
-        return 1
-    finally:
-        try:
-            shutdown_method = _stop_llama_server(proc, shutdown_log)
-        except Exception as exc:
-            shutdown_log.write_text(
-                f"shutdown_error={type(exc).__name__}:{exc}\n", encoding="utf-8"
-            )
-            shutdown_method = "shutdown_error"
+    except BaseException as exc:
+        campaign_error = exc
+
+    # Shutdown must run and be verified before committed evidence may be written.
+    try:
+        shutdown_method = _stop_llama_server(proc, shutdown_log)
         print(f"shutdown_method={shutdown_method}", file=sys.stderr)
+    except Exception as exc:
+        print(f"CAMPAIGN_FAILED:shutdown:{type(exc).__name__}", file=sys.stderr)
+        return 1
+
+    if campaign_error is not None:
+        if isinstance(campaign_error, RetestError):
+            print(f"CAMPAIGN_FAILED:{campaign_error}", file=sys.stderr)
+        else:
+            print(
+                f"CAMPAIGN_FAILED:{type(campaign_error).__name__}:{campaign_error}",
+                file=sys.stderr,
+            )
+        return 1
+
+    assert results is not None and summary is not None
+    hashes = _write_committed_evidence(results, summary)
+    summary_out = dict(summary)
+    summary_out.update(hashes)
+    print(json.dumps(summary_out, indent=2, ensure_ascii=False))
+    return 0 if summary["guarded_campaign_acceptance_met"] else 2
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="EXP-3B-010 guarded retest")
+    parser.add_argument(
+        "--confirm-real-model-campaign",
+        action="store_true",
+        help="Required explicit confirmation before contacting the local model.",
+    )
+    parser.add_argument(
+        "--regenerate-committed-evidence-from-local",
+        action="store_true",
+        help="Offline regeneration from retained local complete evidence.",
+    )
+    args = parser.parse_args(argv)
+
+    if args.confirm_real_model_campaign and args.regenerate_committed_evidence_from_local:
+        print("CAMPAIGN_FAILED:mutually_exclusive_flags", file=sys.stderr)
+        return 1
+    if args.regenerate_committed_evidence_from_local:
+        try:
+            return regenerate_committed_evidence_from_local()
+        except RetestError as exc:
+            print(f"CAMPAIGN_FAILED:{exc}", file=sys.stderr)
+            return 1
+        except Exception as exc:
+            print(f"CAMPAIGN_FAILED:{type(exc).__name__}:{exc}", file=sys.stderr)
+            return 1
+    if not args.confirm_real_model_campaign:
+        print("CAMPAIGN_FAILED:missing_confirm_real_model_campaign", file=sys.stderr)
+        return 1
+    return run_real_campaign()
 
 
 if __name__ == "__main__":

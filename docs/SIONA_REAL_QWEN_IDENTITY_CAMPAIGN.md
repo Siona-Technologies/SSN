@@ -84,8 +84,12 @@ guarded-path retest was executed as EXP-3B-010; see
 ## Follow-up (EXP-3B-010)
 
 Controlled real-Qwen guarded-path retest against the pinned Qwen3-1.7B baseline:
-all 21 final SIONA-guarded responses passed; complete raw/final responses
-retained locally only; model-native structured JSON remains unverified
-(deterministic JSON fallback contained the failures). No tool execution,
-website change, training, or model-registry activation. Runtime shut down.
-Phase 3B remains **in progress**.
+all 21 final SIONA-guarded responses passed; two real model outputs were accepted
+directly and nineteen used deterministic guard containment; complete raw/final
+responses retained operator-locally only; model-native structured JSON remains
+unverified (deterministic JSON fallback contained the failures). Evidence hashes
+use CANONICAL_JSON_SHA256. Complete local evidence was revalidated offline and
+committed evidence regenerated without model inference. No tool execution,
+website change, training, or model-registry activation. Runtime process/port
+state verified closed after testing; original shutdown-log path error corrected
+for future reproductions. Phase 3B remains **in progress**.

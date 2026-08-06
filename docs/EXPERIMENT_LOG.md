@@ -408,7 +408,7 @@ Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_r
 ```text
 Experiment ID: EXP-3B-007
 Date: 2026-08-06
-Git commit: (feat/approved-identity-registry tip)
+Git commit: a2476fcc126793fce0cb82f345e24a0f7b368ce6
 Runtime mode: offline deterministic validation only
 Dataset: three owner-approved public IdentityFactRecord entries in
           config/governance/approved_identity_records.json
@@ -423,13 +423,15 @@ Result: IMPLEMENTED AND VALIDATED DETERMINISTICALLY; THREE OWNER-APPROVED PUBLIC
 Evidence:
   config/governance/approved_identity_records.json (schema_version 1, 3 records)
   Strict atomic loader with file-size and record-count bounds
-  Independent canonical manifest pins exact approved field values
-  Bounded stat-first file read (no unrestricted Path.read_bytes)
+  Independent canonical manifest (_APPROVED_MANIFEST) pins exact approved fields;
+  tampered statement/metadata/uses fail atomically (registry_approved_* codes)
+  Bounded stat-first file read max 65537 bytes (no unrestricted Path.read_bytes)
+  select_by_subject_ids: plain list/tuple only; max 16 IDs; exact casing
   Explicit retrieval API (no LanguageEngine auto-injection)
   GovernedContextAssembler integration for PUBLIC_RESPONSE guest path
   decide_public / decide_model_prompt permit; decide_training denies
   PUBLIC_WEBSITE not in intended uses; personal contact markers excluded
-  Focused suite 51 pass; full offline suite pass
+  Focused suite 75 pass; full offline suite 526 pass, 4 skipped
   No network/subprocess/llama.cpp/GGUF in focused tests
   No ssn/data or world_model.json mutation
 Outstanding: real local-model identity campaign; model registry activation;

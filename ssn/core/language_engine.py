@@ -8,6 +8,11 @@ V10 blueprint:
 - LanguageEngine becomes a thin wrapper around a pluggable LLMProvider
   so that local / remote / future custom models can be swapped in
   without touching BrainRouter, FusionEngine, or tools.
+
+Governed prompt-context (opt-in, SSN_GOVERNED_CONTEXT=1):
+- Canonical insertion point is the pre-provider wrapper around LLMProvider.
+- Governance runs before any provider / ModelGateway / LocalHttpTransport call.
+- Disabled by default; legacy behaviour unchanged.
 """
 
 from __future__ import annotations
@@ -18,6 +23,16 @@ from ssn.core.llm_providers import (
     LLMRequest,
     get_default_provider_from_env,
 )
+from ssn.governance.runtime_context import (
+    GOVERNED_RESULT_META_KEY,
+    GovernedContextLLMProvider,
+)
+
+
+def _wrap_provider(provider: LLMProvider) -> LLMProvider:
+    if isinstance(provider, GovernedContextLLMProvider):
+        return provider
+    return GovernedContextLLMProvider(provider)
 
 
 class LanguageEngine:
@@ -28,14 +43,14 @@ class LanguageEngine:
       - process(text, context, role) -> dict with keys:
           reply, role, used_context, engine
 
-    Internally this delegates to an LLMProvider, which can be swapped
-    for a real local/remote model later.
+    Internally this delegates to a governed LLMProvider wrapper, which can be
+    swapped for a real local/remote model later. The local provider never makes
+    governance decisions.
     """
 
     def __init__(self, provider: Optional[LLMProvider] = None):
-        # If a provider is passed explicitly, use it; otherwise select
-        # based on environment (SSN_LLM_PROVIDER, SSN_LLM_ENDPOINT, etc.).
-        self._provider: LLMProvider = provider or get_default_provider_from_env()
+        inner: LLMProvider = provider or get_default_provider_from_env()
+        self._provider: LLMProvider = _wrap_provider(inner)
 
     @property
     def engine_name(self) -> str:
@@ -56,12 +71,15 @@ class LanguageEngine:
         resp = self._provider.generate(req)
 
         meta = resp.meta or {}
-        return {
+        result: Dict[str, Any] = {
             "reply": resp.text,
             "role": meta.get("role", role),
             "used_context": bool(meta.get("used_context", bool(context))),
             "engine": meta.get("engine", self.engine_name),
         }
+        if GOVERNED_RESULT_META_KEY in meta:
+            result["governed_context"] = meta[GOVERNED_RESULT_META_KEY]
+        return result
 
     def generate_reply(
         self,
@@ -85,7 +103,7 @@ class LanguageEngine:
         return {
             "text": resp.text,
             "meta": {
-                **resp.meta,
-                "engine": resp.meta.get("engine", self.engine_name),
+                **(resp.meta or {}),
+                "engine": (resp.meta or {}).get("engine", self.engine_name),
             },
         }

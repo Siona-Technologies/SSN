@@ -140,7 +140,32 @@ SSN_MODEL_PROVIDER=local         # Phase 3A optional local path
 
 Default remains `dummy` so existing tests are unchanged.
 
+## Governed prompt-context bridge (EXP-3B-006)
+
+Optional request-time context assembly (`SSN_GOVERNED_CONTEXT`, default off)
+runs in a pre-provider wrapper installed by `LanguageEngine` before any
+`LLMProvider` / `ModelGateway` / local transport call. Composite policy
+(`decide_model_prompt` plus disclosure decision) filters caller-supplied
+records. Only a bounded text block reaches providers. This is **not** model
+training, not a LoRA/QLoRA/PEFT adapter, and not registry activation. See
+[SIONA_GOVERNED_PROMPT_CONTEXT.md](SIONA_GOVERNED_PROMPT_CONTEXT.md).
+
+Status wording: **IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS
+ONLY; NO ACTIVE PERSONAL RECORDS; NO MODEL TRAINING; NO REGISTRY ACTIVATION;
+REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED.**
+
+Hardening (fail-closed): malformed runtime objects deny without exceptions;
+hard assembler ceilings; JSON-lines serialization; exact legacy response when
+unused; ambiguous consent fails closed; bounded diagnostics invariant; sanitized
+correlation IDs. Final correction: O(16) candidate inspection, typed-record and
+typed-consent structural preflight, delegated-consent-only scope, envelope
+`input_error_reason` when candidate count is untrustworthy, `used_context` meta
+assertion with provider fallback, case-insensitive script-marker neutralization.
+Model-prompt injection is not solved by text filtering alone.
+
 ## Safety
 
 Model outputs become structured proposals. Existing policy and tool layers
 validate before side effects. Models must not drive actuators directly.
+Model output cannot approve identity facts or grant consent.
+

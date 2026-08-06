@@ -5,8 +5,11 @@
 **Phase 3A:** completed — provider foundation + evaluation scaffold (deterministic/mock only); hosted-CI accepted  
 **Phase 3B:** in progress — baseline installed/verified locally; limited loopback
 inference completed; `openai_chat` transport dialect implemented; controlled
-real-provider text-path validation recorded (EXP-3B-005); registry, Gate E
-evaluation, broad capability verification and ADR acceptance pending  
+real-provider text-path validation recorded (EXP-3B-005); governed
+prompt-context bridge implemented and validated against deterministic providers
+only (EXP-3B-006); registry, Gate E evaluation, broad capability verification
+and ADR acceptance pending  
+
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
 install or download a real model. The Phase 3A final security/isolation gate

@@ -352,3 +352,53 @@ Artifact references: docs/PHASE_3B_INSTALLATION_RUNBOOK.md,
                       reports directory; not committed)
 Reproduction command: n/a (manual local operator procedure; not CI)
 ```
+
+### EXP-3B-006 — Governed prompt-context bridge
+
+```text
+Experiment ID: EXP-3B-006
+Date: 2026-08-06
+Git commit: (feat/governed-prompt-context-bridge tip)
+Runtime mode: offline deterministic / mock validation only
+Dataset: synthetic IdentityFactRecord fixtures only (no real personal facts)
+Model/provider: LocalDummyLLMProvider + mock ModelGateway path; no GGUF load
+Neuromorphic backend: n/a
+Hardware: n/a for this experiment (no local model started)
+Configuration:
+  SSN_OFFLINE=1
+  SSN_GOVERNED_CONTEXT default 0 (legacy unchanged); tests enable =1
+  LanguageEngine → GovernedContextLLMProvider → existing LLMProvider/ModelGateway
+Metrics: none (no live inference campaign)
+Result: IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY; NO ACTIVE PERSONAL RECORDS; NO MODEL TRAINING; NO REGISTRY ACTIVATION; REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED.
+Evidence:
+  Composite authorization (MODEL_PROMPT ∩ PUBLIC_RESPONSE / OWNER_ASSISTANCE)
+  Trusted PolicyContext required; role text alone is not authentication
+  Fail-closed malformed record/consent handling without exceptions
+  Exact consent resolution; ambiguous duplicate consent denies
+  Hard assembler ceilings enforced (GovernedContextConfigError)
+  Deterministic JSON-lines context serialization
+  Exact legacy LanguageEngine contract when feature disabled or unused
+  used_context true only when governed block included or ordinary context used
+  Diagnostics count invariant (included + denied = candidates)
+  Sanitized correlation request_id (64 chars, conservative charset)
+  Denied statements absent from downstream prompts and diagnostics
+  Final bounded-input hardening: max 16 candidate inspection, structural
+  preflight for typed records/consents, delegated-consent-only scope,
+  envelope input_error_reason for untrustworthy counts, used_context fallback
+  Focused suite 73 pass; full offline suite pass
+  No HTTP/subprocess/llama.cpp/GGUF activity in focused tests
+  No ssn/data or world_model.json mutation
+Outstanding: active approved identity-record ingestion (separate approval);
+             real local-model governed-context campaign (separate approval);
+             registry activation; Gate E; ADR 0003 acceptance; Phase 3B completion
+Limitations: deterministic providers only; no active personal records;
+             ADR 0003 remains Proposed; Phase 3B remains in progress;
+             Phase 4 not started; runtime currently stopped; CI remains model-free
+Artifact references: docs/SIONA_GOVERNED_PROMPT_CONTEXT.md,
+                      docs/PHASE_STATUS.md,
+                      docs/PHASE_3_ENGINEERING_SPEC.md,
+                      docs/SIONA_MODEL_GATEWAY.md,
+                      ssn/governance/runtime_context.py,
+                      ssn/tests/test_governed_runtime_context.py
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_runtime_context
+```

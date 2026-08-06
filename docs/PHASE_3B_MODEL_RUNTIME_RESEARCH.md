@@ -577,7 +577,7 @@ No final production runtime approval is issued by ADR 0003 (still Proposed).
 | Provenance risk | Low for publisher Q8_0; moderate for ggml-org Q4_K_M |
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
-| Local evaluation status | Limited local loopback smoke completed; controlled real-provider text path validated (EXP-3B-005); governed real-model production evaluation suite not started |
+| Local evaluation status | Limited local loopback smoke completed; controlled real-provider text path validated (EXP-3B-005); Gate E breadth recorded (EXP-3B-011); registry activation not started |
 | Selection status | **OWNER-AUTHORIZED locally installed baseline; controlled real-provider text path validated (EXP-3B-005); runtime currently stopped; registry/Gate E pending** |
 
 ### Candidate B — Qwen3-4B
@@ -802,7 +802,7 @@ Comparison: Granite 4.0 Micro Q4_K_M.
 - Controlled real SIONA provider text path validated (EXP-3B-005); limited
   text-transport gate only
 - Model registry remains inactive
-- Gate E governed evaluation remains pending
+- Gate E breadth recorded (EXP-3B-011); registry activation remains pending
 - Further provider campaigns beyond the recorded text path require separate
   authorization
 - Further provider integration campaigns (registry activation, Gate E) still

@@ -43,6 +43,7 @@ ENV_GOVERNED_CONTEXT = "SSN_GOVERNED_CONTEXT"
 
 MAX_INPUT_RECORDS = 16
 MAX_INCLUDED_RECORDS = 8
+MAX_CONSENT_INPUT = 16
 MAX_STATEMENT_CHARS = 1500
 MAX_TOTAL_CONTEXT_CHARS = 6000
 MAX_SUBJECT_CHARS = 256
@@ -164,6 +165,24 @@ def _opaque_invalid_id(index: int) -> str:
 
 def _opaque_overflow_id(index: int) -> str:
     return _bound(f"rec:overflow:{index:04d}", MAX_RECORD_ID_CHARS)
+
+
+def _append_bounded_overflow_denials(
+    denied_ids: list[str],
+    denial_reasons: list[str],
+    overflow_count: int,
+    reason: str,
+) -> int:
+    """Append bounded overflow IDs; return unreported overflow denials."""
+    if overflow_count <= 0:
+        return 0
+    bounded_reason = _bound(reason, MAX_REASON_CHARS)
+    remaining_id_slots = max(0, MAX_DIAGNOSTIC_IDS - len(denied_ids))
+    reported_overflow = min(overflow_count, remaining_id_slots)
+    for overflow_index in range(reported_overflow):
+        denied_ids.append(_opaque_overflow_id(overflow_index))
+        denial_reasons.append(bounded_reason)
+    return overflow_count - reported_overflow
 
 
 def _allowed_use_tuple(value: Any) -> bool:
@@ -305,10 +324,18 @@ def _needs_delegated_consent_resolution(
 def _resolve_delegated_consent(
     subject_id: str,
     actor_id: str,
-    consents: Sequence[Any],
+    consents: Any,
 ) -> Tuple[Optional[ConsentRecord], Optional[str]]:
+    if consents is None:
+        return None, "deny_invalid_consent_container"
+    if not isinstance(consents, (tuple, list)):
+        return None, "deny_invalid_consent_container"
+    consent_count = len(consents)
+    if consent_count > MAX_CONSENT_INPUT:
+        return None, "deny_consent_input_limit"
     matches: list[ConsentRecord] = []
-    for consent in consents:
+    for index in range(consent_count):
+        consent = consents[index]
         if not isinstance(consent, ConsentRecord):
             continue
         if type(consent.subject_id) is not str or type(consent.grantee_id) is not str:
@@ -570,12 +597,12 @@ class GovernedContextAssembler:
             included_lines.append(line)
             included_ids.append(rid)
 
-        for overflow_index in range(overflow_count):
-            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
-                denied_ids.append(_opaque_overflow_id(overflow_index))
-                denial_reasons.append("deny_input_record_limit")
-            else:
-                unreported_denied += 1
+        unreported_denied += _append_bounded_overflow_denials(
+            denied_ids,
+            denial_reasons,
+            overflow_count,
+            "deny_input_record_limit",
+        )
 
         included_count = len(included_ids)
         denied_count = candidate_count - included_count
@@ -629,12 +656,9 @@ class GovernedContextAssembler:
             else:
                 unreported_denied += 1
 
-        for overflow_index in range(overflow_count):
-            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
-                denied_ids.append(_opaque_overflow_id(overflow_index))
-                denial_reasons.append(bounded_reason)
-            else:
-                unreported_denied += 1
+        unreported_denied += _append_bounded_overflow_denials(
+            denied_ids, denial_reasons, overflow_count, bounded_reason
+        )
 
         denied_count = candidate_count
         if len(denied_ids) + unreported_denied != denied_count:
@@ -694,12 +718,9 @@ class GovernedContextAssembler:
             else:
                 unreported_denied += 1
 
-        for overflow_index in range(overflow_count):
-            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
-                denied_ids.append(_opaque_overflow_id(overflow_index))
-                denial_reasons.append(bounded_reason)
-            else:
-                unreported_denied += 1
+        unreported_denied += _append_bounded_overflow_denials(
+            denied_ids, denial_reasons, overflow_count, bounded_reason
+        )
 
         denied_count = candidate_count
         if len(denied_ids) + unreported_denied != denied_count:

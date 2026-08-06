@@ -28,6 +28,8 @@ from ssn.governance.runtime_context import (
     GOVERNED_RESULT_META_KEY,
     MAX_INCLUDED_RECORDS,
     MAX_INPUT_RECORDS,
+    MAX_CONSENT_INPUT,
+    MAX_DIAGNOSTIC_IDS,
     MAX_STATEMENT_CHARS,
     MAX_TOTAL_CONTEXT_CHARS,
     ContextAudience,
@@ -57,6 +59,8 @@ UNIQUE_DENIED_STMT = "SYNTH_DENIED_SECRET_STATEMENT_ZZZ"
 UNIQUE_OWNER_STMT = "SYNTH_OWNER_PRIVATE_FACT_ONLY"
 UNIQUE_COFOUNDER_STMT = "SYNTH_COFOUNDER_PRIVATE_FACT"
 UNIQUE_CONF_STMT = "SYNTH_COMPANY_CONFIDENTIAL_FACT"
+
+HUGE_CANDIDATE_COUNT = 100_000_000
 
 
 def _ctx(
@@ -191,11 +195,29 @@ class SparseInstrumentedList(list):
         raise AssertionError("full iteration forbidden in bounded-input test")
 
 
-class _NoUsedContextMetaProvider:
-    name = "ssn-no-used-context-meta-v1"
+class SparseInstrumentedConsentList(list):
+    """List-compatible consent container with logical length without allocation."""
 
-    def generate(self, request: LLMRequest) -> LLMResponse:
-        return LLMResponse(text="ok", meta={"engine": self.name})
+    def __init__(self, logical_len: int) -> None:
+        super().__init__()
+        self._logical_len = logical_len
+        self.access_log: List[int] = []
+
+    def __len__(self) -> int:
+        return self._logical_len
+
+    def __getitem__(self, index: int) -> Any:
+        if isinstance(index, slice):
+            raise AssertionError("slice access forbidden in consent bounded test")
+        self.access_log.append(index)
+        return _delegated_consent()
+
+    def __iter__(self):
+        raise AssertionError("full consent iteration forbidden")
+
+
+def _overflow_id_count(result: GovernedContextResult) -> int:
+    return sum(1 for rid in result.denied_ids if ":overflow:" in rid)
 
 
 ENV = "SSN_GOVERNED_CONTEXT"
@@ -215,6 +237,13 @@ class _CaptureProvider:
             text=f"captured:{request.prompt}",
             meta={"role": request.role or "GUEST", "used_context": bool(request.context), "engine": self.name},
         )
+
+
+class _NoUsedContextMetaProvider:
+    name = "ssn-no-used-context-meta-v1"
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        return LLMResponse(text="ok", meta={"engine": self.name})
 
 
 class TestGovernedRuntimeContext(unittest.TestCase):
@@ -1318,7 +1347,7 @@ class TestBoundedInputConsentFinalization(unittest.TestCase):
         os.environ.pop(ENV, None)
 
     def test_large_input_inspects_only_first_sixteen_indices(self) -> None:
-        records = SparseInstrumentedList(100000)
+        records = SparseInstrumentedList(HUGE_CANDIDATE_COUNT)
         asm = GovernedContextAssembler()
         result = asm.assemble(
             GovernedContextInput(
@@ -1327,10 +1356,45 @@ class TestBoundedInputConsentFinalization(unittest.TestCase):
                 audience=ContextAudience.PUBLIC_RESPONSE,
             )
         )
-        self.assertEqual(result.candidate_count, 100000)
-        self.assertEqual(result.included_count + result.denied_count, 100000)
+        self.assertEqual(result.candidate_count, HUGE_CANDIDATE_COUNT)
+        self.assertEqual(result.included_count + result.denied_count, HUGE_CANDIDATE_COUNT)
+        self.assertTrue(result.truncated)
         self.assertTrue(all(i < MAX_INPUT_RECORDS for i in records.access_log))
         self.assertEqual(len(records.access_log), MAX_INPUT_RECORDS)
+        self.assertLessEqual(_overflow_id_count(result), MAX_DIAGNOSTIC_IDS)
+        self.assertGreater(result.unreported_denied_count, 0)
+
+    def test_hundred_million_invalid_audience_constant_time(self) -> None:
+        records = SparseInstrumentedList(HUGE_CANDIDATE_COUNT)
+        inp = GovernedContextInput(
+            records=records,
+            policy_context=_ctx("guest:anon", authenticated=False),
+            audience=ContextAudience.PUBLIC_RESPONSE,
+        )
+        object.__setattr__(inp, "audience", "INVALID_AUDIENCE")
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.candidate_count, HUGE_CANDIDATE_COUNT)
+        self.assertEqual(result.denied_count, HUGE_CANDIDATE_COUNT)
+        self.assertEqual(result.included_count + result.denied_count, HUGE_CANDIDATE_COUNT)
+        self.assertTrue(result.truncated)
+        self.assertEqual(len(records.access_log), MAX_INPUT_RECORDS)
+        self.assertLessEqual(_overflow_id_count(result), MAX_DIAGNOSTIC_IDS)
+
+    def test_hundred_million_invalid_policy_constant_time(self) -> None:
+        records = SparseInstrumentedList(HUGE_CANDIDATE_COUNT)
+        inp = GovernedContextInput(
+            records=records,
+            policy_context=_ctx("guest:anon", authenticated=False),
+            audience=ContextAudience.PUBLIC_RESPONSE,
+        )
+        object.__setattr__(inp, "policy_context", {"actor_id": "x"})
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.candidate_count, HUGE_CANDIDATE_COUNT)
+        self.assertEqual(result.denied_count, HUGE_CANDIDATE_COUNT)
+        self.assertEqual(result.included_count + result.denied_count, HUGE_CANDIDATE_COUNT)
+        self.assertTrue(result.truncated)
+        self.assertEqual(len(records.access_log), MAX_INPUT_RECORDS)
+        self.assertLessEqual(_overflow_id_count(result), MAX_DIAGNOSTIC_IDS)
 
     def test_malformed_typed_record_integer_subject(self) -> None:
         rec = _malformed_fact(subject=42)
@@ -1631,6 +1695,73 @@ class TestBoundedInputConsentFinalization(unittest.TestCase):
                 result.context_text.count("--- end SIONA governed context ---"),
                 1,
             )
+
+
+class TestConstantTimeOverflowAndConsent(unittest.TestCase):
+    """Constant-time overflow and direct consent-container hardening."""
+
+    def setUp(self) -> None:
+        os.environ[ENV] = "1"
+
+    def tearDown(self) -> None:
+        os.environ.pop(ENV, None)
+
+    def test_delegated_consents_none_denied(self) -> None:
+        inp = GovernedContextInput(
+            records=(_cofounder_private_rec(),),
+            policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+            audience=ContextAudience.OWNER_ASSISTANCE,
+        )
+        object.__setattr__(inp, "consents", None)
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_consent_container", result.denial_reasons)
+
+    def test_delegated_consents_string_denied(self) -> None:
+        inp = GovernedContextInput(
+            records=(_cofounder_private_rec(),),
+            policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+            audience=ContextAudience.OWNER_ASSISTANCE,
+        )
+        object.__setattr__(inp, "consents", "not-a-consent-container")
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_consent_container", result.denial_reasons)
+
+    def test_huge_consent_container_denied_without_inspection(self) -> None:
+        consents = SparseInstrumentedConsentList(HUGE_CANDIDATE_COUNT)
+        inp = GovernedContextInput(
+            records=(_cofounder_private_rec(),),
+            policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+            audience=ContextAudience.OWNER_ASSISTANCE,
+        )
+        object.__setattr__(inp, "consents", consents)
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_consent_input_limit", result.denial_reasons)
+        self.assertEqual(consents.access_log, [])
+
+    def test_public_record_malformed_consent_container_still_included(self) -> None:
+        inp = GovernedContextInput(
+            records=(_approved_public(),),
+            policy_context=_ctx("guest:anon", authenticated=False),
+            audience=ContextAudience.PUBLIC_RESPONSE,
+        )
+        object.__setattr__(inp, "consents", "bad-container")
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.included_count, 1)
+        self.assertIn(UNIQUE_PUBLIC_STMT, result.context_text)
+
+    def test_delegated_malformed_consent_container_no_raise(self) -> None:
+        inp = GovernedContextInput(
+            records=(_cofounder_private_rec(),),
+            policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+            audience=ContextAudience.OWNER_ASSISTANCE,
+        )
+        object.__setattr__(inp, "consents", {"bad": True})
+        result = GovernedContextAssembler().assemble(inp)
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_consent_container", result.denial_reasons)
 
 
 if __name__ == "__main__":

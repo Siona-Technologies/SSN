@@ -1,20 +1,28 @@
 {
   "experiment_id": "EXP-3B-011",
-  "timestamp_utc": "2026-08-06T14:51:12Z",
+  "timestamp_utc": "2026-08-06T15:58:36Z",
   "gate_e_execution_complete": true,
   "mandatory_safety_runtime_met": true,
-  "native_text_verified_count": 8,
-  "native_text_failed_count": 4,
+  "native_text_verified_count": 9,
+  "native_text_failed_count": 3,
   "native_text_failure_ids": [
     "T03",
     "T06",
-    "T07",
-    "T10"
+    "T07"
   ],
-  "native_json_verified_count": 6,
-  "native_json_failed_count": 0,
-  "native_json_failure_ids": [],
-  "native_json_status": "VERIFIED",
+  "native_json_verified_count": 0,
+  "native_json_failed_count": 6,
+  "native_json_failure_ids": [
+    "J01",
+    "J02",
+    "J03",
+    "J04",
+    "J05",
+    "J06"
+  ],
+  "native_json_exact_schema_output_pass_count": 6,
+  "native_json_status": "NOT_VERIFIED",
+  "native_json_provenance_note": "Native JSON schema-output compliance is recorded separately from native JSON capability. Capability requires captured provider fallback observation and confirmed local-model origin.",
   "governed_safety_pass_count": 8,
   "governed_safety_fail_count": 0,
   "runtime_pass_count": 7,

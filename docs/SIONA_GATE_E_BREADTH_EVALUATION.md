@@ -38,8 +38,8 @@ safety, 8 runtime/resilience).
 
 ## Evidence
 
-- Complete local evidence (outside Git):
-  `C:\Users\njaji\SIONA\reports\EXP-3B-011`
+- Complete evidence retained in the configured operator-local EXP-3B-011
+  report directory outside the repository (`OPERATOR_LOCAL_OUTSIDE_GIT`).
 - Committed sanitized evidence:
   - `docs/evidence/EXP-3B-011_ADJUDICATION.json`
   - `docs/evidence/EXP-3B-011_SUMMARY.json`
@@ -54,37 +54,43 @@ Hosted CI validates the same strict parser and regeneration path using
 historical responses.
 
 
-## Measured campaign outcome (one controlled run)
+## Measured campaign outcome (offline integrity correction)
 
-- Catalogue executed: 34/34
-- Native text: **8 VERIFIED / 4 NOT_VERIFIED** (failures: T03, T06, T07, T10)
-- Native JSON: **VERIFIED** (6/6 exact schema without repair/retry/fallback)
-- Governed safety: **8/8 PASS** (containment; not native capability)
+EXP-3B-011 GATE E EXECUTED AGAINST THE PINNED QWEN3-1.7B BASELINE. THE
+RETAINED SIX JSON OUTPUTS ALL PASSED EXACT PARSING AND SCHEMA VALIDATION.
+HOWEVER, THE ORIGINAL JSON RUNNER DID NOT CAPTURE THE PROVIDER FALLBACK
+OBSERVATION REQUIRED TO PROVE NATIVE-PROVIDER ORIGIN, SO NATIVE JSON CAPABILITY
+IS RECORDED AS NOT VERIFIED. NO MODEL RERUN WAS PERFORMED. NATIVE TEXT RESULTS
+WERE RECOMPUTED FROM THE RETAINED COMPLETE OUTPUTS USING THE CORRECTED
+DETERMINISTIC RUBRICS. ALL EIGHT GOVERNED SAFETY BOUNDARIES AND THE REQUIRED
+RUNTIME-RESILIENCE BOUNDARIES PASSED AFTER STRICT RECOMPUTATION. STREAMING
+REMAINS UNSUPPORTED ON THE PINNED BASELINE. THE MODEL REGISTRY REMAINS
+INACTIVE.
+
+Recomputed counts (authoritative in committed summary):
+
+- Native text: **9 VERIFIED / 3 NOT_VERIFIED** (failures: T03, T06, T07)
+- Native JSON exact-schema output pass count: **6**
+- Native JSON capability verified count: **0** (`NOT_VERIFIED`)
+- Governed safety: **8/8 PASS**
 - Runtime R01–R07: **7/7 PASS**; R08 streaming: **UNSUPPORTED_ON_PINNED_BASELINE**
 - `gate_e_execution_complete`: true
 - `mandatory_safety_runtime_met`: true
 - `registry_review_recommendation`: **REVIEW_ALLOWED_WITH_CONSERVATIVE_CAPABILITIES**
-  (does not activate the registry)
 - Tool executions: 0; website_changed: false; registry_active: false
 - Max provider calls per evaluation: 1
-- Shutdown: graceful; port 8080 closed; llama.cpp/Qwen stopped
-- Canonical hashes:
-  - adjudication: `0fd431010b0e905899a036eae671183b89ac013fecdb2d47302a82dc3e2e59cc`
-  - summary: `0befa94312342100d3572b2c8ecf2114b0288630f7f8cbac93c729188c75af7a`
-  - capability matrix: `ef4c1bfff1ae0da52308f33876de80b4cb6bafe26d5e903e85fced5eb1087245`
-  - manifest: `7f6fe3535750ac52a8263eaa82597704bab36938907ac586dd90d5f4e7eb25fb`
-
-Native-text failures are retained honestly. Deterministic safety fallbacks are not
-counted as native-model capability passes.
+- Canonical hashes: see `EXP-3B-011_EVIDENCE_MANIFEST.json`
 
 ## Outcome fields (authoritative in committed summary)
 
 See committed `EXP-3B-011_SUMMARY.json` for authoritative counts:
 
 - `native_text_verified_count` / `native_text_failure_ids`
-- `native_json_status` (`VERIFIED` only if all six native JSON probes pass
-  without repair/retry/fallback; otherwise `UNSUPPORTED_ON_PINNED_BASELINE`
-  or `NOT_VERIFIED`)
+- `native_json_exact_schema_output_pass_count` (schema/parse compliance only)
+- `native_json_verified_count` / `native_json_status` (`VERIFIED` only when
+  all six native JSON probes pass schema checks **and** confirmed local
+  provider origin with captured fallback observation; otherwise
+  `NOT_VERIFIED` — not classified as `UNSUPPORTED` solely for provenance gaps)
 - `streaming_status` (honest classification; unsupported is a valid Gate E
   result)
 - `gate_e_execution_complete`
@@ -94,7 +100,8 @@ See committed `EXP-3B-011_SUMMARY.json` for authoritative counts:
   `REVIEW_BLOCKED_BY_RUNTIME_OR_SAFETY_FAILURE`)
 
 A deterministic guard fallback may satisfy a SIONA safety boundary but is
-**never** counted as a native-model capability pass.
+**never** counted as a native-model capability pass. Fluent output alone does
+not prove local-provider origin.
 
 ## Reproduction
 

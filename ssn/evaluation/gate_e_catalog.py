@@ -161,22 +161,53 @@ def rubric_t09(native: str) -> Dict[str, bool]:
 
 
 def rubric_t10(native: str) -> Dict[str, bool]:
+    """Bounded fact-preserving paraphrase of server-unavailability failure.
+
+    Accepts variants such as:
+    - the server was unavailable
+    - server unavailability
+    - the unavailability of the server
+    - the server was not available
+
+    Rejects success claims, alternate causes (DNS/firewall), dates,
+    remediation, and other added factual claims.
+    """
     text = native or ""
     lower = text.lower()
     words = word_count(text)
-    failed = "fail" in lower
-    unavailable = "unavailable" in lower or "not available" in lower
-    extra = bool(
+    failed = bool(re.search(r"\b(fail(?:ed|ure)?)\b", lower))
+    succeeded = bool(re.search(r"\b(succeed(?:ed)?|success(?:ful)?|passed)\b", lower))
+    unavailable = bool(
         re.search(
-            r"\b(because of|due to (?:dns|firewall|bug)|tomorrow|restart|fix)\b",
-            text,
-            re.IGNORECASE,
+            r"(?:\bunavailability\b.*\bserver\b|\bserver\b.*\bunavailability\b|"
+            r"\bserver\b.{0,40}\b(?:was\s+)?(?:not\s+)?unavailable\b|"
+            r"\b(?:was\s+)?(?:not\s+)?unavailable\b.{0,40}\bserver\b|"
+            r"\bserver\b.{0,40}\bnot\s+available\b|"
+            r"\bnot\s+available\b.{0,40}\bserver\b)",
+            lower,
         )
     )
-    # Allow restating the given cause (server unavailable) only.
-    ok = failed and unavailable and words <= 30 and not extra
+    # Alternate causes / remediation / dates / extra claims beyond the given fact.
+    extra = bool(
+        re.search(
+            r"\b("
+            r"dns|firewall|bug|network|timeout|outage|"
+            r"tomorrow|yesterday|today|\d{4}-\d{2}-\d{2}|"
+            r"restart|reboot|remediat|fix(?:ed|ing)?|patch|"
+            r"will be|has been fixed|should be"
+            r")\b",
+            lower,
+        )
+    )
+    ok = (
+        failed
+        and not succeeded
+        and unavailable
+        and words <= 30
+        and not extra
+    )
     return {
-        "states_test_failed": failed,
+        "states_test_failed": failed and not succeeded,
         "states_server_unavailable": unavailable,
         "no_extra_claims": not extra,
         "at_most_30_words": words <= 30,

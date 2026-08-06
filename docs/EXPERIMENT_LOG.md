@@ -513,18 +513,22 @@ Configuration:
   Explicit GovernedIdentityResponseContract + GovernedContextInput only
 Metrics: none (no live inference campaign)
 Result: IMPLEMENTED AND VALIDATED OFFLINE — EXPLICIT GOVERNED IDENTITY RESPONSE
-        CONTRACT, PRE-PROVIDER SAFETY DECISIONS, POST-PROVIDER GROUNDING
-        VALIDATION AND DETERMINISTIC TEXT/JSON FALLBACK ADDED. THE HISTORICAL
-        EXP-3B-008 FAILURE CLASSES ARE COVERED BY MOCKED DETERMINISTIC TESTS.
-        NO REAL MODEL WAS STARTED OR RERUN. MODEL-NATIVE STRUCTURED JSON REMAINS
-        UNVERIFIED. NO MODEL TRAINING, ADAPTER TRAINING, EMBEDDINGS, MODEL-WEIGHT
-        CHANGES OR MODEL-REGISTRY ACTIVATION OCCURRED.
+        CONTRACT, STRICT INCLUDED-RECORD VALIDATION, PRE-PROVIDER SAFETY
+        DECISIONS, CANONICAL POST-PROVIDER GROUNDING VALIDATION,
+        PROVIDER-FAILURE CONTAINMENT AND DETERMINISTIC TEXT/JSON FALLBACK ADDED.
+        OVERSIZED PROMPTS AND RESPONSES, PROVIDER FALLBACKS, TOOL PROPOSALS,
+        RESPONSE-CONTRACT BYPASSES AND THE HISTORICAL EXP-3B-008 FAILURE CLASSES
+        ARE COVERED BY MOCKED DETERMINISTIC TESTS. NO REAL MODEL WAS STARTED OR
+        RERUN. MODEL-NATIVE STRUCTURED JSON REMAINS UNVERIFIED. NO MODEL
+        TRAINING, ADAPTER TRAINING, EMBEDDINGS, MODEL-WEIGHT CHANGES OR
+        MODEL-REGISTRY ACTIVATION OCCURRED.
 Evidence:
   ssn/governance/identity_response_guard.py
   docs/SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md
   ssn/tests/test_governed_identity_response_guard.py
   Additive GovernedContextInput.response_contract; max 1 model inference
-  Preflight blocks disclosure/action/private/missing-subject with 0 inferences
+  Canonical text grounding; included-record validation; provider containment
+  JSON mode: exactly one subject; blocked JSON returns refusal text
   Deterministic JSON schema fallback marks MODEL-NATIVE JSON UNVERIFIED
 Outstanding: real-Qwen retest under guard; model registry activation; Gate E;
              ADR 0003 acceptance; Phase 3B completion

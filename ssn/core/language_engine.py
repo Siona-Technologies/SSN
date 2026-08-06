@@ -81,9 +81,9 @@ class LanguageEngine:
             result["governed_context"] = meta[GOVERNED_RESULT_META_KEY]
         for key in (
             "governed_identity_guard_applied",
-            "governed_identity_guard_accepted",
-            "governed_identity_fallback_used",
             "governed_identity_preflight_blocked",
+            "governed_identity_model_output_accepted",
+            "governed_identity_fallback_used",
             "governed_identity_reason",
             "governed_identity_response_mode",
             "governed_identity_requested_count",
@@ -91,7 +91,7 @@ class LanguageEngine:
             "governed_identity_structured_source",
             "governed_identity_model_inference_count",
             "structured_source",
-            "model_structured_output_accepted",
+            "structured_present",
         ):
             if key in meta:
                 result[key] = meta[key]

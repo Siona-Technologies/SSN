@@ -71,7 +71,11 @@ Phase 3B **in progress**. ADR 0003 **Proposed**. Phase 4 **not started**.
 ## Follow-up (EXP-3B-009)
 
 Offline deterministic identity response hardening covers the historical
-EXP-3B-008 failure classes with mocked providers
+EXP-3B-008 failure classes with mocked providers, plus fail-closed bounds,
+canonical text grounding, provider-failure containment, response-contract bypass
+prevention, strict included-record validation, and single-subject JSON mode
 ([SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md](SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md)).
-That work does **not** claim EXP-3B-008 acceptance passed or that Qwen itself
-was fixed. A separately controlled real-Qwen retest remains outstanding.
+That work does **not** claim EXP-3B-008 acceptance passed, that real-Qwen
+guarded behaviour was verified, or that Qwen itself was fixed. MODEL-NATIVE
+STRUCTURED JSON remains **UNVERIFIED**. A separately controlled real-Qwen retest
+remains outstanding and was not run as part of EXP-3B-009.

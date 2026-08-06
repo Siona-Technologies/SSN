@@ -12,7 +12,10 @@ EXP-3B-009 — see [SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md](SIONA_GOVERNED_ID
 | Shape | Behaviour |
 |-------|-----------|
 | `GovernedContextInput` without `response_contract` | Prompt-context assembly only (this document) |
-| `GovernedContextInput` with `GovernedIdentityResponseContract` | Strict identity response guard (EXP-3B-009) |
+| Mapping with `response_contract` key | Fail closed — cannot bypass typed-input requirement (EXP-3B-009) |
+| Exact typed `GovernedIdentityResponseContract` + non-`PUBLIC_RESPONSE` | Fail closed (EXP-3B-009) |
+| Exact typed contract + `PUBLIC_RESPONSE` + feature on | Strict identity response guard (EXP-3B-009) |
+| Feature flag disabled | Intentional compatibility exception — legacy governed-context behaviour |
 
 The response contract is never exposed to the model provider.
 

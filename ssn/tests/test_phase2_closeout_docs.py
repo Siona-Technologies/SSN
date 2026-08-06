@@ -91,7 +91,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "governed identity response guard implemented offline (EXP-3B-009)",
+            "governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009",
             text,
         )
         self.assertIn(

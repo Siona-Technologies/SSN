@@ -9,7 +9,9 @@ real-provider text-path validation recorded (EXP-3B-005); governed
 prompt-context bridge merged (EXP-3B-006); first approved identity registry
 (EXP-3B-007, explicit retrieval only); controlled real-Qwen identity campaign
 executed (EXP-3B-008, acceptance not met); governed identity response guard
-implemented offline (EXP-3B-009); model registry activation, Gate E
+implemented and offline-validated with fail-closed hardening (EXP-3B-009;
+model-native structured JSON remains unverified; no real model rerun); model
+registry activation, Gate E
 evaluation, broad capability verification
 and ADR acceptance pending  
 

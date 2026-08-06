@@ -119,6 +119,85 @@ def _approved_public(**kwargs) -> IdentityFactRecord:
     return _fact(**base)
 
 
+def _malformed_fact(**mutations: Any) -> IdentityFactRecord:
+    rec = _approved_public()
+    for key, value in mutations.items():
+        object.__setattr__(rec, key, value)
+    return rec
+
+
+def _cofounder_private_rec() -> IdentityFactRecord:
+    return _fact(
+        classification=InformationClass.COFOUNDER_PRIVATE,
+        approval_status=ApprovalStatus.APPROVED,
+        approved_by=SYN_COFOUNDER_A,
+        approval_timestamp="2026-08-05T00:00:00Z",
+        intended_uses=(AllowedUse.OWNER_ASSISTANCE, AllowedUse.MODEL_PROMPT),
+        statement=UNIQUE_COFOUNDER_STMT,
+        subject_id=SYN_COFOUNDER_A,
+    )
+
+
+def _delegated_consent() -> ConsentRecord:
+    return ConsentRecord(
+        subject_id=SYN_COFOUNDER_A,
+        grantee_id=SYN_COFOUNDER_B,
+        allowed_uses=(AllowedUse.MODEL_PROMPT, AllowedUse.OWNER_ASSISTANCE),
+        granted=True,
+        granted_by=SYN_COFOUNDER_A,
+        timestamp="2026-08-05T00:00:00Z",
+    )
+
+
+def _company_confidential_rec() -> IdentityFactRecord:
+    return _fact(
+        classification=InformationClass.COMPANY_CONFIDENTIAL,
+        approval_status=ApprovalStatus.APPROVED,
+        approved_by=SYN_OWNER,
+        approval_timestamp="2026-08-05T00:00:00Z",
+        intended_uses=(AllowedUse.OWNER_ASSISTANCE, AllowedUse.MODEL_PROMPT),
+        statement=UNIQUE_CONF_STMT,
+        subject_id="org:synth-company",
+        subject_type=SubjectType.COMPANY,
+        subject="Synthetic Company",
+    )
+
+
+class SparseInstrumentedList(list):
+    """List-compatible container with logical length without allocating all slots."""
+
+    def __init__(self, logical_len: int) -> None:
+        super().__init__()
+        self._logical_len = logical_len
+        self.access_log: List[int] = []
+        self._store: Dict[int, Any] = {}
+
+    def __len__(self) -> int:
+        return self._logical_len
+
+    def __getitem__(self, index: int) -> Any:
+        if isinstance(index, slice):
+            raise AssertionError("slice access forbidden in bounded-input test")
+        self.access_log.append(index)
+        if index not in self._store:
+            self._store[index] = _approved_public(
+                subject_id=f"org:synth-{index:05d}",
+                subject=f"Synth {index}",
+                statement=f"SYNTH_SPARSE_{index:05d}",
+            )
+        return self._store[index]
+
+    def __iter__(self):
+        raise AssertionError("full iteration forbidden in bounded-input test")
+
+
+class _NoUsedContextMetaProvider:
+    name = "ssn-no-used-context-meta-v1"
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        return LLMResponse(text="ok", meta={"engine": self.name})
+
+
 ENV = "SSN_GOVERNED_CONTEXT"
 
 
@@ -702,6 +781,7 @@ class TestGovernedRuntimeContext(unittest.TestCase):
             obj = json.loads(json_lines[0])
             self.assertEqual(set(obj.keys()), {"classification", "statement", "subject"})
             self.assertIn("[neutralized-end-marker]", obj["statement"])
+            self.assertIn("<․script", obj["statement"].lower())
 
     def test_25_record_and_character_limits_enforced(self) -> None:
         with mock.patch.dict(os.environ, {ENV: "1"}):
@@ -955,27 +1035,22 @@ class TestGovernedContextHardening(unittest.TestCase):
         self.assertIn("deny_invalid_record_type", result.denial_reasons)
 
     def test_malformed_consent_string_denies_delegation(self) -> None:
-        rec = _fact(
-            classification=InformationClass.COFOUNDER_PRIVATE,
-            approval_status=ApprovalStatus.APPROVED,
-            approved_by=SYN_COFOUNDER_A,
-            approval_timestamp="2026-08-05T00:00:00Z",
-            intended_uses=(AllowedUse.OWNER_ASSISTANCE, AllowedUse.MODEL_PROMPT),
-            statement=UNIQUE_COFOUNDER_STMT,
-            subject_id=SYN_COFOUNDER_A,
-        )
+        rec = _cofounder_private_rec()
+        bad = _delegated_consent()
+        object.__setattr__(bad, "timestamp", 123)
         asm = GovernedContextAssembler()
         result = asm.assemble(
             GovernedContextInput(
                 records=(rec,),
                 policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
                 audience=ContextAudience.OWNER_ASSISTANCE,
-                consents=("bad-consent",),
+                consents=(bad,),
             )
         )
         self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_consent_structure", result.denial_reasons)
 
-    def test_valid_record_with_invalid_consent_tuple_denies_all(self) -> None:
+    def test_public_record_ignores_malformed_unrelated_consent(self) -> None:
         asm = GovernedContextAssembler()
         result = asm.assemble(
             GovernedContextInput(
@@ -985,8 +1060,9 @@ class TestGovernedContextHardening(unittest.TestCase):
                 consents=({"subject_id": "x"},),
             )
         )
-        self.assertEqual(result.included_count, 0)
-        self.assertEqual(result.denied_count, 1)
+        self.assertEqual(result.included_count, 1)
+        self.assertEqual(result.denied_count, 0)
+        self.assertIn(UNIQUE_PUBLIC_STMT, result.context_text)
 
     def test_unrelated_consent_before_valid_still_allows(self) -> None:
         rec = _fact(
@@ -1083,7 +1159,7 @@ class TestGovernedContextHardening(unittest.TestCase):
     def test_used_context_true_when_governed_block_included(self) -> None:
         cap = _CaptureProvider()
         wrapped = GovernedContextLLMProvider(cap)
-        wrapped.generate(
+        resp = wrapped.generate(
             LLMRequest(
                 prompt="q",
                 role="GUEST",
@@ -1098,6 +1174,24 @@ class TestGovernedContextHardening(unittest.TestCase):
         )
         self.assertTrue(cap.requests[0].prompt)
         self.assertTrue(cap.requests[0].context is None or not cap.requests[0].context)
+        self.assertTrue(resp.meta.get("used_context"))
+
+    def test_provider_missing_used_context_fallback_governed_block(self) -> None:
+        wrapped = GovernedContextLLMProvider(_NoUsedContextMetaProvider())
+        resp = wrapped.generate(
+            LLMRequest(
+                prompt="q",
+                role="GUEST",
+                context={
+                    GOVERNED_INPUT_KEY: GovernedContextInput(
+                        records=(_approved_public(),),
+                        policy_context=_ctx("guest:anon", authenticated=False),
+                        audience=ContextAudience.PUBLIC_RESPONSE,
+                    )
+                },
+            )
+        )
+        self.assertTrue(resp.meta.get("used_context"))
 
     def test_used_context_false_when_all_denied(self) -> None:
         cap = _CaptureProvider()
@@ -1212,6 +1306,331 @@ class TestGovernedContextHardening(unittest.TestCase):
         ][0]
         obj = json.loads(line)
         self.assertIn("<|system|>", obj["statement"])
+
+
+class TestBoundedInputConsentFinalization(unittest.TestCase):
+    """Final bounded-input and consent-scope hardening (EXP-3B-006)."""
+
+    def setUp(self) -> None:
+        os.environ[ENV] = "1"
+
+    def tearDown(self) -> None:
+        os.environ.pop(ENV, None)
+
+    def test_large_input_inspects_only_first_sixteen_indices(self) -> None:
+        records = SparseInstrumentedList(100000)
+        asm = GovernedContextAssembler()
+        result = asm.assemble(
+            GovernedContextInput(
+                records=records,
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.candidate_count, 100000)
+        self.assertEqual(result.included_count + result.denied_count, 100000)
+        self.assertTrue(all(i < MAX_INPUT_RECORDS for i in records.access_log))
+        self.assertEqual(len(records.access_log), MAX_INPUT_RECORDS)
+
+    def test_malformed_typed_record_integer_subject(self) -> None:
+        rec = _malformed_fact(subject=42)
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_malformed_typed_record_dict_statement(self) -> None:
+        rec = _malformed_fact(statement={"evil": True})
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_malformed_typed_record_string_subject_type(self) -> None:
+        rec = _malformed_fact(subject_type="PERSON")
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_malformed_typed_record_list_intended_uses(self) -> None:
+        rec = _malformed_fact(intended_uses=[AllowedUse.MODEL_PROMPT])
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_malformed_typed_record_integer_subject_id(self) -> None:
+        rec = _malformed_fact(subject_id=999)
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_malformed_typed_record_invalid_classification_object(self) -> None:
+        rec = _malformed_fact(classification="PUBLIC_COMPANY")
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(rec,),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_record_structure", result.denial_reasons)
+
+    def test_public_plus_duplicate_consent_still_included(self) -> None:
+        dup = _delegated_consent()
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_approved_public(),),
+                policy_context=_ctx("guest:anon", authenticated=False),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+                consents=(dup, dup),
+            )
+        )
+        self.assertEqual(result.included_count, 1)
+        self.assertIn(UNIQUE_PUBLIC_STMT, result.context_text)
+
+    def test_cofounder_self_access_ignores_unrelated_malformed_consent(self) -> None:
+        unrelated = _delegated_consent()
+        object.__setattr__(unrelated, "subject_id", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "grantee_id", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "granted_by", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "timestamp", 42)
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_cofounder_private_rec(),),
+                policy_context=_ctx(SYN_COFOUNDER_A, authenticated=True, verified_owner=True),
+                audience=ContextAudience.OWNER_ASSISTANCE,
+                consents=(unrelated,),
+            )
+        )
+        self.assertEqual(result.included_count, 1)
+        self.assertIn(UNIQUE_COFOUNDER_STMT, result.context_text)
+
+    def test_company_confidential_ignores_unrelated_malformed_consent(self) -> None:
+        unrelated = _delegated_consent()
+        object.__setattr__(unrelated, "timestamp", {"bad": True})
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_company_confidential_rec(),),
+                policy_context=_ctx(
+                    SYN_COMPANY_APPROVER,
+                    authenticated=True,
+                    verified_owner=False,
+                    company_approvers=(SYN_COMPANY_APPROVER,),
+                ),
+                audience=ContextAudience.OWNER_ASSISTANCE,
+                consents=(unrelated,),
+            )
+        )
+        self.assertEqual(result.included_count, 1)
+        self.assertIn(UNIQUE_CONF_STMT, result.context_text)
+
+    def test_delegated_relevant_malformed_consent_denied(self) -> None:
+        bad = _delegated_consent()
+        object.__setattr__(bad, "granted", "yes")
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_cofounder_private_rec(),),
+                policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+                audience=ContextAudience.OWNER_ASSISTANCE,
+                consents=(bad,),
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertIn("deny_invalid_consent_structure", result.denial_reasons)
+
+    def test_delegated_unrelated_malformed_plus_exact_valid_included(self) -> None:
+        unrelated = _delegated_consent()
+        object.__setattr__(unrelated, "subject_id", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "grantee_id", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "granted_by", SYN_COFOUNDER_B)
+        object.__setattr__(unrelated, "allowed_uses", [AllowedUse.MODEL_PROMPT])
+        right = _delegated_consent()
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_cofounder_private_rec(),),
+                policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+                audience=ContextAudience.OWNER_ASSISTANCE,
+                consents=(unrelated, right),
+            )
+        )
+        self.assertEqual(result.included_count, 1)
+        self.assertIn(UNIQUE_COFOUNDER_STMT, result.context_text)
+
+    def test_private_record_cannot_enter_public_response_with_consent(self) -> None:
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=(_cofounder_private_rec(),),
+                policy_context=_ctx(SYN_COFOUNDER_B, authenticated=True, verified_owner=True),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+                consents=(_delegated_consent(),),
+            )
+        )
+        self.assertEqual(result.included_count, 0)
+        self.assertNotIn(UNIQUE_COFOUNDER_STMT, result.context_text)
+
+    def test_completely_invalid_reserved_input_envelope(self) -> None:
+        prepared, diag, applied = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={GOVERNED_INPUT_KEY: "not-a-mapping"},
+            )
+        )
+        self.assertTrue(applied)
+        self.assertIsNotNone(diag)
+        self.assertEqual(diag["candidate_count"], 0)
+        self.assertEqual(diag["included_count"], 0)
+        self.assertEqual(diag["denied_count"], 0)
+        self.assertIn("input_error_reason", diag)
+        self.assertEqual(prepared.prompt, "q")
+
+    def test_invalid_audience_three_records_invariant(self) -> None:
+        three = tuple(_approved_public(subject_id=f"org:t{i}", subject=f"T{i}") for i in range(3))
+        prepared, diag, _ = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={
+                    GOVERNED_INPUT_KEY: {
+                        "records": three,
+                        "policy_context": _ctx("guest:anon", authenticated=False),
+                        "audience": "INVALID_AUDIENCE",
+                    }
+                },
+            )
+        )
+        self.assertEqual(diag["candidate_count"], 3)
+        self.assertEqual(diag["included_count"], 0)
+        self.assertEqual(diag["denied_count"], 3)
+        self.assertEqual(diag["included_count"] + diag["denied_count"], diag["candidate_count"])
+        self.assertNotIn(UNIQUE_PUBLIC_STMT, prepared.prompt)
+
+    def test_invalid_policy_context_three_records_invariant(self) -> None:
+        three = tuple(_approved_public(subject_id=f"org:p{i}", subject=f"P{i}") for i in range(3))
+        prepared, diag, _ = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={
+                    GOVERNED_INPUT_KEY: {
+                        "records": three,
+                        "policy_context": {"actor_id": "x"},
+                        "audience": ContextAudience.PUBLIC_RESPONSE,
+                    }
+                },
+            )
+        )
+        self.assertEqual(diag["candidate_count"], 3)
+        self.assertEqual(diag["denied_count"], 3)
+        self.assertEqual(diag["included_count"] + diag["denied_count"], diag["candidate_count"])
+
+    def test_invalid_records_container_envelope(self) -> None:
+        prepared, diag, _ = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={
+                    GOVERNED_INPUT_KEY: {
+                        "records": {"not": "a list"},
+                        "policy_context": _ctx("guest:anon", authenticated=False),
+                        "audience": ContextAudience.PUBLIC_RESPONSE,
+                    }
+                },
+            )
+        )
+        self.assertEqual(diag["candidate_count"], 0)
+        self.assertEqual(diag["denied_count"], 0)
+        self.assertIn("input_error_reason", diag)
+
+    def test_malformed_consent_container_three_records_invariant(self) -> None:
+        three = tuple(_approved_public(subject_id=f"org:c{i}", subject=f"C{i}") for i in range(3))
+        prepared, diag, _ = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={
+                    GOVERNED_INPUT_KEY: {
+                        "records": three,
+                        "policy_context": _ctx("guest:anon", authenticated=False),
+                        "audience": ContextAudience.PUBLIC_RESPONSE,
+                        "consents": {"bad": True},
+                    }
+                },
+            )
+        )
+        self.assertEqual(diag["candidate_count"], 3)
+        self.assertEqual(diag["denied_count"], 3)
+        self.assertEqual(diag["included_count"] + diag["denied_count"], diag["candidate_count"])
+
+    def test_invalid_audience_overflow_twenty_records_invariant(self) -> None:
+        many = tuple(_approved_public(subject_id=f"org:o{i:02d}", subject=f"O{i}") for i in range(20))
+        prepared, diag, _ = prepare_llm_request(
+            LLMRequest(
+                prompt="q",
+                context={
+                    GOVERNED_INPUT_KEY: {
+                        "records": many,
+                        "policy_context": _ctx("guest:anon", authenticated=False),
+                        "audience": "BAD",
+                    }
+                },
+            )
+        )
+        self.assertEqual(diag["candidate_count"], 20)
+        self.assertEqual(diag["denied_count"], 20)
+        self.assertEqual(diag["included_count"] + diag["denied_count"], diag["candidate_count"])
+        self.assertTrue(diag.get("truncated"))
+
+    def test_script_marker_neutralization_case_variants(self) -> None:
+        import json
+
+        variants = (
+            "<SCRIPT>alert(1)</SCRIPT>",
+            "<ScRiPt>alert(1)</sCrIpT>",
+            "<?php echo 1; ?>",
+        )
+        for payload in variants:
+            rec = _approved_public(statement=payload, subject=payload)
+            result = GovernedContextAssembler().assemble(
+                GovernedContextInput(
+                    records=(rec,),
+                    policy_context=_ctx("guest:anon", authenticated=False),
+                    audience=ContextAudience.PUBLIC_RESPONSE,
+                )
+            )
+            line = [ln for ln in result.context_text.split("\n") if ln.strip().startswith("{")][0]
+            obj = json.loads(line)
+            self.assertNotIn("<script", obj["statement"].lower())
+            self.assertNotIn("</script", obj["statement"].lower())
+            self.assertNotIn("<?", obj["statement"].lower())
+            self.assertEqual(
+                result.context_text.count("--- end SIONA governed context ---"),
+                1,
+            )
 
 
 if __name__ == "__main__":

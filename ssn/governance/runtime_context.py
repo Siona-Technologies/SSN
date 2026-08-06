@@ -16,12 +16,17 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ssn.core.llm_providers import LLMRequest, LLMResponse
 from ssn.governance.consent import ConsentRecord, consent_revoked, validate_consent
 from ssn.governance.identity_records import IdentityFactRecord
-from ssn.governance.information_classes import AllowedUse, InformationClass
+from ssn.governance.information_classes import (
+    AllowedUse,
+    ApprovalStatus,
+    InformationClass,
+    SubjectType,
+)
 from ssn.governance.policy import (
     PolicyContext,
     decide_model_prompt,
@@ -57,10 +62,14 @@ _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _REQUEST_ID_SANITIZE_RE = re.compile(r"[^A-Za-z0-9._:-]")
 _END_MARKER_RE = re.compile(re.escape(_CONTEXT_END), re.I)
 _BEGIN_FRAGMENT_RE = re.compile(r"(?i)SIONA\s+governed\s+context")
+_SCRIPT_OPEN_RE = re.compile(r"<script", re.I)
+_SCRIPT_CLOSE_RE = re.compile(r"</script", re.I)
 
 _DELEGATED_REQUIRED_USES = frozenset(
     {AllowedUse.MODEL_PROMPT, AllowedUse.OWNER_ASSISTANCE}
 )
+
+RecordsContainer = Union[Tuple[Any, ...], List[Any]]
 
 
 class GovernedContextConfigError(ValueError):
@@ -76,7 +85,7 @@ class ContextAudience(str, Enum):
 class GovernedContextInput:
     """Caller-supplied, request-scoped governed-context request."""
 
-    records: Tuple[IdentityFactRecord, ...]
+    records: RecordsContainer
     policy_context: PolicyContext
     audience: ContextAudience
     consents: Tuple[ConsentRecord, ...] = ()
@@ -98,6 +107,7 @@ class GovernedContextResult:
     audience: str = ""
     feature_enabled: bool = True
     unreported_denied_count: int = 0
+    input_error_reason: str = ""
 
 
 def is_governed_context_enabled() -> bool:
@@ -121,12 +131,30 @@ def _validate_limit(name: str, value: Any, hard_max: int) -> int:
     return value
 
 
+def _candidate_count(records: Any) -> Optional[int]:
+    if records is None:
+        return 0
+    if isinstance(records, (tuple, list)):
+        return len(records)
+    return None
+
+
+def _neutralize_script_markers(text: str) -> str:
+    text = _SCRIPT_OPEN_RE.sub("<․script", text)
+    text = _SCRIPT_CLOSE_RE.sub("<․/script", text)
+    if "<?" in text.lower():
+        # Case-insensitive neutralization for PHP/XML openers.
+        text = re.sub(r"<\?", "<․?", text, flags=re.I)
+    return text
+
+
 def _sanitize_field_text(value: str, *, max_len: int) -> str:
     text = value if type(value) is str else ""
     text = _CONTROL_RE.sub("", text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = _END_MARKER_RE.sub("[neutralized-end-marker]", text)
     text = _BEGIN_FRAGMENT_RE.sub("[neutralized-governed-marker]", text)
+    text = _neutralize_script_markers(text)
     return _bound(text.strip(), max_len)
 
 
@@ -138,17 +166,92 @@ def _opaque_overflow_id(index: int) -> str:
     return _bound(f"rec:overflow:{index:04d}", MAX_RECORD_ID_CHARS)
 
 
-def _record_id(record: IdentityFactRecord, index: int) -> str:
-    subject_key = (record.subject_id or record.subject or "unknown").strip()
+def _allowed_use_tuple(value: Any) -> bool:
+    if type(value) is not tuple:
+        return False
+    for item in value:
+        if not isinstance(item, AllowedUse):
+            return False
+    return True
+
+
+def _preflight_record_structure(record: Any) -> Tuple[bool, str]:
+    if not isinstance(record, IdentityFactRecord):
+        return False, "deny_invalid_record_type"
+    try:
+        string_fields = (
+            record.subject,
+            record.subject_id,
+            record.statement,
+            record.source_type,
+            record.source_reference,
+            record.approved_by,
+            record.approval_timestamp,
+            record.review_date,
+            record.revocation_status,
+            record.notes,
+            record.personal_email,
+            record.personal_phone,
+            record.personal_address,
+        )
+        for field in string_fields:
+            if type(field) is not str:
+                return False, "deny_invalid_record_structure"
+        if not isinstance(record.subject_type, SubjectType):
+            return False, "deny_invalid_record_structure"
+        if record.classification is not None and not isinstance(
+            record.classification, InformationClass
+        ):
+            return False, "deny_invalid_record_structure"
+        if not isinstance(record.approval_status, ApprovalStatus):
+            return False, "deny_invalid_record_structure"
+        if not _allowed_use_tuple(record.intended_uses):
+            return False, "deny_invalid_record_structure"
+        if not _allowed_use_tuple(record.prohibited_uses):
+            return False, "deny_invalid_record_structure"
+    except Exception:
+        return False, "deny_invalid_record_structure"
+    return True, "ok"
+
+
+def _preflight_consent_structure(consent: Any) -> Tuple[bool, str]:
+    if not isinstance(consent, ConsentRecord):
+        return False, "deny_invalid_consent_type"
+    try:
+        for field in (
+            consent.subject_id,
+            consent.grantee_id,
+            consent.granted_by,
+            consent.timestamp,
+            consent.revoked_at,
+            consent.notes,
+        ):
+            if type(field) is not str:
+                return False, "deny_invalid_consent_structure"
+        if type(consent.granted) is not bool or type(consent.revoked) is not bool:
+            return False, "deny_invalid_consent_structure"
+        if not _allowed_use_tuple(consent.allowed_uses):
+            return False, "deny_invalid_consent_structure"
+    except Exception:
+        return False, "deny_invalid_consent_structure"
+    return True, "ok"
+
+
+def _record_id_from_strings(subject_id: str, subject: str, index: int) -> str:
+    subject_key = subject_id.strip() or subject.strip() or "unknown"
     subject_key = _sanitize_field_text(subject_key, max_len=64) or "unknown"
     return _bound(f"rec:{index:04d}:{subject_key}", MAX_RECORD_ID_CHARS)
 
 
+def _record_id(record: IdentityFactRecord, index: int) -> str:
+    return _record_id_from_strings(record.subject_id, record.subject, index)
+
+
 def _sort_key(record: IdentityFactRecord) -> Tuple[str, str, str]:
     return (
-        (record.subject_id or "").strip(),
-        (record.subject or "").strip(),
-        (record.statement or "").strip(),
+        record.subject_id.strip(),
+        record.subject.strip(),
+        record.statement.strip(),
     )
 
 
@@ -159,22 +262,15 @@ def _normalize_request_id(value: Any) -> str:
     return _bound(cleaned, MAX_REQUEST_ID_CHARS)
 
 
-def _validate_consents_raw(consents: Sequence[Any]) -> Tuple[bool, str]:
-    for item in consents:
-        if not isinstance(item, ConsentRecord):
-            return False, "deny_invalid_consent_type"
-    return True, "ok"
-
-
 def _consent_matches_delegation(
     consent: ConsentRecord,
     *,
     subject_id: str,
     actor_id: str,
 ) -> bool:
-    if (consent.subject_id or "").strip() != subject_id:
+    if consent.subject_id.strip() != subject_id:
         return False
-    if (consent.grantee_id or "").strip() != actor_id:
+    if consent.grantee_id.strip() != actor_id:
         return False
     ok, _ = validate_consent(consent)
     if not ok:
@@ -188,33 +284,46 @@ def _consent_matches_delegation(
     return True
 
 
-def _resolve_consent(
+def _needs_delegated_consent_resolution(
     record: IdentityFactRecord,
-    consents: Sequence[ConsentRecord],
-    *,
+    audience: ContextAudience,
+    ctx: PolicyContext,
+) -> bool:
+    if audience is not ContextAudience.OWNER_ASSISTANCE:
+        return False
+    if record.classification is not InformationClass.COFOUNDER_PRIVATE:
+        return False
+    if type(ctx.actor_id) is not str:
+        return False
+    if type(record.subject_id) is not str:
+        return False
+    actor = ctx.actor_id.strip()
+    subject = record.subject_id.strip()
+    return bool(actor and subject and actor != subject)
+
+
+def _resolve_delegated_consent(
+    subject_id: str,
     actor_id: str,
+    consents: Sequence[Any],
 ) -> Tuple[Optional[ConsentRecord], Optional[str]]:
-    """
-    Resolve exact delegated consent for record subject and actor grantee.
-
-    Returns (consent, denial_reason). denial_reason set when ambiguous.
-    """
-    subject = (record.subject_id or "").strip()
-    actor = (actor_id or "").strip()
-    if not subject or not actor:
-        return None, None
-
-    # Subject self-access does not require delegated consent.
-    if actor == subject:
-        return None, None
-
     matches: list[ConsentRecord] = []
     for consent in consents:
         if not isinstance(consent, ConsentRecord):
             continue
-        if _consent_matches_delegation(consent, subject_id=subject, actor_id=actor):
+        if type(consent.subject_id) is not str or type(consent.grantee_id) is not str:
+            continue
+        if consent.subject_id.strip() != subject_id:
+            continue
+        if consent.grantee_id.strip() != actor_id:
+            continue
+        ok, _ = _preflight_consent_structure(consent)
+        if not ok:
+            return None, "deny_invalid_consent_structure"
+        if _consent_matches_delegation(
+            consent, subject_id=subject_id, actor_id=actor_id
+        ):
             matches.append(consent)
-
     if not matches:
         return None, None
     if len(matches) > 1:
@@ -233,49 +342,52 @@ def _coerce_audience(value: Any) -> Optional[ContextAudience]:
     return None
 
 
-def _coerce_input(raw: Any) -> Tuple[Optional[GovernedContextInput], str]:
+def _coerce_input(raw: Any) -> Tuple[Optional[GovernedContextInput], str, Optional[int]]:
+    """
+    Returns (input, reason, candidate_count_if_known).
+    candidate_count is None when records cannot be measured safely.
+    """
     if raw is None:
-        return None, "ok"
+        return None, "ok", None
     if isinstance(raw, GovernedContextInput):
-        return raw, "ok"
+        return raw, "ok", _candidate_count(raw.records)
     if not isinstance(raw, Mapping):
-        return None, "deny_malformed_governed_input"
-    try:
-        records = raw.get("records", ())
-        if isinstance(records, list):
-            records_t = tuple(records)
-        elif isinstance(records, tuple):
-            records_t = records
-        else:
-            return None, "deny_malformed_governed_input"
-        policy_context = raw.get("policy_context")
-        if not isinstance(policy_context, PolicyContext):
-            return None, "deny_malformed_policy_context"
-        audience = _coerce_audience(raw.get("audience"))
-        if audience is None:
-            return None, "deny_unknown_audience"
-        consents = raw.get("consents", ())
-        if isinstance(consents, list):
-            consents_t = tuple(consents)
-        elif isinstance(consents, tuple):
-            consents_t = consents
-        else:
-            return None, "deny_malformed_governed_input"
-        request_id = _normalize_request_id(raw.get("request_id", ""))
-        return (
-            GovernedContextInput(
-                records=records_t,  # type: ignore[arg-type]
-                policy_context=policy_context,
-                audience=audience,
-                consents=consents_t,  # type: ignore[arg-type]
-                request_id=request_id,
-            ),
-            "ok",
-        )
-    except GovernedContextConfigError:
-        raise
-    except Exception:
-        return None, "deny_malformed_governed_input"
+        return None, "deny_malformed_governed_input", None
+
+    records_raw = raw.get("records", ())
+    candidate_count = _candidate_count(records_raw)
+    if candidate_count is None:
+        return None, "deny_malformed_governed_input", None
+
+    policy_context = raw.get("policy_context")
+    if not isinstance(policy_context, PolicyContext):
+        return None, "deny_malformed_policy_context", candidate_count
+
+    audience = _coerce_audience(raw.get("audience"))
+    if audience is None:
+        return None, "deny_unknown_audience", candidate_count
+
+    consents_raw = raw.get("consents", ())
+    if isinstance(consents_raw, list):
+        consents_t = tuple(consents_raw)
+    elif isinstance(consents_raw, tuple):
+        consents_t = consents_raw
+    else:
+        return None, "deny_malformed_governed_input", candidate_count
+
+    request_id = _normalize_request_id(raw.get("request_id", ""))
+    records_container: RecordsContainer = records_raw  # tuple or list reference only
+    return (
+        GovernedContextInput(
+            records=records_container,
+            policy_context=policy_context,
+            audience=audience,
+            consents=consents_t,  # type: ignore[arg-type]
+            request_id=request_id,
+        ),
+        "ok",
+        candidate_count,
+    )
 
 
 def _authorize_record(
@@ -286,8 +398,11 @@ def _authorize_record(
     consent: Optional[ConsentRecord],
     today: Optional[date],
 ) -> Tuple[bool, str]:
+    effective_consent = (
+        None if audience is ContextAudience.PUBLIC_RESPONSE else consent
+    )
     prompt_decision = decide_model_prompt(
-        record, ctx=ctx, consent=consent, today=today
+        record, ctx=ctx, consent=effective_consent, today=today
     )
     if not prompt_decision.allowed:
         return False, _bound(prompt_decision.reason, MAX_REASON_CHARS)
@@ -298,7 +413,7 @@ def _authorize_record(
         )
     elif audience == ContextAudience.OWNER_ASSISTANCE:
         disclosure = decide_owner_assistance(
-            record, ctx=ctx, consent=consent, today=today
+            record, ctx=ctx, consent=effective_consent, today=today
         )
     else:
         return False, "deny_unknown_audience"
@@ -309,8 +424,8 @@ def _authorize_record(
 
 
 def _serialize_record_line(record: IdentityFactRecord) -> str:
-    subject = _sanitize_field_text(record.subject or "", max_len=MAX_SUBJECT_CHARS)
-    statement = _sanitize_field_text(record.statement or "", max_len=MAX_STATEMENT_CHARS)
+    subject = _sanitize_field_text(record.subject, max_len=MAX_SUBJECT_CHARS)
+    statement = _sanitize_field_text(record.statement, max_len=MAX_STATEMENT_CHARS)
     classification = (
         record.classification.value
         if record.classification is not None
@@ -347,42 +462,50 @@ class GovernedContextAssembler:
         self.today = today
 
     def assemble(self, inp: GovernedContextInput) -> GovernedContextResult:
-        candidate_count = len(inp.records or ())
+        records = inp.records
+        if not isinstance(records, (tuple, list)):
+            return self._deny_count_arithmetic(
+                0,
+                reason="deny_malformed_governed_input",
+                audience="",
+                input_error_reason="deny_malformed_governed_input",
+            )
+
+        candidate_count = len(records)
         audience = inp.audience
         if not isinstance(audience, ContextAudience):
-            return self._deny_all_candidates(
-                inp,
+            return self.deny_records_container(
+                records,
                 reason="deny_unknown_audience",
                 audience=str(getattr(audience, "value", audience) or "unknown"),
             )
 
         ctx = inp.policy_context
         if not isinstance(ctx, PolicyContext):
-            return self._deny_all_candidates(inp, reason="deny_malformed_policy_context")
+            return self.deny_records_container(
+                records, reason="deny_malformed_policy_context"
+            )
 
         ctx_ok, ctx_reason = validate_policy_context(ctx)
         if not ctx_ok:
-            return self._deny_all_candidates(inp, reason=ctx_reason)
+            return self.deny_records_container(records, reason=ctx_reason)
 
-        consents_ok, consent_reason = _validate_consents_raw(inp.consents or ())
-        if not consents_ok:
-            return self._deny_all_candidates(inp, reason=consent_reason)
+        inspect_limit = min(candidate_count, self.max_input_records)
+        overflow_count = max(0, candidate_count - inspect_limit)
+        truncated = overflow_count > 0
 
-        typed_consents = tuple(c for c in inp.consents if isinstance(c, ConsentRecord))
-
-        all_records = list(inp.records or ())
-        truncated = len(all_records) > self.max_input_records
-        window = all_records[: self.max_input_records]
-        overflow_count = max(0, len(all_records) - self.max_input_records)
-
-        # Partition by runtime type before any record field access or sorting.
         invalid_entries: list[Tuple[int, Any]] = []
         valid_entries: list[Tuple[int, IdentityFactRecord]] = []
-        for original_index, item in enumerate(window):
-            if isinstance(item, IdentityFactRecord):
-                valid_entries.append((original_index, item))
-            else:
-                invalid_entries.append((original_index, item))
+        for index in range(inspect_limit):
+            item = records[index]
+            if not isinstance(item, IdentityFactRecord):
+                invalid_entries.append((index, item))
+                continue
+            ok, reason = _preflight_record_structure(item)
+            if not ok:
+                invalid_entries.append((index, item))
+                continue
+            valid_entries.append((index, item))
 
         valid_entries.sort(key=lambda pair: _sort_key(pair[1]))
 
@@ -391,7 +514,6 @@ class GovernedContextAssembler:
         denied_ids: list[str] = []
         denial_reasons: list[str] = []
         unreported_denied = 0
-        actor_id = (ctx.actor_id or "").strip()
 
         def _append_denial(rid: str, reason: str) -> None:
             nonlocal unreported_denied
@@ -401,14 +523,23 @@ class GovernedContextAssembler:
             else:
                 unreported_denied += 1
 
-        for original_index, _item in invalid_entries:
-            _append_denial(_opaque_invalid_id(original_index), "deny_invalid_record_type")
+        for original_index, item in invalid_entries:
+            if isinstance(item, IdentityFactRecord):
+                _append_denial(_opaque_invalid_id(original_index), "deny_invalid_record_structure")
+            else:
+                _append_denial(_opaque_invalid_id(original_index), "deny_invalid_record_type")
+
+        actor_id = ctx.actor_id.strip() if type(ctx.actor_id) is str else ""
 
         for original_index, record in valid_entries:
             rid = _record_id(record, original_index)
-            consent, consent_deny = _resolve_consent(
-                record, typed_consents, actor_id=actor_id
-            )
+            consent: Optional[ConsentRecord] = None
+            consent_deny: Optional[str] = None
+            if _needs_delegated_consent_resolution(record, audience, ctx):
+                subject = record.subject_id.strip()
+                consent, consent_deny = _resolve_delegated_consent(
+                    subject, actor_id, inp.consents
+                )
             if consent_deny:
                 _append_denial(rid, consent_deny)
                 continue
@@ -440,14 +571,20 @@ class GovernedContextAssembler:
             included_ids.append(rid)
 
         for overflow_index in range(overflow_count):
-            _append_denial(_opaque_overflow_id(overflow_index), "deny_input_record_limit")
+            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
+                denied_ids.append(_opaque_overflow_id(overflow_index))
+                denial_reasons.append("deny_input_record_limit")
+            else:
+                unreported_denied += 1
 
-        denied_count = len(denied_ids) + unreported_denied
         included_count = len(included_ids)
-        if included_count + denied_count != candidate_count:
-            # Fail-closed invariant repair (should not happen).
-            unreported_denied += max(0, candidate_count - included_count - denied_count)
-            denied_count = candidate_count - included_count
+        denied_count = candidate_count - included_count
+        if len(denied_ids) + unreported_denied != denied_count:
+            gap = denied_count - len(denied_ids) - unreported_denied
+            if gap > 0:
+                unreported_denied += gap
+            elif gap < 0:
+                unreported_denied = max(0, denied_count - len(denied_ids))
 
         context_text = self._join_context(included_lines) if included_lines else ""
 
@@ -469,39 +606,39 @@ class GovernedContextAssembler:
         body = "\n".join(lines)
         return f"{_CONTEXT_PREAMBLE}\n\n{body}\n\n{_CONTEXT_END}"
 
-    def _deny_all_candidates(
+    def _deny_count_arithmetic(
         self,
-        inp: GovernedContextInput,
+        candidate_count: int,
         *,
         reason: str,
         audience: str = "",
+        input_error_reason: str = "",
     ) -> GovernedContextResult:
-        candidate_count = len(inp.records or ())
         denied_ids: list[str] = []
         denial_reasons: list[str] = []
         unreported_denied = 0
         bounded_reason = _bound(reason, MAX_REASON_CHARS)
+        inspect_limit = min(candidate_count, self.max_input_records)
+        overflow_count = max(0, candidate_count - inspect_limit)
 
-        for index in range(candidate_count):
-            if index < self.max_input_records:
-                item = inp.records[index]
-                if isinstance(item, IdentityFactRecord):
-                    rid = _record_id(item, index)
-                else:
-                    rid = _opaque_invalid_id(index)
-            else:
-                rid = _opaque_overflow_id(index - self.max_input_records)
-
+        for index in range(inspect_limit):
+            rid = _opaque_invalid_id(index)
             if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
                 denied_ids.append(rid)
                 denial_reasons.append(bounded_reason)
             else:
                 unreported_denied += 1
 
-        denied_count = len(denied_ids) + unreported_denied
-        if denied_count != candidate_count:
-            unreported_denied += max(0, candidate_count - denied_count)
-            denied_count = candidate_count
+        for overflow_index in range(overflow_count):
+            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
+                denied_ids.append(_opaque_overflow_id(overflow_index))
+                denial_reasons.append(bounded_reason)
+            else:
+                unreported_denied += 1
+
+        denied_count = candidate_count
+        if len(denied_ids) + unreported_denied != denied_count:
+            unreported_denied = max(0, denied_count - len(denied_ids))
 
         return GovernedContextResult(
             context_text="",
@@ -512,9 +649,72 @@ class GovernedContextAssembler:
             denied_count=denied_count,
             truncated=candidate_count > self.max_input_records,
             candidate_count=candidate_count,
-            audience=audience or (
-                inp.audience.value if isinstance(inp.audience, ContextAudience) else ""
-            ),
+            audience=audience,
+            feature_enabled=True,
+            unreported_denied_count=unreported_denied,
+            input_error_reason=_bound(input_error_reason, MAX_REASON_CHARS),
+        )
+
+    def deny_records_container(
+        self,
+        records: RecordsContainer,
+        *,
+        reason: str,
+        audience: str = "",
+    ) -> GovernedContextResult:
+        """Deny a validated tuple/list container without copying all entries."""
+        if not isinstance(records, (tuple, list)):
+            return self._deny_count_arithmetic(
+                0,
+                reason=reason,
+                audience=audience,
+                input_error_reason=reason,
+            )
+        candidate_count = len(records)
+        denied_ids: list[str] = []
+        denial_reasons: list[str] = []
+        unreported_denied = 0
+        bounded_reason = _bound(reason, MAX_REASON_CHARS)
+        inspect_limit = min(candidate_count, self.max_input_records)
+        overflow_count = max(0, candidate_count - inspect_limit)
+
+        for index in range(inspect_limit):
+            item = records[index]
+            if isinstance(item, IdentityFactRecord):
+                ok, _ = _preflight_record_structure(item)
+                if ok:
+                    rid = _record_id(item, index)
+                else:
+                    rid = _opaque_invalid_id(index)
+            else:
+                rid = _opaque_invalid_id(index)
+            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
+                denied_ids.append(rid)
+                denial_reasons.append(bounded_reason)
+            else:
+                unreported_denied += 1
+
+        for overflow_index in range(overflow_count):
+            if len(denied_ids) < MAX_DIAGNOSTIC_IDS:
+                denied_ids.append(_opaque_overflow_id(overflow_index))
+                denial_reasons.append(bounded_reason)
+            else:
+                unreported_denied += 1
+
+        denied_count = candidate_count
+        if len(denied_ids) + unreported_denied != denied_count:
+            unreported_denied = max(0, denied_count - len(denied_ids))
+
+        return GovernedContextResult(
+            context_text="",
+            included_ids=(),
+            denied_ids=tuple(denied_ids),
+            denial_reasons=tuple(denial_reasons),
+            included_count=0,
+            denied_count=denied_count,
+            truncated=candidate_count > self.max_input_records,
+            candidate_count=candidate_count,
+            audience=audience,
             feature_enabled=True,
             unreported_denied_count=unreported_denied,
         )
@@ -537,6 +737,8 @@ def diagnostics_from_result(result: GovernedContextResult) -> Dict[str, Any]:
     }
     if result.unreported_denied_count:
         diag["unreported_denied_count"] = int(result.unreported_denied_count)
+    if result.input_error_reason:
+        diag["input_error_reason"] = result.input_error_reason
     return diag
 
 
@@ -563,7 +765,7 @@ def prepare_llm_request(
     Canonical pre-provider assembly.
 
     Returns (prepared_request, diagnostics_or_none, governance_applied).
-  Governance diagnostics are omitted when governance was not applied.
+    Governance diagnostics are omitted when governance was not applied.
     """
     ctx = dict(request.context) if request.context else {}
     raw_input = ctx.pop(GOVERNED_INPUT_KEY, None)
@@ -593,22 +795,44 @@ def prepare_llm_request(
             False,
         )
 
-    coerced, coerce_reason = _coerce_input(raw_input)
+    coerced, coerce_reason, candidate_count = _coerce_input(raw_input)
     asm = assembler or GovernedContextAssembler()
     if coerced is None:
-        diag: Dict[str, Any] = {
-            "enabled": True,
-            "applied": True,
-            "candidate_count": 0,
-            "included_count": 0,
-            "denied_count": 1,
-            "included_ids": [],
-            "denied_ids": [],
-            "denial_reasons": [_bound(coerce_reason, MAX_REASON_CHARS)],
-            "truncated": False,
-            "audience": "",
-            "has_context_block": False,
-        }
+        bounded_reason = _bound(coerce_reason, MAX_REASON_CHARS)
+        if candidate_count is None:
+            diag: Dict[str, Any] = {
+                "enabled": True,
+                "applied": True,
+                "candidate_count": 0,
+                "included_count": 0,
+                "denied_count": 0,
+                "included_ids": [],
+                "denied_ids": [],
+                "denial_reasons": [],
+                "truncated": False,
+                "audience": "",
+                "has_context_block": False,
+                "input_error_reason": bounded_reason,
+            }
+        else:
+            records_container: Any = ()
+            if isinstance(raw_input, GovernedContextInput):
+                records_container = raw_input.records
+            elif isinstance(raw_input, Mapping):
+                records_container = raw_input.get("records", ())
+            if isinstance(records_container, (tuple, list)):
+                result = asm.deny_records_container(
+                    records_container,
+                    reason=bounded_reason,
+                    audience="",
+                )
+            else:
+                result = asm._deny_count_arithmetic(
+                    candidate_count,
+                    reason=bounded_reason,
+                    input_error_reason=bounded_reason,
+                )
+            diag = diagnostics_from_result(result)
         return (
             LLMRequest(
                 prompt=request.prompt,
@@ -663,7 +887,10 @@ class GovernedContextLLMProvider:
             return resp
 
         meta = dict(resp.meta or {})
-        existing_used = bool(meta.get("used_context"))
+        if "used_context" in meta:
+            existing_used = bool(meta["used_context"])
+        else:
+            existing_used = bool(prepared.context)
         governed_included = bool(diag and diag.get("has_context_block"))
         meta["used_context"] = existing_used or governed_included
         if diag is not None:

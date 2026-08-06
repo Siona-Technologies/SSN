@@ -122,17 +122,29 @@ or stricter deployments.
 
 - Malformed record objects (non-`IdentityFactRecord`) deny with
   `deny_invalid_record_type` before sorting, policy, or provider handoff.
-- Malformed consent objects deny delegated use; invalid consent collections can
-  deny assembly fail-closed.
-- Consent resolution requires exact match on subject, grantee (actor), granted
-  state, required uses, and non-revocation. Multiple exact matches →
-  `deny_ambiguous_consent`.
+- Typed `IdentityFactRecord` objects with malformed runtime field types deny with
+  `deny_invalid_record_structure` during structural preflight before `.strip()`,
+  sorting, policy, serialization, or provider handoff.
+- Consent is resolved only for delegated co-founder access in
+  `OWNER_ASSISTANCE` when classification is `COFOUNDER_PRIVATE` and the
+  authenticated actor differs from the record subject. Public response ignores
+  consent entirely; unrelated malformed consents do not deny otherwise valid
+  records.
+- Relevant malformed `ConsentRecord` structures deny delegated use with
+  `deny_invalid_consent_structure`. Consent resolution requires exact match on
+  subject, grantee (actor), granted state, required uses, and non-revocation.
+  Multiple exact matches → `deny_ambiguous_consent`.
 - Malformed `PolicyContext` denies all candidates without exceptions.
+- Candidate processing inspects at most 16 input records by index; overflow is
+  denied arithmetically with bounded opaque IDs and `unreported_denied_count`
+  without accessing overflow candidate objects.
 
 ## `used_context` semantics
 
-`used_context` becomes true when ordinary context was already used **or** when
-an authorized governed context block was included. Denied-only or malformed-only
+`used_context` becomes true when the downstream provider already marked ordinary
+context as used **or** when an authorized governed context block was included.
+If the provider omits `used_context`, the wrapper falls back to
+`bool(prepared.context) OR governed_block_included`. Denied-only or malformed-only
 submissions do not mark context as used.
 
 ## Correlation IDs
@@ -142,15 +154,21 @@ Optional `request_id` is sanitized to a maximum of 64 characters from
 
 ## Diagnostics count invariant
 
-`candidate_count = included_count + denied_count` always. Diagnostic ID arrays
-are bounded (first 16); additional denials use `unreported_denied_count`.
+`candidate_count = included_count + denied_count` always when a trustworthy
+candidate count exists. Diagnostic ID arrays are bounded (first 16); additional
+denials use `unreported_denied_count`. When the envelope cannot yield a
+trustworthy candidate count, diagnostics use `candidate_count=0`,
+`included_count=0`, `denied_count=0`, and `input_error_reason` instead of
+representing the envelope as a denied candidate.
 
 Deterministic sanitization:
 
 - strips NUL and prohibited control characters
 - neutralizes governed-block end/begin markers inside statements
 - neutralizes role-boundary patterns (`system:` / `user:` / `assistant:`)
-- soft-neutralizes HTML/script openers
+- case-insensitive soft-neutralization of HTML/script openers (`<script`,
+  `</script`, `<?`) inside subject and statement fields before JSON serialization
+  (does not prevent semantic prompt injection)
 - preserves ordinary Unicode text
 - deterministic sort order by `(subject_id, subject, statement)`
 - truncation flagged in diagnostics without logging removed text

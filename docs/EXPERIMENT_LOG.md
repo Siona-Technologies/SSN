@@ -382,7 +382,10 @@ Evidence:
   Diagnostics count invariant (included + denied = candidates)
   Sanitized correlation request_id (64 chars, conservative charset)
   Denied statements absent from downstream prompts and diagnostics
-  Focused suite 52 pass; full offline suite pass
+  Final bounded-input hardening: max 16 candidate inspection, structural
+  preflight for typed records/consents, delegated-consent-only scope,
+  envelope input_error_reason for untrustworthy counts, used_context fallback
+  Focused suite 73 pass; full offline suite pass
   No HTTP/subprocess/llama.cpp/GGUF activity in focused tests
   No ssn/data or world_model.json mutation
 Outstanding: active approved identity-record ingestion (separate approval);

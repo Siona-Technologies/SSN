@@ -157,7 +157,11 @@ REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED.**
 Hardening (fail-closed): malformed runtime objects deny without exceptions;
 hard assembler ceilings; JSON-lines serialization; exact legacy response when
 unused; ambiguous consent fails closed; bounded diagnostics invariant; sanitized
-correlation IDs. Model-prompt injection is not solved by text filtering alone.
+correlation IDs. Final correction: O(16) candidate inspection, typed-record and
+typed-consent structural preflight, delegated-consent-only scope, envelope
+`input_error_reason` when candidate count is untrustworthy, `used_context` meta
+assertion with provider fallback, case-insensitive script-marker neutralization.
+Model-prompt injection is not solved by text filtering alone.
 
 ## Safety
 

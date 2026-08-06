@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009; model-native structured JSON remains unverified; no real model started or rerun); model registry activation and Gate E breadth still pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); model registry activation, Gate E breadth, ADR 0003 acceptance and Phase 3B completion decision still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -144,7 +144,8 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: authorize registry activation and Gate E governed real-model
-evaluation when ready (still optional; CI remains deterministic and model-free).
-Provider text-path validation is recorded; Phase 3B is **not** complete.
-Phase 4 remains **not started**.
+Phase 3B: Gate E breadth; model-registry activation review; ADR 0003
+acceptance; Phase 3B completion decision (still optional; CI remains
+deterministic and model-free). EXP-3B-010 guarded-path retest acceptance was
+met; model-native structured JSON remains unverified. Phase 3B is **not**
+complete. Phase 4 remains **not started**.

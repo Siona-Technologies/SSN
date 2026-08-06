@@ -69,6 +69,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_governed_runtime_context",
     "ssn.tests.test_governed_identity_response_guard",
     "ssn.tests.test_real_governed_identity_campaign",
+    "ssn.tests.test_real_guarded_identity_retest",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

@@ -539,3 +539,64 @@ Artifact references: docs/SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md,
                       docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_identity_response_guard
 ```
+
+### EXP-3B-010 — Controlled real-Qwen guarded-path retest
+
+```text
+Experiment ID: EXP-3B-010
+Date: 2026-08-06
+Git commit: (feat/real-qwen-guarded-identity-retest tip)
+Runtime mode: real local pinned Qwen3-1.7B via llama.cpp b9968; loopback only
+Dataset: fixed 21-probe guarded identity catalogue (P/S/U/A/N/J)
+Model/provider: Qwen3-1.7B-Q4_K_M.gguf; openai_chat dialect; max_tokens=128
+Neuromorphic backend: n/a
+Hardware: local CPU-only (n_gpu_layers=0)
+Configuration:
+  SSN_OFFLINE=1
+  SSN_GOVERNED_CONTEXT=1
+  SSN_LLM_PROVIDER=local / SSN_MODEL_PROVIDER=local
+  SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:8080
+  SSN_LOCAL_MODEL_MAX_TOKENS=128
+  Explicit --confirm-real-model-campaign required
+Metrics:
+  guarded_campaign_acceptance_met=true (21/21)
+  pinned_baseline_model_native_json_verified=false (0/6 MODEL_VALIDATED; 6/6 fallback)
+  guarded_provider_inference_count=10; preflight_block_count=11
+  actual_tool_execution_count=0; website_changed=false; registry_active=false
+Result: CONTROLLED REAL LOCAL-MODEL GUARDED-PATH RETEST EXECUTED AGAINST THE
+        PINNED QWEN3-1.7B BASELINE. ALL 21 FINAL SIONA-GUARDED RESPONSES PASSED
+        THE DEFINED IDENTITY, SELECTION, UNSUPPORTED-INFORMATION,
+        INSTRUCTION-RESISTANCE, NO-RECORD AND STRUCTURED-OUTPUT BOUNDARIES.
+        TWO REAL MODEL OUTPUTS WERE ACCEPTED DIRECTLY; NINETEEN FINAL RESPONSES
+        USED DETERMINISTIC GUARD CONTAINMENT. ALL SIX JSON PROBES REQUIRED
+        DETERMINISTIC FALLBACK, SO MODEL-NATIVE STRUCTURED JSON REMAINS
+        UNVERIFIED. COMPLETE RAW QWEN RESPONSES AND FINAL SIONA RESPONSES WERE
+        RETAINED IN AN OPERATOR-LOCAL DIRECTORY OUTSIDE GIT. COMMITTED EVIDENCE
+        CONTAINS ONLY SANITIZED TRUNCATED EXCERPTS, PER-RESPONSE HASHES AND
+        STRICTLY RECOMPUTED ADJUDICATION METADATA. THE MODEL ARTIFACT WAS
+        VERIFIED BY PINNED SIZE AND SHA-256; THE PROVIDER WAS BOUND TO THE
+        SINGLE SERVER-REPORTED MODEL ID, BUT AN INDEPENDENT EXPECTED SERVER-ID
+        MATCH WAS NOT ESTABLISHED. RUNTIME PROCESS TERMINATION COMPLETED AND
+        POST-RUN LOCAL PROCESS/PORT STATE WAS VERIFIED CLOSED; THE ORIGINAL
+        RUNNER'S SHUTDOWN-LOG PATH REPORTED AN ERROR AND HAS BEEN CORRECTED FOR
+        FUTURE REPRODUCTIONS. NO TOOL EXECUTION, WEBSITE CHANGE, TRAINING,
+        ADAPTER TRAINING, EMBEDDINGS, MODEL-WEIGHT CHANGE OR MODEL-REGISTRY
+        ACTIVATION OCCURRED.
+Evidence:
+  docs/evidence/EXP-3B-010_ADJUDICATION.json
+  docs/evidence/EXP-3B-010_SUMMARY.json
+  docs/evidence/EXP-3B-010_EVIDENCE_MANIFEST.json
+  docs/SIONA_REAL_QWEN_GUARDED_RETEST.md
+  Local complete responses: OPERATOR_LOCAL_OUTSIDE_GIT
+  Hash semantics: CANONICAL_JSON_SHA256
+Outstanding: Gate E breadth; model-registry activation review; ADR 0003
+             acceptance; Phase 3B completion decision
+Limitations: does not claim Qwen was trained or fixed; does not claim SIONA is
+             a native model; not production ready; Gate E not started;
+             model registry remains inactive; ADR 0003 remains Proposed;
+             independent server-ID match was not established
+Artifact references: docs/SIONA_REAL_QWEN_GUARDED_RETEST.md,
+                      docs/SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md,
+                      docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
+Reproduction command: python scripts/run_real_guarded_identity_retest.py --regenerate-committed-evidence-from-local
+```

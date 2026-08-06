@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Dict, FrozenSet, Mapping, Optional, Tuple
 
 from ssn.governance.identity_records import (
@@ -90,7 +91,7 @@ class _ApprovedManifestEntry:
     notes: str
 
 
-_APPROVED_MANIFEST: Dict[str, _ApprovedManifestEntry] = {
+_APPROVED_MANIFEST_ENTRIES: Dict[str, _ApprovedManifestEntry] = {
     "company:siona-technologies": _ApprovedManifestEntry(
         subject="SIONA Technologies",
         subject_id="company:siona-technologies",
@@ -162,6 +163,10 @@ _APPROVED_MANIFEST: Dict[str, _ApprovedManifestEntry] = {
         notes=APPROVED_NOTES,
     ),
 }
+
+_APPROVED_MANIFEST: Mapping[str, _ApprovedManifestEntry] = MappingProxyType(
+    _APPROVED_MANIFEST_ENTRIES
+)
 
 PUBLIC_CLASSIFICATIONS: FrozenSet[InformationClass] = frozenset(
     {InformationClass.PUBLIC_COMPANY, InformationClass.PUBLIC_PROFESSIONAL}
@@ -250,6 +255,18 @@ def get_default_approved_identity_registry_path() -> Path:
     return _REPO_ROOT / _DEFAULT_REGISTRY_REL
 
 
+def _strict_json_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build JSON objects while rejecting duplicate keys at every object level."""
+    seen: set[str] = set()
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ApprovedIdentityRegistryError(f"registry_duplicate_json_key:{key}")
+        seen.add(key)
+        result[key] = value
+    return result
+
+
 def _read_registry_file_bytes(path: Path) -> bytes:
     """Read registry bytes with stat-first and bounded read enforcement."""
     try:
@@ -293,7 +310,9 @@ def load_approved_identity_registry(
         raise ApprovedIdentityRegistryError("registry_invalid_utf8")
 
     try:
-        payload = json.loads(text)
+        payload = json.loads(text, object_pairs_hook=_strict_json_object_pairs)
+    except ApprovedIdentityRegistryError:
+        raise
     except json.JSONDecodeError:
         raise ApprovedIdentityRegistryError("registry_invalid_json")
 
@@ -436,11 +455,15 @@ def _parse_record_object(item: Mapping[str, Any], *, index: int) -> IdentityFact
         item.get("personal_address"),
         f"registry_record_invalid_personal_address:{index}",
     )
-    notes_raw = item.get("notes", "")
-    if notes_raw is None:
-        notes_raw = ""
-    if type(notes_raw) is not str:
-        raise ApprovedIdentityRegistryError(f"registry_record_invalid_notes:{index}")
+    if "notes" in item:
+        notes_raw = item["notes"]
+        if type(notes_raw) is not str or notes_raw != APPROVED_NOTES:
+            raise ApprovedIdentityRegistryError(
+                f"registry_record_invalid_notes:{index}"
+            )
+        notes = APPROVED_NOTES
+    else:
+        notes = APPROVED_NOTES
 
     return IdentityFactRecord(
         subject=subject,
@@ -457,7 +480,7 @@ def _parse_record_object(item: Mapping[str, Any], *, index: int) -> IdentityFact
         review_date=review_date,
         revocation_status=revocation_status,
         subject_id=subject_id,
-        notes=notes_raw,
+        notes=notes,
         personal_email=personal_email,
         personal_phone=personal_phone,
         personal_address=personal_address,

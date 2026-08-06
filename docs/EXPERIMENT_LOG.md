@@ -423,15 +423,17 @@ Result: IMPLEMENTED AND VALIDATED DETERMINISTICALLY; THREE OWNER-APPROVED PUBLIC
 Evidence:
   config/governance/approved_identity_records.json (schema_version 1, 3 records)
   Strict atomic loader with file-size and record-count bounds
-  Independent canonical manifest (_APPROVED_MANIFEST) pins exact approved fields;
-  tampered statement/metadata/uses fail atomically (registry_approved_* codes)
+  Independent canonical manifest (_APPROVED_MANIFEST MappingProxyType) pins exact
+  approved fields; entries frozen; tampered statement/metadata/uses fail atomically
+  Strict JSON object_pairs_hook rejects duplicate keys at all object levels
+  notes absent or exact empty only; JSON null rejected (registry_record_invalid_notes)
   Bounded stat-first file read max 65537 bytes (no unrestricted Path.read_bytes)
   select_by_subject_ids: plain list/tuple only; max 16 IDs; exact casing
   Explicit retrieval API (no LanguageEngine auto-injection)
   GovernedContextAssembler integration for PUBLIC_RESPONSE guest path
   decide_public / decide_model_prompt permit; decide_training denies
   PUBLIC_WEBSITE not in intended uses; personal contact markers excluded
-  Focused suite 75 pass; full offline suite 526 pass, 4 skipped
+  Focused suite 99 pass; full offline suite 526 pass, 4 skipped
   No network/subprocess/llama.cpp/GGUF in focused tests
   No ssn/data or world_model.json mutation
 Outstanding: real local-model identity campaign; model registry activation;

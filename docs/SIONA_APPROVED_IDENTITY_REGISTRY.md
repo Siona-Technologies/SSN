@@ -86,7 +86,11 @@ Hard limits:
 
 - local JSON only; no network or URL following
 - independent canonical manifest in `ssn/governance/identity_registry.py`
-  pins every approved field; unauthorized JSON edits fail atomically
+  pins every approved field; manifest entries and mapping are runtime immutable
+  (`MappingProxyType`); unauthorized JSON edits fail atomically
+- JSON duplicate object keys rejected at every object level (`object_pairs_hook`);
+  diagnostics name the duplicate key only (no duplicated value)
+- `notes` may be absent or exactly empty (`""`); JSON `null` and other types rejected
 - file size checked via `stat` before bounded binary read (max 64 KiB + 1)
 - atomic failure — any invalid record rejects the entire load
 - intended and prohibited uses must match exact approved sets (no extras,

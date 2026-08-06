@@ -30,6 +30,8 @@ from ssn.governance.identity_registry import (
     REQUIRED_APPROVED_BY,
     REQUIRED_SUBJECT_IDS,
     SUPPORTED_SCHEMA_VERSION,
+    _APPROVED_MANIFEST,
+    _ApprovedManifestEntry,
     _read_registry_file_bytes,
     get_default_approved_identity_registry_path,
     load_approved_identity_registry,
@@ -92,6 +94,12 @@ def _default_registry_dict() -> Dict[str, Any]:
 def _write_registry(directory: Path, payload: Dict[str, Any]) -> Path:
     path = directory / "registry.json"
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def _write_raw_registry(directory: Path, content: str) -> Path:
+    path = directory / "registry.json"
+    path.write_text(content, encoding="utf-8")
     return path
 
 
@@ -253,7 +261,7 @@ class TestApprovedManifestIntegrity(unittest.TestCase):
         path = _mutate_record(self._tmp, "product:siona", notes="unapproved note")
         with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
             load_approved_identity_registry(path)
-        self.assertEqual(str(ctx.exception), "registry_approved_metadata_mismatch")
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
 
     def test_stat_limit_rejects_before_open(self) -> None:
         path = (self._tmp / "registry.json").resolve()
@@ -340,6 +348,260 @@ class TestApprovedManifestIntegrity(unittest.TestCase):
         self.assertIsNone(registry.get_by_subject_id("Product:siona"))
         selected = registry.select_by_subject_ids(["Product:siona"])
         self.assertEqual(len(selected), 0)
+
+
+class TestImmutableManifestStrictJson(unittest.TestCase):
+    def test_manifest_entry_frozen(self) -> None:
+        entry = _APPROVED_MANIFEST["product:siona"]
+        self.assertIsInstance(entry, _ApprovedManifestEntry)
+        with self.assertRaises(AttributeError):
+            entry.subject = "Tampered"  # type: ignore[misc]
+
+    def test_manifest_replacement_denied(self) -> None:
+        replacement = _APPROVED_MANIFEST["company:siona-technologies"]
+        with self.assertRaises(TypeError):
+            _APPROVED_MANIFEST["company:siona-technologies"] = replacement
+
+    def test_manifest_addition_denied(self) -> None:
+        with self.assertRaises(TypeError):
+            _APPROVED_MANIFEST["org:intrusion"] = _APPROVED_MANIFEST["product:siona"]
+
+    def test_manifest_deletion_denied(self) -> None:
+        with self.assertRaises(TypeError):
+            del _APPROVED_MANIFEST["product:siona"]
+
+    def test_notes_absent_succeeds(self) -> None:
+        registry = load_approved_identity_registry()
+        for record in registry.all_records():
+            self.assertEqual(record.notes, "")
+
+    def test_notes_empty_string_succeeds(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _mutate_record(tmp, "product:siona", notes="")
+        registry = load_approved_identity_registry(path)
+        product = registry.get_by_subject_id("product:siona")
+        self.assertIsNotNone(product)
+        self.assertEqual(product.notes, "")
+        self._tmpdir.cleanup()
+
+    def test_notes_null_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _mutate_record(tmp, "product:siona", notes=None)
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
+        self._tmpdir.cleanup()
+
+    def test_notes_non_empty_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _mutate_record(tmp, "product:siona", notes="unapproved")
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
+        self._tmpdir.cleanup()
+
+    def test_notes_boolean_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _mutate_record(tmp, "product:siona", notes=True)
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
+        self._tmpdir.cleanup()
+
+    def test_notes_list_and_object_fail(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_registry(
+            tmp,
+            _mutate_record_payload("product:siona", notes=["x"]),
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
+        path = _write_registry(
+            tmp,
+            _mutate_record_payload("product:siona", notes={"x": 1}),
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_record_invalid_notes:1")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_root_schema_version_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp, '{"schema_version": 1, "schema_version": 2, "records": []}'
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:schema_version")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_root_records_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp, '{"schema_version": 1, "records": [], "records": []}'
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:records")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_record_subject_id_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            '{"schema_version": 1, "records": [{"subject_id": "a", "subject_id": "b"}]}',
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:subject_id")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_record_statement_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            '{"schema_version": 1, "records": [{"statement": "a", "statement": "b"}]}',
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:statement")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_record_notes_fails(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            '{"schema_version": 1, "records": [{"notes": "", "notes": ""}]}',
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:notes")
+        self._tmpdir.cleanup()
+
+    def test_unapproved_then_approved_duplicate_statement_fails(self) -> None:
+        secret = "SECRET_UNAPPROVED_STMT_XYZ789"
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            (
+                '{"schema_version": 1, "records": [{"statement": "'
+                + secret
+                + '", "statement": "approved placeholder"}]}'
+            ),
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:statement")
+        self._tmpdir.cleanup()
+
+    def test_approved_then_unapproved_duplicate_statement_fails(self) -> None:
+        secret = "SECRET_UNAPPROVED_STMT_XYZ789"
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            (
+                '{"schema_version": 1, "records": [{"statement": "approved first", '
+                '"statement": "'
+                + secret
+                + '"}]}'
+            ),
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        self.assertEqual(str(ctx.exception), "registry_duplicate_json_key:statement")
+        self._tmpdir.cleanup()
+
+    def test_duplicate_key_error_contains_no_value(self) -> None:
+        secret = "SECRET_UNAPPROVED_STMT_XYZ789"
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmpdir.name)
+        path = _write_raw_registry(
+            tmp,
+            (
+                '{"schema_version": 1, "records": [{"statement": "'
+                + secret
+                + '", "statement": "other"}]}'
+            ),
+        )
+        with self.assertRaises(ApprovedIdentityRegistryError) as ctx:
+            load_approved_identity_registry(path)
+        message = str(ctx.exception)
+        self.assertEqual(message, "registry_duplicate_json_key:statement")
+        self.assertNotIn(secret, message)
+        self.assertNotIn("other", message)
+        self._tmpdir.cleanup()
+
+    def test_exact_registry_loads(self) -> None:
+        registry = load_approved_identity_registry()
+        self.assertEqual(len(registry.all_records()), EXPECTED_RECORD_COUNT)
+
+    def test_public_response_policy_permits_all(self) -> None:
+        registry = load_approved_identity_registry()
+        for record in registry.all_records():
+            decision = decide_public(
+                record, requested_use=AllowedUse.PUBLIC_RESPONSE
+            )
+            self.assertTrue(decision.allowed, record.subject_id)
+
+    def test_model_prompt_policy_permits_all(self) -> None:
+        registry = load_approved_identity_registry()
+        ctx = _guest_ctx()
+        for record in registry.all_records():
+            decision = decide_model_prompt(record, ctx=ctx)
+            self.assertTrue(decision.allowed, record.subject_id)
+
+    def test_training_policy_denies_all(self) -> None:
+        registry = load_approved_identity_registry()
+        for record in registry.all_records():
+            decision = decide_training(record)
+            self.assertFalse(decision.allowed)
+
+    def test_governed_context_integration(self) -> None:
+        registry = load_approved_identity_registry()
+        selected = registry.select_by_subject_ids(
+            (
+                "company:siona-technologies",
+                "product:siona",
+                "person:samson-sibona-njaji",
+            )
+        )
+        result = GovernedContextAssembler().assemble(
+            GovernedContextInput(
+                records=tuple(selected),
+                policy_context=_guest_ctx(),
+                audience=ContextAudience.PUBLIC_RESPONSE,
+            )
+        )
+        self.assertEqual(result.included_count, 3)
+
+    def test_no_automatic_language_engine_injection(self) -> None:
+        os.environ.pop(ENV_GOVERNED, None)
+        engine = LanguageEngine(provider=LocalDummyLLMProvider())
+        out = engine.process("Approved identity probe", role="GUEST")
+        blob = json.dumps(out)
+        for stmt in APPROVED_STATEMENTS:
+            self.assertNotIn(stmt, blob)
+
+
+def _mutate_record_payload(subject_id: str, **changes: Any) -> Dict[str, Any]:
+    payload = _default_registry_dict()
+    for record in payload["records"]:
+        if record["subject_id"] == subject_id:
+            record.update(changes)
+    return payload
 
 
 class TestApprovedIdentityRegistry(unittest.TestCase):

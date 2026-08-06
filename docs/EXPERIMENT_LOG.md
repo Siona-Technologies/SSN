@@ -373,8 +373,16 @@ Result: IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY; NO ACTIV
 Evidence:
   Composite authorization (MODEL_PROMPT ∩ PUBLIC_RESPONSE / OWNER_ASSISTANCE)
   Trusted PolicyContext required; role text alone is not authentication
-  Bounded context sanitization and limits enforced
+  Fail-closed malformed record/consent handling without exceptions
+  Exact consent resolution; ambiguous duplicate consent denies
+  Hard assembler ceilings enforced (GovernedContextConfigError)
+  Deterministic JSON-lines context serialization
+  Exact legacy LanguageEngine contract when feature disabled or unused
+  used_context true only when governed block included or ordinary context used
+  Diagnostics count invariant (included + denied = candidates)
+  Sanitized correlation request_id (64 chars, conservative charset)
   Denied statements absent from downstream prompts and diagnostics
+  Focused suite 52 pass; full offline suite pass
   No HTTP/subprocess/llama.cpp/GGUF activity in focused tests
   No ssn/data or world_model.json mutation
 Outstanding: active approved identity-record ingestion (separate approval);

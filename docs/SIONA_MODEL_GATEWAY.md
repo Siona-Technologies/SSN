@@ -154,6 +154,11 @@ Status wording: **IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS
 ONLY; NO ACTIVE PERSONAL RECORDS; NO MODEL TRAINING; NO REGISTRY ACTIVATION;
 REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED.**
 
+Hardening (fail-closed): malformed runtime objects deny without exceptions;
+hard assembler ceilings; JSON-lines serialization; exact legacy response when
+unused; ambiguous consent fails closed; bounded diagnostics invariant; sanitized
+correlation IDs. Model-prompt injection is not solved by text filtering alone.
+
 ## Safety
 
 Model outputs become structured proposals. Existing policy and tool layers

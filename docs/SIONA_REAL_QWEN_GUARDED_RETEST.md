@@ -90,9 +90,12 @@ and summary; the manifest references those hashes and does not hash itself).
 Committed excerpts are sanitized and capped at 240 characters. Complete raw and
 final texts are retained locally only. Absolute operator paths are not committed.
 
-Complete local evidence was revalidated offline; committed evidence was
-regenerated without model inference. No Qwen rerun occurred for the integrity
-correction.
+Complete local evidence was revalidated locally with a strict non-coercive parser
+that independently recomputes adjudication labels. Hosted CI validates the same
+strict parser and offline regeneration path using synthetic complete-evidence
+fixtures; hosted CI does not contain the private historical complete responses.
+No Qwen rerun occurred for integrity corrections. Historical per-response hashes
+remain unchanged.
 
 ## Server model-ID wording
 

@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -1107,35 +1108,253 @@ def canonical_json_bytes(obj: Any) -> bytes:
     )
 
 
-def _probe_local_from_dict(row: Mapping[str, Any]) -> ProbeLocalResult:
+LOCAL_PROBE_REQUIRED_KEYS = frozenset(
+    {
+        "probe_id",
+        "family",
+        "requested_subject_ids",
+        "included_subject_ids",
+        "response_mode",
+        "prompt",
+        "raw_source",
+        "raw_text",
+        "final_text",
+        "raw_sha256",
+        "final_sha256",
+        "guarded_provider_call_count",
+        "raw_control_call_count",
+        "model_output_accepted",
+        "fallback_used",
+        "structured_source",
+        "guard_reason",
+        "preflight_blocked",
+        "boundary_result",
+        "answer_quality_result",
+        "operator_adjudication",
+        "actual_tool_execution_count",
+        "website_changed",
+        "registry_active",
+        "latency_ms",
+        "safe_guard_metadata",
+    }
+)
+
+LOCAL_MANIFEST_REQUIRED_FILES = [
+    "complete_probe_results.jsonl",
+    "complete_raw_responses.jsonl",
+    "complete_final_responses.jsonl",
+    "local_campaign_manifest.json",
+    "local_environment_snapshot.json",
+]
+
+
+def _exact_str(value: Any, code: str) -> str:
+    if type(value) is not str:
+        raise RetestError(code)
+    return value
+
+
+def _exact_bool(value: Any, code: str) -> bool:
+    if type(value) is not bool:
+        raise RetestError(code)
+    return value
+
+
+def _exact_int_not_bool(value: Any, code: str) -> int:
+    if type(value) is bool or type(value) is not int:
+        raise RetestError(code)
+    return value
+
+
+def _exact_str_list(value: Any, code: str) -> List[str]:
+    if type(value) is not list:
+        raise RetestError(code)
+    out: List[str] = []
+    for item in value:
+        if type(item) is not str:
+            raise RetestError(f"{code}_elem")
+        out.append(item)
+    return out
+
+
+def _exact_dict(value: Any, code: str) -> Dict[str, Any]:
+    if type(value) is not dict:
+        raise RetestError(code)
+    return value
+
+
+def _exact_finite_latency(value: Any, code: str) -> float:
+    if type(value) is bool:
+        raise RetestError(code)
+    if type(value) is int:
+        if value < 0:
+            raise RetestError(f"{code}_negative")
+        return float(value)
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise RetestError(f"{code}_nonfinite")
+        if value < 0:
+            raise RetestError(f"{code}_negative")
+        return value
+    raise RetestError(code)
+
+
+def recompute_local_adjudication_labels(
+    *,
+    probe_id: str,
+    family: str,
+    model_output_accepted: bool,
+    fallback_used: bool,
+    structured_source: str,
+    guard_reason: str,
+) -> Tuple[str, str, str]:
+    """Independently recompute boundary / answer-quality / operator labels."""
+    boundary, answer_quality, operator = expected_boundary_answer_quality(probe_id, family)
+    if family == "json":
+        if (
+            model_output_accepted is True
+            and fallback_used is False
+            and structured_source == STRUCTURED_SOURCE_MODEL
+            and guard_reason == "model_validated"
+        ):
+            answer_quality = "MODEL_VALIDATED"
+        elif (
+            model_output_accepted is False
+            and fallback_used is True
+            and structured_source == STRUCTURED_SOURCE_FALLBACK
+            and guard_reason == "structured_json_invalid"
+        ):
+            answer_quality = "DETERMINISTIC_GUARD_FALLBACK"
+        else:
+            raise RetestError(f"local_json_label_metadata:{probe_id}")
+    return boundary, answer_quality, operator
+
+
+def parse_local_probe_row(row: Any) -> ProbeLocalResult:
+    """Strictly parse one local probe JSON object without coercing types."""
+    if type(row) is not dict:
+        raise RetestError("local_probe_not_dict")
+    keys = set(row.keys())
+    missing = LOCAL_PROBE_REQUIRED_KEYS - keys
+    if missing:
+        raise RetestError("local_probe_missing_keys")
+    unknown = keys - LOCAL_PROBE_REQUIRED_KEYS
+    if unknown:
+        raise RetestError("local_probe_unknown_keys")
+
     return ProbeLocalResult(
-        probe_id=str(row["probe_id"]),
-        family=str(row["family"]),
-        requested_subject_ids=list(row["requested_subject_ids"]),
-        included_subject_ids=list(row["included_subject_ids"]),
-        response_mode=str(row["response_mode"]),
-        prompt=str(row["prompt"]),
-        raw_source=str(row["raw_source"]),
-        raw_text=str(row["raw_text"]),
-        final_text=str(row["final_text"]),
-        raw_sha256=str(row["raw_sha256"]),
-        final_sha256=str(row["final_sha256"]),
-        guarded_provider_call_count=int(row["guarded_provider_call_count"]),
-        raw_control_call_count=int(row["raw_control_call_count"]),
-        model_output_accepted=bool(row["model_output_accepted"]),
-        fallback_used=bool(row["fallback_used"]),
-        structured_source=str(row.get("structured_source") or ""),
-        guard_reason=str(row.get("guard_reason") or ""),
-        preflight_blocked=bool(row["preflight_blocked"]),
-        boundary_result=str(row["boundary_result"]),
-        answer_quality_result=str(row["answer_quality_result"]),
-        operator_adjudication=str(row["operator_adjudication"]),
-        actual_tool_execution_count=int(row["actual_tool_execution_count"]),
-        website_changed=bool(row["website_changed"]),
-        registry_active=bool(row["registry_active"]),
-        latency_ms=float(row.get("latency_ms") or 0.0),
-        safe_guard_metadata=dict(row.get("safe_guard_metadata") or {}),
+        probe_id=_exact_str(row["probe_id"], "local_probe_id_type"),
+        family=_exact_str(row["family"], "local_family_type"),
+        requested_subject_ids=_exact_str_list(
+            row["requested_subject_ids"], "local_requested_type"
+        ),
+        included_subject_ids=_exact_str_list(
+            row["included_subject_ids"], "local_included_type"
+        ),
+        response_mode=_exact_str(row["response_mode"], "local_mode_type"),
+        prompt=_exact_str(row["prompt"], "local_prompt_type"),
+        raw_source=_exact_str(row["raw_source"], "local_raw_source_type"),
+        raw_text=_exact_str(row["raw_text"], "local_raw_text_type"),
+        final_text=_exact_str(row["final_text"], "local_final_text_type"),
+        raw_sha256=_exact_str(row["raw_sha256"], "local_raw_sha_type"),
+        final_sha256=_exact_str(row["final_sha256"], "local_final_sha_type"),
+        guarded_provider_call_count=_exact_int_not_bool(
+            row["guarded_provider_call_count"], "local_guarded_count_type"
+        ),
+        raw_control_call_count=_exact_int_not_bool(
+            row["raw_control_call_count"], "local_raw_control_count_type"
+        ),
+        model_output_accepted=_exact_bool(
+            row["model_output_accepted"], "local_accepted_type"
+        ),
+        fallback_used=_exact_bool(row["fallback_used"], "local_fallback_type"),
+        structured_source=_exact_str(
+            row["structured_source"], "local_structured_source_type"
+        ),
+        guard_reason=_exact_str(row["guard_reason"], "local_guard_reason_type"),
+        preflight_blocked=_exact_bool(
+            row["preflight_blocked"], "local_preflight_type"
+        ),
+        boundary_result=_exact_str(row["boundary_result"], "local_boundary_type"),
+        answer_quality_result=_exact_str(
+            row["answer_quality_result"], "local_answer_quality_type"
+        ),
+        operator_adjudication=_exact_str(
+            row["operator_adjudication"], "local_operator_type"
+        ),
+        actual_tool_execution_count=_exact_int_not_bool(
+            row["actual_tool_execution_count"], "local_tool_count_type"
+        ),
+        website_changed=_exact_bool(row["website_changed"], "local_website_type"),
+        registry_active=_exact_bool(row["registry_active"], "local_registry_type"),
+        latency_ms=_exact_finite_latency(row["latency_ms"], "local_latency_type"),
+        safe_guard_metadata=_exact_dict(
+            row["safe_guard_metadata"], "local_safe_meta_type"
+        ),
     )
+
+
+def validate_local_campaign_manifest(
+    manifest: Any, *, evidence_dir: Path
+) -> None:
+    if type(manifest) is not dict:
+        raise RetestError("local_manifest_not_dict")
+    if manifest.get("experiment_id") != EXPERIMENT_ID:
+        raise RetestError("local_manifest_experiment_id")
+    files = manifest.get("files")
+    if type(files) is not list:
+        raise RetestError("local_manifest_files_type")
+    if files != LOCAL_MANIFEST_REQUIRED_FILES:
+        raise RetestError("local_manifest_files_mismatch")
+    if manifest.get("complete_responses_retained_locally") is not True:
+        raise RetestError("local_manifest_retention_flag")
+    if manifest.get("complete_responses_committed") is not False:
+        raise RetestError("local_manifest_committed_flag")
+    # Reject committed-evidence substitution markers.
+    if "adjudication_canonical_sha256" in manifest or "hash_semantics" in manifest:
+        raise RetestError("local_manifest_committed_substitution")
+    ev = manifest.get("evidence_directory")
+    if type(ev) is not str:
+        raise RetestError("local_manifest_evidence_dir_type")
+    configured = Path(evidence_dir)
+    reported = Path(ev)
+    if os.fspath(reported) != os.fspath(configured) and reported.resolve() != configured.resolve():
+        raise RetestError("local_manifest_evidence_dir_mismatch")
+
+
+def validate_local_environment_snapshot(env: Any) -> None:
+    if type(env) is not dict:
+        raise RetestError("local_env_not_dict")
+    endpoint = env.get("endpoint")
+    if type(endpoint) is not str:
+        raise RetestError("local_env_endpoint_type")
+    if endpoint.rstrip("/") != ALLOWED_ENDPOINT:
+        raise RetestError("local_env_endpoint_not_loopback")
+    if env.get("model_id_present") is not True:
+        raise RetestError("local_env_model_id_present")
+    if env.get("model_size") != EXPECTED_MODEL_SIZE:
+        raise RetestError("local_env_model_size")
+    if env.get("model_sha256") != EXPECTED_MODEL_SHA256:
+        raise RetestError("local_env_model_sha256")
+    if env.get("runtime_version") != RUNTIME_VERSION:
+        raise RetestError("local_env_runtime_version")
+    if env.get("runtime_source_commit") != RUNTIME_SOURCE_COMMIT:
+        raise RetestError("local_env_runtime_commit")
+    if env.get("ssn_offline") != "1":
+        raise RetestError("local_env_offline")
+    cap = env.get("max_tokens_cap")
+    if cap not in ("128", 128):
+        raise RetestError("local_env_token_cap")
+    if "server_model_id_independent_expected_match_verified" in env:
+        if env.get("server_model_id_independent_expected_match_verified") is not False:
+            raise RetestError("local_env_independent_server_id")
+    if "model_artifact_size_sha256_verified" in env:
+        if env.get("model_artifact_size_sha256_verified") is not True:
+            raise RetestError("local_env_artifact_verified")
+    # Literal server model IDs must not appear in the snapshot.
+    for key in ("model_id", "server_model_id", "SSN_LOCAL_MODEL_ID"):
+        if key in env:
+            raise RetestError("local_env_literal_model_id")
 
 
 def load_and_validate_local_exp_3b_010_evidence(
@@ -1143,13 +1362,7 @@ def load_and_validate_local_exp_3b_010_evidence(
 ) -> Dict[str, Any]:
     """Strict offline validation of operator-local complete EXP-3B-010 evidence."""
     assert_evidence_dir_outside_repo(evidence_dir)
-    required = (
-        "complete_probe_results.jsonl",
-        "complete_raw_responses.jsonl",
-        "complete_final_responses.jsonl",
-        "local_campaign_manifest.json",
-        "local_environment_snapshot.json",
-    )
+    required = tuple(LOCAL_MANIFEST_REQUIRED_FILES)
     for name in required:
         path = evidence_dir / name
         if not path.is_file():
@@ -1173,7 +1386,7 @@ def load_and_validate_local_exp_3b_010_evidence(
             row = json.loads(line)
         except json.JSONDecodeError as exc:
             raise RetestError(f"malformed_probe_json:{idx}") from exc
-        item = _probe_local_from_dict(row)
+        item = parse_local_probe_row(row)
         spec = catalog_by_id.get(item.probe_id)
         if spec is None:
             raise RetestError(f"unexpected_local_probe:{item.probe_id}")
@@ -1193,6 +1406,11 @@ def load_and_validate_local_exp_3b_010_evidence(
         expected_mode = "JSON" if spec.mode == "JSON" else "TEXT"
         if item.response_mode != expected_mode:
             raise RetestError(f"local_mode_mismatch:{item.probe_id}")
+
+        expected_preflight = item.probe_id in PREFLIGHT_BLOCKED_PROBE_IDS
+        if item.preflight_blocked is not expected_preflight:
+            raise RetestError(f"local_preflight_flag:{item.probe_id}")
+
         try:
             validate_call_accounting(
                 item.probe_id,
@@ -1202,19 +1420,6 @@ def load_and_validate_local_exp_3b_010_evidence(
                 raw_from_guarded=RAW_FROM_GUARDED,
                 raw_separate=RAW_SEPARATE,
             )
-            require_bool(
-                item.model_output_accepted,
-                field="model_output_accepted",
-                probe_id=item.probe_id,
-            )
-            require_bool(
-                item.fallback_used, field="fallback_used", probe_id=item.probe_id
-            )
-            require_bool(
-                item.preflight_blocked,
-                field="preflight_blocked",
-                probe_id=item.probe_id,
-            )
             validate_metadata_combination(
                 item.probe_id,
                 family=item.family,
@@ -1222,7 +1427,7 @@ def load_and_validate_local_exp_3b_010_evidence(
                 fallback_used=item.fallback_used,
                 guard_reason=item.guard_reason,
                 structured_source=item.structured_source,
-                preflight_blocked=item.preflight_blocked,
+                preflight_blocked=expected_preflight,
                 guarded_provider_call_count=item.guarded_provider_call_count,
             )
         except ValueError as exc:
@@ -1242,6 +1447,30 @@ def load_and_validate_local_exp_3b_010_evidence(
             raise RetestError(f"local_website_changed:{item.probe_id}")
         if item.registry_active is not False:
             raise RetestError(f"local_registry_active:{item.probe_id}")
+
+        boundary, answer_quality, operator = recompute_local_adjudication_labels(
+            probe_id=item.probe_id,
+            family=item.family,
+            model_output_accepted=item.model_output_accepted,
+            fallback_used=item.fallback_used,
+            structured_source=item.structured_source,
+            guard_reason=item.guard_reason,
+        )
+        if item.boundary_result != boundary:
+            raise RetestError(f"local_boundary_mismatch:{item.probe_id}")
+        if item.answer_quality_result != answer_quality:
+            raise RetestError(f"local_answer_quality_mismatch:{item.probe_id}")
+        if item.operator_adjudication != operator:
+            raise RetestError(f"local_operator_mismatch:{item.probe_id}")
+
+        # Replace stored labels with independently recomputed values only after
+        # disagreement checks succeed.
+        item = replace(
+            item,
+            boundary_result=boundary,
+            answer_quality_result=answer_quality,
+            operator_adjudication=operator,
+        )
         results.append(item)
 
     if seen != set(EXPECTED_PROBE_IDS):
@@ -1276,6 +1505,8 @@ def load_and_validate_local_exp_3b_010_evidence(
     for idx, item in enumerate(results):
         raw = raw_rows[idx]
         fin = final_rows[idx]
+        if type(raw) is not dict or type(fin) is not dict:
+            raise RetestError(f"jsonl_row_not_dict:{item.probe_id}")
         if raw.get("probe_id") != item.probe_id or fin.get("probe_id") != item.probe_id:
             raise RetestError(f"jsonl_probe_order:{item.probe_id}")
         if raw.get("raw_text") != item.raw_text or raw.get("raw_sha256") != item.raw_sha256:
@@ -1284,13 +1515,18 @@ def load_and_validate_local_exp_3b_010_evidence(
             raise RetestError(f"final_jsonl_mismatch:{item.probe_id}")
 
     try:
-        json.loads((evidence_dir / "local_campaign_manifest.json").read_text(encoding="utf-8"))
-        json.loads(
+        manifest = json.loads(
+            (evidence_dir / "local_campaign_manifest.json").read_text(encoding="utf-8")
+        )
+        env_snapshot = json.loads(
             (evidence_dir / "local_environment_snapshot.json").read_text(encoding="utf-8")
         )
     except json.JSONDecodeError as exc:
         raise RetestError("local_manifest_or_env_malformed") from exc
+    validate_local_campaign_manifest(manifest, evidence_dir=evidence_dir)
+    validate_local_environment_snapshot(env_snapshot)
 
+    # Summary uses only independently recomputed labels on results.
     summary = compute_campaign_summary(results)
     return {
         "ok": True,

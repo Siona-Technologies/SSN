@@ -13,12 +13,23 @@ from unittest import mock
 
 from ssn.core.language_engine import LanguageEngine
 from ssn.core.llm_providers import LLMRequest, LLMResponse
+from ssn.governance.exp_3b_010_integrity import (
+    EXPECTED_PREFLIGHT_REASON,
+    PREFLIGHT_BLOCKED_PROBE_IDS,
+    PROVIDER_INVOKED_PROBE_IDS,
+    expected_boundary_answer_quality,
+    expected_full_final_text,
+)
 from ssn.governance.guarded_identity_retest import (
+    EXPECTED_MODEL_SHA256,
+    EXPECTED_MODEL_SIZE,
     EXPECTED_PROBE_IDS,
     LOCAL_EVIDENCE_DIR,
     MAX_EXCERPT_CHARS,
     RAW_FROM_GUARDED,
     RAW_SEPARATE,
+    RUNTIME_SOURCE_COMMIT,
+    RUNTIME_VERSION,
     RecordingLLMProvider,
     RetestError,
     assert_evidence_dir_outside_repo,
@@ -27,6 +38,8 @@ from ssn.governance.guarded_identity_retest import (
     canonical_json_bytes,
     compute_campaign_summary,
     load_and_validate_exp_3b_010_adjudication,
+    load_and_validate_local_exp_3b_010_evidence,
+    parse_local_probe_row,
     run_campaign,
     sanitize_excerpt,
     sha256_text,
@@ -797,10 +810,12 @@ class TestStrictIntegrity(unittest.TestCase):
                     runner._stop_llama_server(None, log_path)
 
     def test_regeneration_mode_no_network_subprocess_gguf(self) -> None:
-        import scripts.run_real_guarded_identity_retest as runner
-
+        # Hosted CI path covered by TestSyntheticLocalEvidence; keep historical
+        # operator-local check when available.
         if not LOCAL_EVIDENCE_DIR.is_dir():
             self.skipTest("operator-local EXP-3B-010 evidence not present")
+        import scripts.run_real_guarded_identity_retest as runner
+
         with mock.patch("urllib.request.urlopen") as urlopen, mock.patch(
             "subprocess.Popen"
         ) as popen, mock.patch(
@@ -833,6 +848,411 @@ class TestStrictIntegrity(unittest.TestCase):
         }
         self.assertEqual(before, after)
         self.assertEqual(len(after) * 2, 42)
+
+
+def _synthetic_probe_row(spec: Any) -> Dict[str, Any]:
+    """Deterministic mocked complete-evidence row for hosted CI."""
+    from ssn.governance.exp_3b_010_integrity import EXPECTED_PREFLIGHT_REASON
+    from ssn.governance.identity_response_guard import (
+        STRUCTURED_SOURCE_FALLBACK,
+        STRUCTURED_SOURCE_MODEL,
+    )
+
+    final_text = expected_full_final_text(spec.probe_id)
+    preflight = spec.probe_id in PREFLIGHT_BLOCKED_PROBE_IDS
+    # Match historical acceptance pattern: P1/P3 accepted; others fall back.
+    accepted = spec.probe_id in {"P1", "P3"}
+    if preflight:
+        raw_text = f"synthetic-raw-control-{spec.probe_id}"
+        raw_source = RAW_SEPARATE
+        guarded = 0
+        raw_control = 1
+        accepted = False
+        fallback = True
+        structured = ""
+        reason = EXPECTED_PREFLIGHT_REASON[spec.probe_id]
+    elif spec.family == "json":
+        raw_text = '{"subject_id":"wrong","supported_statement":"x","unsupported_claims":[]}'
+        raw_source = RAW_FROM_GUARDED
+        guarded = 1
+        raw_control = 0
+        accepted = False
+        fallback = True
+        structured = STRUCTURED_SOURCE_FALLBACK
+        reason = "structured_json_invalid"
+    else:
+        raw_source = RAW_FROM_GUARDED
+        guarded = 1
+        raw_control = 0
+        if accepted:
+            raw_text = final_text
+            fallback = False
+            structured = ""
+            reason = "model_validated"
+        else:
+            raw_text = f"synthetic-noncanonical-{spec.probe_id}"
+            fallback = True
+            structured = ""
+            reason = "model_output_not_canonical"
+
+    boundary, aq, operator = expected_boundary_answer_quality(spec.probe_id, spec.family)
+    if spec.family == "json":
+        aq = "DETERMINISTIC_GUARD_FALLBACK"
+    return {
+        "probe_id": spec.probe_id,
+        "family": spec.family,
+        "requested_subject_ids": list(spec.requested_subject_ids),
+        "included_subject_ids": list(spec.included_subject_ids),
+        "response_mode": "JSON" if spec.mode == "JSON" else "TEXT",
+        "prompt": spec.prompt,
+        "raw_source": raw_source,
+        "raw_text": raw_text,
+        "final_text": final_text,
+        "raw_sha256": sha256_text(raw_text),
+        "final_sha256": sha256_text(final_text),
+        "guarded_provider_call_count": guarded,
+        "raw_control_call_count": raw_control,
+        "model_output_accepted": accepted,
+        "fallback_used": fallback,
+        "structured_source": structured,
+        "guard_reason": reason,
+        "preflight_blocked": preflight,
+        "boundary_result": boundary,
+        "answer_quality_result": aq,
+        "operator_adjudication": operator,
+        "actual_tool_execution_count": 0,
+        "website_changed": False,
+        "registry_active": False,
+        "latency_ms": 1.0,
+        "safe_guard_metadata": {},
+    }
+
+
+def write_synthetic_local_evidence(evidence_dir: Path) -> List[Dict[str, Any]]:
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    rows = [_synthetic_probe_row(spec) for spec in build_probe_catalog()]
+    with (evidence_dir / "complete_probe_results.jsonl").open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    with (evidence_dir / "complete_raw_responses.jsonl").open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(
+                json.dumps(
+                    {
+                        "probe_id": row["probe_id"],
+                        "raw_source": row["raw_source"],
+                        "raw_text": row["raw_text"],
+                        "raw_sha256": row["raw_sha256"],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    with (evidence_dir / "complete_final_responses.jsonl").open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(
+                json.dumps(
+                    {
+                        "probe_id": row["probe_id"],
+                        "final_text": row["final_text"],
+                        "final_sha256": row["final_sha256"],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    manifest = {
+        "experiment_id": "EXP-3B-010",
+        "evidence_directory": os.fspath(evidence_dir),
+        "files": [
+            "complete_probe_results.jsonl",
+            "complete_raw_responses.jsonl",
+            "complete_final_responses.jsonl",
+            "local_campaign_manifest.json",
+            "local_environment_snapshot.json",
+        ],
+        "complete_responses_retained_locally": True,
+        "complete_responses_committed": False,
+    }
+    env = {
+        "endpoint": "http://127.0.0.1:8080",
+        "model_id_present": True,
+        "model_size": EXPECTED_MODEL_SIZE,
+        "model_sha256": EXPECTED_MODEL_SHA256,
+        "runtime_version": RUNTIME_VERSION,
+        "runtime_source_commit": RUNTIME_SOURCE_COMMIT,
+        "ssn_offline": "1",
+        "max_tokens_cap": "128",
+        "server_model_id_independent_expected_match_verified": False,
+        "model_artifact_size_sha256_verified": True,
+    }
+    (evidence_dir / "local_campaign_manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    (evidence_dir / "local_environment_snapshot.json").write_text(
+        json.dumps(env, indent=2) + "\n", encoding="utf-8"
+    )
+    return rows
+
+
+class TestSyntheticLocalEvidence(unittest.TestCase):
+    """Hosted-CI coverage for strict local parsing and regeneration."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.evidence_dir = Path(self._tmpdir.name) / "EXP-3B-010"
+        self.rows = write_synthetic_local_evidence(self.evidence_dir)
+
+    def tearDown(self) -> None:
+        self._tmpdir.cleanup()
+
+    def _mutate_probe(self, probe_id: str, **fields: Any) -> None:
+        path = self.evidence_dir / "complete_probe_results.jsonl"
+        updated = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row["probe_id"] == probe_id:
+                row.update(fields)
+            updated.append(row)
+        path.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in updated),
+            encoding="utf-8",
+        )
+
+    def _mutate_manifest(self, **fields: Any) -> None:
+        path = self.evidence_dir / "local_campaign_manifest.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data.update(fields)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    def _mutate_env(self, **fields: Any) -> None:
+        path = self.evidence_dir / "local_environment_snapshot.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data.update(fields)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    def test_synthetic_fixture_validates(self) -> None:
+        out = load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["raw_hash_count"], 21)
+        self.assertEqual(out["final_hash_count"], 21)
+        self.assertTrue(out["guarded_campaign_acceptance_met"])
+        self.assertFalse(out["pinned_baseline_model_native_json_verified"])
+        self.assertEqual(out["summary"]["guarded_model_output_accepted_count"], 2)
+        self.assertEqual(out["summary"]["guarded_deterministic_fallback_count"], 19)
+        self.assertEqual(out["summary"]["guarded_json_model_validated_count"], 0)
+        self.assertEqual(out["summary"]["guarded_json_fallback_count"], 6)
+
+    def test_bool_guarded_call_count_rejected(self) -> None:
+        self._mutate_probe("P1", guarded_provider_call_count=True)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_string_guarded_call_count_rejected(self) -> None:
+        self._mutate_probe("P1", guarded_provider_call_count="1")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_string_boolean_rejected(self) -> None:
+        self._mutate_probe("P1", model_output_accepted="false")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_int_website_changed_rejected(self) -> None:
+        self._mutate_probe("P1", website_changed=0)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_null_registry_active_rejected(self) -> None:
+        self._mutate_probe("P1", registry_active=None)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_subject_ids_string_rejected(self) -> None:
+        self._mutate_probe("P1", requested_subject_ids="product:siona")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_list_subclass_rejected(self) -> None:
+        class MyList(list):
+            pass
+
+        with self.assertRaises(RetestError):
+            parse_local_probe_row(
+                {
+                    **self.rows[0],
+                    "requested_subject_ids": MyList(["product:siona"]),
+                }
+            )
+
+    def test_non_string_subject_id_rejected(self) -> None:
+        self._mutate_probe("P1", requested_subject_ids=[123])
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_negative_latency_rejected(self) -> None:
+        self._mutate_probe("P1", latency_ms=-1.0)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_boolean_latency_rejected(self) -> None:
+        self._mutate_probe("P1", latency_ms=True)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_nan_latency_rejected(self) -> None:
+        self._mutate_probe("P1", latency_ms=float("nan"))
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_infinity_latency_rejected(self) -> None:
+        self._mutate_probe("P1", latency_ms=float("inf"))
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_boundary_rejected(self) -> None:
+        self._mutate_probe("P1", boundary_result="WRONG")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_answer_quality_rejected(self) -> None:
+        self._mutate_probe("P1", answer_quality_result="WRONG")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_operator_pass_override_rejected(self) -> None:
+        # Force metadata that recomputes as PASS labels but claim FAIL then
+        # flip to PASS with wrong final — use wrong operator vs recomputed.
+        self._mutate_probe("S1", operator_adjudication="FAIL")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_operator_fail_override_rejected(self) -> None:
+        self._mutate_probe("P1", operator_adjudication="FAIL")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_manifest_experiment_id(self) -> None:
+        self._mutate_manifest(experiment_id="EXP-WRONG")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_missing_manifest_file_declaration(self) -> None:
+        self._mutate_manifest(
+            files=[
+                "complete_probe_results.jsonl",
+                "complete_raw_responses.jsonl",
+                "complete_final_responses.jsonl",
+                "local_campaign_manifest.json",
+            ]
+        )
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_env_model_size(self) -> None:
+        self._mutate_env(model_size=1)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_env_model_sha(self) -> None:
+        self._mutate_env(model_sha256="00" * 32)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_wrong_token_cap(self) -> None:
+        self._mutate_env(max_tokens_cap="129")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_independent_server_id_true_rejected(self) -> None:
+        self._mutate_env(server_model_id_independent_expected_match_verified=True)
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_missing_complete_raw_response(self) -> None:
+        path = self.evidence_dir / "complete_raw_responses.jsonl"
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_missing_complete_final_response(self) -> None:
+        path = self.evidence_dir / "complete_final_responses.jsonl"
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        path.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_raw_full_result_mismatch(self) -> None:
+        path = self.evidence_dir / "complete_raw_responses.jsonl"
+        rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        rows[0]["raw_text"] = "tampered-raw"
+        path.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+            encoding="utf-8",
+        )
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_final_full_result_mismatch(self) -> None:
+        path = self.evidence_dir / "complete_final_responses.jsonl"
+        rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        rows[0]["final_text"] = "tampered-final"
+        path.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+            encoding="utf-8",
+        )
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_safe_guard_metadata_list_rejected(self) -> None:
+        self._mutate_probe("P1", safe_guard_metadata=[])
+        with self.assertRaises(RetestError):
+            load_and_validate_local_exp_3b_010_evidence(self.evidence_dir)
+
+    def test_synthetic_regeneration_no_network_subprocess_gguf(self) -> None:
+        import scripts.run_real_guarded_identity_retest as runner
+
+        with tempfile.TemporaryDirectory() as out_td:
+            out_dir = Path(out_td)
+            with mock.patch("urllib.request.urlopen") as urlopen, mock.patch(
+                "subprocess.Popen"
+            ) as popen, mock.patch(
+                "ssn.governance.guarded_identity_retest.verify_model_artifact"
+            ) as verify_model, mock.patch(
+                "ssn.governance.guarded_identity_retest.sha256_file"
+            ) as sha_file:
+                code = runner.regenerate_committed_evidence_from_local(
+                    evidence_dir=self.evidence_dir,
+                    committed_dir=out_dir,
+                    print_output=False,
+                )
+                self.assertEqual(code, 0)
+                urlopen.assert_not_called()
+                popen.assert_not_called()
+                verify_model.assert_not_called()
+                sha_file.assert_not_called()
+
+            adj = json.loads((out_dir / "EXP-3B-010_ADJUDICATION.json").read_text(encoding="utf-8"))
+            summary = json.loads((out_dir / "EXP-3B-010_SUMMARY.json").read_text(encoding="utf-8"))
+            manifest = json.loads(
+                (out_dir / "EXP-3B-010_EVIDENCE_MANIFEST.json").read_text(encoding="utf-8")
+            )
+            load_and_validate_exp_3b_010_adjudication(
+                adj, manifest=manifest, summary=summary
+            )
+            before = {
+                r["probe_id"]: (r["raw_sha256"], r["final_sha256"]) for r in self.rows
+            }
+            after = {
+                p["probe_id"]: (p["raw_sha256"], p["final_sha256"]) for p in adj["probes"]
+            }
+            self.assertEqual(before, after)
+            self.assertEqual(len(after) * 2, 42)
+            # Must not write into repository docs/evidence from this test path.
+            self.assertTrue(str(out_dir).startswith(tempfile.gettempdir()) or out_dir.is_absolute())
 
 
 if __name__ == "__main__":

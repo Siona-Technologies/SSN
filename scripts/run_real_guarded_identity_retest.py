@@ -219,8 +219,10 @@ def _write_committed_evidence(
     summary: Dict[str, Any],
     *,
     timestamp_utc: Optional[str] = None,
+    committed_dir: Optional[Path] = None,
 ) -> Dict[str, str]:
-    COMMITTED_EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(committed_dir) if committed_dir is not None else COMMITTED_EVIDENCE_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
     ts = timestamp_utc or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     adjudication = build_committed_adjudication(results, summary, timestamp_utc=ts)
     summary_doc = dict(summary)
@@ -268,9 +270,9 @@ def _write_committed_evidence(
     manifest_canonical_sha256 = canonical_object_sha256(manifest)
 
     paths = {
-        "adjudication": COMMITTED_EVIDENCE_DIR / "EXP-3B-010_ADJUDICATION.json",
-        "summary": COMMITTED_EVIDENCE_DIR / "EXP-3B-010_SUMMARY.json",
-        "manifest": COMMITTED_EVIDENCE_DIR / "EXP-3B-010_EVIDENCE_MANIFEST.json",
+        "adjudication": out_dir / "EXP-3B-010_ADJUDICATION.json",
+        "summary": out_dir / "EXP-3B-010_SUMMARY.json",
+        "manifest": out_dir / "EXP-3B-010_EVIDENCE_MANIFEST.json",
     }
     paths["adjudication"].write_text(
         json.dumps(adjudication, indent=2, ensure_ascii=False) + "\n",
@@ -296,16 +298,22 @@ def _write_committed_evidence(
     }
 
 
-def regenerate_committed_evidence_from_local() -> int:
+def regenerate_committed_evidence_from_local(
+    evidence_dir: Optional[Path] = None,
+    committed_dir: Optional[Path] = None,
+    *,
+    print_output: bool = True,
+) -> int:
     """Offline regeneration — no network, subprocess, or GGUF access."""
     validate_probe_catalog(build_probe_catalog())
-    local = load_and_validate_local_exp_3b_010_evidence(LOCAL_EVIDENCE_DIR)
+    src = Path(evidence_dir) if evidence_dir is not None else LOCAL_EVIDENCE_DIR
+    local = load_and_validate_local_exp_3b_010_evidence(src)
     results = local["results"]
-    summary = compute_campaign_summary(results)
+    # Labels already independently recomputed; summary from those labels.
+    summary = local["summary"]
 
-    # Preserve historical campaign timestamp when present locally.
     timestamp_utc = "2026-08-06T12:33:22Z"
-    summary_path = LOCAL_EVIDENCE_DIR / "campaign_summary_latest.json"
+    summary_path = src / "campaign_summary_latest.json"
     if summary_path.is_file():
         try:
             prior = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -315,7 +323,10 @@ def regenerate_committed_evidence_from_local() -> int:
             pass
 
     hashes = _write_committed_evidence(
-        results, summary, timestamp_utc=timestamp_utc
+        results,
+        summary,
+        timestamp_utc=timestamp_utc,
+        committed_dir=committed_dir,
     )
     out = {
         "mode": "regenerate_committed_evidence_from_local",
@@ -329,7 +340,8 @@ def regenerate_committed_evidence_from_local() -> int:
         "preserved_final_hashes": 21,
         **hashes,
     }
-    print(json.dumps(out, indent=2, ensure_ascii=False))
+    if print_output:
+        print(json.dumps(out, indent=2, ensure_ascii=False))
     return 0 if summary["guarded_campaign_acceptance_met"] else 2
 
 

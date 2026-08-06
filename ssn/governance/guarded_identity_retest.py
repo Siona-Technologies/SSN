@@ -65,6 +65,7 @@ RUNTIME_EXE = RUNTIME_DIR / "llama-server.exe"
 MODEL_PATH = Path(
     r"C:\Users\njaji\SIONA\models\Qwen3-1.7B-Q4_K_M\Qwen3-1.7B-Q4_K_M.gguf"
 )
+MODEL_FILENAME = "Qwen3-1.7B-Q4_K_M.gguf"
 EXPECTED_MODEL_SIZE = 1282439264
 EXPECTED_MODEL_SHA256 = (
     "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5"

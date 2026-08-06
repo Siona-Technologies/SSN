@@ -41,6 +41,7 @@ from ssn.governance.guarded_identity_retest import (
     EXPERIMENT_ID,
     LOCAL_EVIDENCE_DIR,
     MAX_OUTPUT_TOKENS,
+    MODEL_FILENAME,
     MODEL_PATH,
     REQUIRED_ENV,
     RUNTIME_DIR,
@@ -229,7 +230,7 @@ def _write_committed_evidence(
     summary_doc["timestamp_utc"] = ts
     summary_doc["runtime_version"] = RUNTIME_VERSION
     summary_doc["runtime_source_commit"] = RUNTIME_SOURCE_COMMIT
-    summary_doc["model_filename"] = MODEL_PATH.name
+    summary_doc["model_filename"] = MODEL_FILENAME
     summary_doc["model_size"] = EXPECTED_MODEL_SIZE
     summary_doc["model_sha256"] = EXPECTED_MODEL_SHA256
     summary_doc["server_model_id_count_validated"] = True

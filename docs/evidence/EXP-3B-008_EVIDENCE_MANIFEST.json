@@ -1,0 +1,28 @@
+{
+  "experiment_id": "EXP-3B-008",
+  "evidence_directory": "C:\\Users\\njaji\\SIONA\\reports\\EXP-3B-008",
+  "note": "Raw response files remain outside Git. Only metadata and hashes are committed.",
+  "files": [
+    {
+      "filename": "raw_probe_responses_20260806T092822Z.json",
+      "byte_size": 11358,
+      "sha256": "e246e3d25ce701340c3d4bb4954aeead6f39452ef6e1a41c97a1ee67d75764f2",
+      "modified_timestamp": "2026-08-06T09:28:22Z"
+    },
+    {
+      "filename": "campaign_summary_20260806T092822Z.json",
+      "byte_size": 26744,
+      "sha256": "ce9aa9c454688d792096cf5448e10b1948b89a5c496a7839dd8b01fa28317622",
+      "modified_timestamp": "2026-08-06T09:28:22Z"
+    },
+    {
+      "filename": "campaign_summary_latest.json",
+      "byte_size": 26744,
+      "sha256": "ce9aa9c454688d792096cf5448e10b1948b89a5c496a7839dd8b01fa28317622",
+      "modified_timestamp": "2026-08-06T09:28:22Z",
+      "note": "duplicate of campaign_summary_20260806T092822Z at time of adjudication"
+    }
+  ],
+  "primary_raw_evidence_sha256": "e246e3d25ce701340c3d4bb4954aeead6f39452ef6e1a41c97a1ee67d75764f2",
+  "primary_summary_sha256": "ce9aa9c454688d792096cf5448e10b1948b89a5c496a7839dd8b01fa28317622"
+}

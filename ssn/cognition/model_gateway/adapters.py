@@ -131,6 +131,12 @@ class ModelGatewayAsLLMProvider:
             "engine": resp.meta.get("engine", resp.provider or self.name),
             "fallback_used": resp.fallback_used,
             "fallback_reason": resp.fallback_reason,
+            "provider_tool_call_count": len(resp.tool_calls),
+            "provider_tool_calls_present": bool(resp.tool_calls),
+            "prompt_tokens": int(resp.usage.prompt_tokens),
+            "completion_tokens": int(resp.usage.completion_tokens),
+            "total_tokens": int(resp.usage.total_tokens),
+            "structured_present": resp.structured is not None,
         }
         return LLMResponse(text=resp.text, meta=meta)
 

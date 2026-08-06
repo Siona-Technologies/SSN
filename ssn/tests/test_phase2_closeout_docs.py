@@ -129,10 +129,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("NO REGISTRY ACTIVATION", experiment)
         self.assertIn("EXP-3B-008", experiment)
         self.assertIn(
-            "CONTROLLED REAL LOCAL-MODEL GOVERNED-IDENTITY CAMPAIGN EXECUTED",
+            "CAMPAIGN ACCEPTANCE WAS NOT MET",
             experiment,
         )
-        self.assertIn("RUNTIME SHUT DOWN AFTER TESTING", experiment)
+        self.assertIn("RUNTIME WAS SHUT DOWN AFTER TESTING", experiment)
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
         self.assertIn("siona_generate", gateway)
         self.assertIn("openai_chat", gateway)

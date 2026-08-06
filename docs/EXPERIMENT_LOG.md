@@ -433,7 +433,7 @@ Evidence:
   GovernedContextAssembler integration for PUBLIC_RESPONSE guest path
   decide_public / decide_model_prompt permit; decide_training denies
   PUBLIC_WEBSITE not in intended uses; personal contact markers excluded
-  Focused suite 99 pass; full offline suite 526 pass, 4 skipped
+  Focused suite 99 pass; full offline suite 550 pass, 4 skipped
   No network/subprocess/llama.cpp/GGUF in focused tests
   No ssn/data or world_model.json mutation
 Outstanding: real local-model identity campaign; model registry activation;

@@ -22,6 +22,8 @@ from ssn.core.llm_providers import (
     LocalDummyLLMProvider,
 )
 
+_USAGE_UNAVAILABLE = "UNAVAILABLE_IN_ORIGINAL_RUN"
+
 
 class LegacyLLMProviderAdapter:
     """
@@ -87,6 +89,57 @@ class LegacyLLMProviderAdapter:
             },
         )
 
+
+def _safe_tool_observability(resp: ModelResponse) -> Dict[str, Any]:
+    meta = dict(resp.meta or {})
+    observed_count = meta.get("provider_tool_calls_observed_count")
+    if observed_count is not None:
+        try:
+            count = int(observed_count)
+        except (TypeError, ValueError):
+            count = len(resp.tool_calls)
+        return {
+            "provider_tool_call_count": count,
+            "provider_tool_calls_present": bool(
+                meta.get("provider_tool_calls_observed", count > 0)
+            ),
+            "provider_tool_calls_ignored": bool(
+                meta.get("provider_tool_calls_ignored", count > 0)
+            ),
+        }
+    count = len(resp.tool_calls)
+    return {
+        "provider_tool_call_count": count,
+        "provider_tool_calls_present": bool(resp.tool_calls),
+        "provider_tool_calls_ignored": False,
+    }
+
+
+def _safe_usage_observability(resp: ModelResponse) -> Dict[str, Any]:
+    meta = dict(resp.meta or {})
+    reported = meta.get("provider_usage_reported")
+    if reported is True:
+        return {
+            "prompt_tokens": int(resp.usage.prompt_tokens),
+            "completion_tokens": int(resp.usage.completion_tokens),
+            "total_tokens": int(resp.usage.total_tokens),
+            "provider_usage_reported": True,
+        }
+    if reported is False:
+        return {
+            "prompt_tokens": _USAGE_UNAVAILABLE,
+            "completion_tokens": _USAGE_UNAVAILABLE,
+            "total_tokens": _USAGE_UNAVAILABLE,
+            "provider_usage_reported": False,
+        }
+    return {
+        "prompt_tokens": int(resp.usage.prompt_tokens),
+        "completion_tokens": int(resp.usage.completion_tokens),
+        "total_tokens": int(resp.usage.total_tokens),
+        "provider_usage_reported": meta.get("provider_usage_reported"),
+    }
+
+
 class ModelGatewayAsLLMProvider:
     """
     Exposes a ModelGateway (or any ModelProvider) as a legacy LLMProvider
@@ -124,6 +177,8 @@ class ModelGatewayAsLLMProvider:
         else:
             resp = self._provider.generate(model_req)
 
+        tool_meta = _safe_tool_observability(resp)
+        usage_meta = _safe_usage_observability(resp)
         meta = {
             **dict(resp.meta),
             "role": resp.meta.get("role", request.role or "GUEST"),
@@ -131,6 +186,9 @@ class ModelGatewayAsLLMProvider:
             "engine": resp.meta.get("engine", resp.provider or self.name),
             "fallback_used": resp.fallback_used,
             "fallback_reason": resp.fallback_reason,
+            **tool_meta,
+            **usage_meta,
+            "structured_present": resp.structured is not None,
         }
         return LLMResponse(text=resp.text, meta=meta)
 

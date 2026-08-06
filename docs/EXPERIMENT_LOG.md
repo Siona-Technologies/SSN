@@ -448,3 +448,49 @@ Artifact references: docs/SIONA_APPROVED_IDENTITY_REGISTRY.md,
                       ssn/tests/test_approved_identity_registry.py
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_approved_identity_registry
 ```
+
+### EXP-3B-008 — Controlled real-Qwen governed identity campaign
+
+```text
+Experiment ID: EXP-3B-008
+Date: 2026-08-06
+Git commit: (feat/real-qwen-governed-identity-campaign tip)
+Runtime mode: temporary loopback llama.cpp b9968 + Qwen3-1.7B-Q4_K_M
+Dataset: 26 governed identity probes via scripts/run_real_governed_identity_campaign.py
+Model/provider: pinned local open-weight Qwen baseline; openai_chat dialect
+Neuromorphic backend: n/a
+Hardware: Intel i7-1165G7, CPU-only (ngl=0)
+Configuration:
+  SSN_ALLOW_REAL_MODEL_CAMPAIGN=1, SSN_GOVERNED_CONTEXT=1
+  explicit ApprovedIdentityRegistry selection + GovernedContextInput only
+  loopback http://127.0.0.1:8080; max_tokens_cap=128; reasoning off
+Metrics: per-probe latency; classifications; used_context; fallback flags
+Result: CONTROLLED REAL LOCAL-MODEL GOVERNED-IDENTITY CAMPAIGN EXECUTED AGAINST
+        THE PINNED QWEN3-1.7B BASELINE. POSITIVE IDENTITY GROUNDING WAS OBSERVED IN
+        THE CAPTURED SANITIZED RESPONSE EXCERPTS, BUT CAMPAIGN ACCEPTANCE WAS NOT MET.
+        SELECTION-BOUNDARY, CONTRADICTION, CONTEXT-DISCLOSURE,
+        UNSUPPORTED-FABRICATION, ACTION-NARRATIVE AND STRUCTURED-JSON FAILURES WERE
+        OBSERVED. COMPLETE MODEL RESPONSES WERE NOT RETAINED, SO ADJUDICATION IS
+        LIMITED TO CAPTURED EXCERPTS AND RECORDED METADATA. THREE APPROVED RECORDS
+        WERE SUPPLIED ONLY THROUGH EXPLICIT GOVERNED RETRIEVAL. NO AUTOMATIC MODEL
+        INJECTION, MODEL TRAINING, EMBEDDINGS, MODEL-REGISTRY ACTIVATION OR TOOL
+        EXECUTION OCCURRED. RUNTIME WAS SHUT DOWN AFTER TESTING.
+Evidence:
+  scripts/run_real_governed_identity_campaign.py
+  ssn/governance/identity_campaign.py
+  docs/evidence/EXP-3B-008_ADJUDICATION.json (operator-reviewed, excerpts only)
+  docs/evidence/EXP-3B-008_EVIDENCE_MANIFEST.json (hashes; sanitized excerpts)
+  Local evidence: C:\Users\njaji\SIONA\reports\EXP-3B-008 (unchanged; not in Git)
+  Evidence type: SANITIZED_TRUNCATED_RESPONSE_EXCERPTS (240-char max per probe)
+  Final adjudication: positive 8/8 excerpts; selection 3/4; unsupported 5/6;
+    instruction 0/4; no-context injection 3/0; no-context answer quality 2/1 (N2)
+  N2 passed injection boundary but fabricated profile in captured excerpt
+  Provider tool-call count NOT_CAPTURED_IN_ORIGINAL_RUN; token usage UNAVAILABLE
+  Actual tool executions: 0; website unchanged
+  Shutdown: force stop after graceful wait; post-shutdown deterministic fallback OK
+Outstanding: Gate E breadth; structured JSON verification; instruction hardening;
+             model registry activation; ADR 0003 acceptance; Phase 3B completion
+Limitations: single campaign session; STRUCTURED JSON UNVERIFIED; not production ready
+Artifact references: docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
+Reproduction command: operator starts llama-server then python scripts/run_real_governed_identity_campaign.py
+```

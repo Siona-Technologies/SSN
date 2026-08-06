@@ -1,9 +1,20 @@
 # SIONA Governed Prompt-Context Bridge
 
-**Status:** IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY; NO ACTIVE PERSONAL RECORDS; NO MODEL TRAINING; NO REGISTRY ACTIVATION; REAL LOCAL-MODEL CONTEXT CAMPAIGN NOT STARTED.
+**Status:** IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY; NO ACTIVE PERSONAL RECORDS; NO MODEL TRAINING; NO REGISTRY ACTIVATION.
 
-**Experiment:** EXP-3B-006  
+**Experiment:** EXP-3B-006 (prompt-context bridge). Response-side hardening is
+EXP-3B-009 — see [SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md](SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md).
+
 **Feature flag:** `SSN_GOVERNED_CONTEXT` (default `0` / disabled)
+
+## Distinction
+
+| Shape | Behaviour |
+|-------|-----------|
+| `GovernedContextInput` without `response_contract` | Prompt-context assembly only (this document) |
+| `GovernedContextInput` with `GovernedIdentityResponseContract` | Strict identity response guard (EXP-3B-009) |
+
+The response contract is never exposed to the model provider.
 
 ## Purpose
 

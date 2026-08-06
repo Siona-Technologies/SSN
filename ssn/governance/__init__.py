@@ -56,6 +56,11 @@ from ssn.governance.runtime_context import (
     is_governed_context_enabled,
     prepare_llm_request,
 )
+from ssn.governance.identity_response_guard import (
+    GovernedIdentityResponseContract,
+    GovernedResponseMode,
+    IdentityGuardResult,
+)
 
 __all__ = [
     "AllowedUse",
@@ -70,7 +75,10 @@ __all__ = [
     "GovernedContextInput",
     "GovernedContextLLMProvider",
     "GovernedContextResult",
+    "GovernedIdentityResponseContract",
+    "GovernedResponseMode",
     "IdentityFactRecord",
+    "IdentityGuardResult",
     "InformationClass",
     "PolicyContext",
     "PolicyDecision",

@@ -91,6 +91,7 @@ class GovernedContextInput:
     audience: ContextAudience
     consents: Tuple[ConsentRecord, ...] = ()
     request_id: str = ""
+    response_contract: Optional[Any] = None
 
 
 @dataclass(frozen=True)
@@ -409,6 +410,14 @@ def _coerce_input(raw: Any) -> Tuple[Optional[GovernedContextInput], str, Option
 
     request_id = _normalize_request_id(raw.get("request_id", ""))
     records_container: RecordsContainer = records_raw  # tuple or list reference only
+    response_contract = raw.get("response_contract", None)
+    if response_contract is not None:
+        from ssn.governance.identity_response_guard import (
+            GovernedIdentityResponseContract,
+        )
+
+        if type(response_contract) is not GovernedIdentityResponseContract:
+            return None, "deny_malformed_response_contract", candidate_count
     return (
         GovernedContextInput(
             records=records_container,
@@ -416,6 +425,7 @@ def _coerce_input(raw: Any) -> Tuple[Optional[GovernedContextInput], str, Option
             audience=audience,
             consents=consents_t,  # type: ignore[arg-type]
             request_id=request_id,
+            response_contract=response_contract,
         ),
         "ok",
         candidate_count,
@@ -887,12 +897,40 @@ def prepare_llm_request(
     )
 
 
+def _serialize_identity_response_line(record: IdentityFactRecord) -> str:
+    """Model-visible line without approval/classification metadata."""
+    subject = _sanitize_field_text(record.subject, max_len=MAX_SUBJECT_CHARS)
+    statement = _sanitize_field_text(record.statement, max_len=MAX_STATEMENT_CHARS)
+    payload = {
+        "statement": statement,
+        "subject": subject,
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def build_identity_response_prompt(
+    user_prompt: str,
+    included_records: Sequence[IdentityFactRecord],
+) -> str:
+    """Bounded rules + record statements, separate from approval metadata."""
+    from ssn.governance.identity_response_guard import IDENTITY_RESPONSE_RULES
+
+    lines = [_serialize_identity_response_line(record) for record in included_records]
+    if lines:
+        body = "\n".join(lines)
+        block = f"{_CONTEXT_PREAMBLE}\n\n{body}\n\n{_CONTEXT_END}"
+        return f"{IDENTITY_RESPONSE_RULES}\n\n{block}\n\n{user_prompt}"
+    return f"{IDENTITY_RESPONSE_RULES}\n\n{user_prompt}"
+
+
 class GovernedContextLLMProvider:
     """
     Provider wrapper: assemble governed context once, then delegate.
 
     Local / remote providers never make governance decisions and never see
     PolicyContext, ConsentRecord, or raw IdentityFactRecord objects.
+    When an explicit GovernedIdentityResponseContract is supplied for
+    PUBLIC_RESPONSE, the identity response guard runs (preflight + validate).
     """
 
     def __init__(
@@ -903,6 +941,17 @@ class GovernedContextLLMProvider:
         self.name = getattr(inner, "name", "ssn-llm-unknown")
 
     def generate(self, request: LLMRequest) -> LLMResponse:
+        raw_input = None
+        if request.context and GOVERNED_INPUT_KEY in request.context:
+            raw_input = request.context.get(GOVERNED_INPUT_KEY)
+
+        contract = None
+        if isinstance(raw_input, GovernedContextInput):
+            contract = raw_input.response_contract
+
+        if contract is not None:
+            return self._generate_with_identity_guard(request, raw_input)
+
         prepared, diag, applied = prepare_llm_request(
             request, assembler=self._assembler
         )
@@ -922,3 +971,121 @@ class GovernedContextLLMProvider:
         if diag is not None:
             meta[GOVERNED_RESULT_META_KEY] = diag
         return LLMResponse(text=resp.text, meta=meta)
+
+    def _generate_with_identity_guard(
+        self,
+        request: LLMRequest,
+        raw_input: GovernedContextInput,
+    ) -> LLMResponse:
+        from ssn.governance.identity_response_guard import (
+            GovernedIdentityContractError,
+            GovernedIdentityResponseContract,
+            apply_identity_guard_flow,
+            included_records_by_subject,
+            safe_guard_metadata,
+            validate_response_contract,
+        )
+
+        if not is_governed_context_enabled():
+            # Feature off: ignore contract, preserve legacy path.
+            prepared, diag, applied = prepare_llm_request(
+                request, assembler=self._assembler
+            )
+            resp = self._inner.generate(prepared)
+            if not applied:
+                return resp
+            meta = dict(resp.meta or {})
+            meta["used_context"] = bool(meta.get("used_context", bool(prepared.context)))
+            if diag is not None:
+                meta[GOVERNED_RESULT_META_KEY] = diag
+            return LLMResponse(text=resp.text, meta=meta)
+
+        if raw_input.audience is not ContextAudience.PUBLIC_RESPONSE:
+            prepared, diag, applied = prepare_llm_request(
+                request, assembler=self._assembler
+            )
+            resp = self._inner.generate(prepared)
+            meta = dict(resp.meta or {})
+            if applied and diag is not None:
+                meta[GOVERNED_RESULT_META_KEY] = diag
+                meta["used_context"] = bool(
+                    meta.get("used_context", False)
+                ) or bool(diag.get("has_context_block"))
+            return LLMResponse(text=resp.text, meta=meta)
+
+        try:
+            contract = validate_response_contract(
+                raw_input.response_contract, public_identity_mode=True
+            )
+        except GovernedIdentityContractError as exc:
+            meta = {
+                "used_context": False,
+                "governed_identity_guard_applied": True,
+                "governed_identity_fallback_used": True,
+                "governed_identity_reason": str(exc)[:96],
+                "governed_identity_model_inference_count": 0,
+            }
+            return LLMResponse(
+                text=(
+                    "The approved information supplied for this request does not "
+                    "contain that information."
+                ),
+                meta=meta,
+            )
+
+        # Assemble without exposing the response contract to the provider.
+        stripped_input = GovernedContextInput(
+            records=raw_input.records,
+            policy_context=raw_input.policy_context,
+            audience=raw_input.audience,
+            consents=raw_input.consents,
+            request_id=raw_input.request_id,
+            response_contract=None,
+        )
+        ctx = dict(request.context) if request.context else {}
+        ctx[GOVERNED_INPUT_KEY] = stripped_input
+        assembly_req = LLMRequest(
+            prompt=request.prompt, role=request.role, context=ctx
+        )
+        prepared, diag, applied = prepare_llm_request(
+            assembly_req, assembler=self._assembler
+        )
+        included_ids = list((diag or {}).get("included_ids") or [])
+        included = included_records_by_subject(raw_input.records, included_ids)
+
+        # Rebuild provider prompt with identity rules and classification-free lines.
+        identity_prompt = build_identity_response_prompt(request.prompt, included)
+        provider_req = LLMRequest(
+            prompt=identity_prompt,
+            role=request.role,
+            context=prepared.context,
+        )
+
+        called = {"n": 0}
+
+        def _call_model() -> str:
+            called["n"] += 1
+            resp = self._inner.generate(provider_req)
+            return str(resp.text or "")
+
+        result = apply_identity_guard_flow(
+            user_prompt=request.prompt,
+            contract=contract,
+            included=included,
+            call_model=_call_model,
+        )
+
+        meta: Dict[str, Any] = {}
+        if diag is not None:
+            meta[GOVERNED_RESULT_META_KEY] = diag
+        meta["used_context"] = bool(diag and diag.get("has_context_block"))
+        meta.update(safe_guard_metadata(result))
+        if result.structured is not None:
+            meta["structured_present"] = True
+            meta["model_structured_output_accepted"] = bool(
+                result.model_output_accepted
+            )
+            meta["structured_source"] = result.structured_source
+        # Ensure inference count matches actual calls (preflight may skip).
+        meta["governed_identity_model_inference_count"] = int(called["n"])
+        return LLMResponse(text=result.final_text, meta=meta)

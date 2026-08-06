@@ -67,3 +67,11 @@ captured excerpts and metadata.
 - This is not Gate E completion or production readiness
 
 Phase 3B **in progress**. ADR 0003 **Proposed**. Phase 4 **not started**.
+
+## Follow-up (EXP-3B-009)
+
+Offline deterministic identity response hardening covers the historical
+EXP-3B-008 failure classes with mocked providers
+([SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md](SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md)).
+That work does **not** claim EXP-3B-008 acceptance passed or that Qwen itself
+was fixed. A separately controlled real-Qwen retest remains outstanding.

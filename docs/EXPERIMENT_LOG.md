@@ -488,9 +488,50 @@ Evidence:
   Provider tool-call count NOT_CAPTURED_IN_ORIGINAL_RUN; token usage UNAVAILABLE
   Actual tool executions: 0; website unchanged
   Shutdown: force stop after graceful wait; post-shutdown deterministic fallback OK
-Outstanding: Gate E breadth; structured JSON verification; instruction hardening;
-             model registry activation; ADR 0003 acceptance; Phase 3B completion
+Outstanding: Gate E breadth; structured JSON verification; real-Qwen retest of
+             hardened guard; model registry activation; ADR 0003 acceptance;
+             Phase 3B completion
 Limitations: single campaign session; STRUCTURED JSON UNVERIFIED; not production ready
 Artifact references: docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
 Reproduction command: operator starts llama-server then python scripts/run_real_governed_identity_campaign.py
+```
+
+### EXP-3B-009 — Deterministic governed identity response hardening
+
+```text
+Experiment ID: EXP-3B-009
+Date: 2026-08-06
+Git commit: (feat/governed-identity-response-hardening tip)
+Runtime mode: offline deterministic / mock validation only
+Dataset: synthetic replay of EXP-3B-008 failure classes (mocked providers)
+Model/provider: scripted LocalDummy / mock LLMProvider only; no GGUF load
+Neuromorphic backend: n/a
+Hardware: n/a (no local model started)
+Configuration:
+  SSN_OFFLINE=1
+  SSN_GOVERNED_CONTEXT=1 for guarded path tests
+  Explicit GovernedIdentityResponseContract + GovernedContextInput only
+Metrics: none (no live inference campaign)
+Result: IMPLEMENTED AND VALIDATED OFFLINE — EXPLICIT GOVERNED IDENTITY RESPONSE
+        CONTRACT, PRE-PROVIDER SAFETY DECISIONS, POST-PROVIDER GROUNDING
+        VALIDATION AND DETERMINISTIC TEXT/JSON FALLBACK ADDED. THE HISTORICAL
+        EXP-3B-008 FAILURE CLASSES ARE COVERED BY MOCKED DETERMINISTIC TESTS.
+        NO REAL MODEL WAS STARTED OR RERUN. MODEL-NATIVE STRUCTURED JSON REMAINS
+        UNVERIFIED. NO MODEL TRAINING, ADAPTER TRAINING, EMBEDDINGS, MODEL-WEIGHT
+        CHANGES OR MODEL-REGISTRY ACTIVATION OCCURRED.
+Evidence:
+  ssn/governance/identity_response_guard.py
+  docs/SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md
+  ssn/tests/test_governed_identity_response_guard.py
+  Additive GovernedContextInput.response_contract; max 1 model inference
+  Preflight blocks disclosure/action/private/missing-subject with 0 inferences
+  Deterministic JSON schema fallback marks MODEL-NATIVE JSON UNVERIFIED
+Outstanding: real-Qwen retest under guard; model registry activation; Gate E;
+             ADR 0003 acceptance; Phase 3B completion
+Limitations: offline mocks only; does not claim EXP-3B-008 acceptance passed;
+             does not claim Qwen itself was fixed; not production ready
+Artifact references: docs/SIONA_GOVERNED_IDENTITY_RESPONSE_GUARD.md,
+                      docs/SIONA_GOVERNED_PROMPT_CONTEXT.md,
+                      docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_identity_response_guard
 ```

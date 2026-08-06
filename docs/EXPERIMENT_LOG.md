@@ -408,7 +408,7 @@ Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_governed_r
 ```text
 Experiment ID: EXP-3B-007
 Date: 2026-08-06
-Git commit: a2476fcc126793fce0cb82f345e24a0f7b368ce6
+Git commit: 6aba5119989846afef4328141d688e19cdd96f1f
 Runtime mode: offline deterministic validation only
 Dataset: three owner-approved public IdentityFactRecord entries in
           config/governance/approved_identity_records.json

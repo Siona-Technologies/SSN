@@ -107,6 +107,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
+            "State C controlled registry-bound real-runtime verification passed (EXP-3B-013",
+            text,
+        )
+        self.assertIn(
             "ADR 0003 acceptance and Phase 3B completion decision still pending",
             text,
         )
@@ -162,8 +166,13 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
         self.assertIn("EXP-3B-010", experiment)
         self.assertIn("EXP-3B-012", experiment)
+        self.assertIn("EXP-3B-013", experiment)
         self.assertIn(
             "MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY",
+            experiment,
+        )
+        self.assertIn(
+            "STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED",
             experiment,
         )
         self.assertIn(
@@ -249,7 +258,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED", research)
         self.assertIn("EXP-3B-005", research)
         self.assertIn("REGISTRY RECORD AVAILABLE", research)
-        self.assertIn("STATE C REAL-RUNTIME VERIFICATION PENDING", research)
+        self.assertIn("STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED", research)
         self.assertIn("GATE E BREADTH RECORDED", research)
         self.assertIn(
             "bounded text/chat only at context 4096",
@@ -479,7 +488,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
-        self.assertIn("Model registry runtime remains inactive", research)
+        self.assertIn("model runtime is inactive at steady state", research.lower())
+        self.assertIn("deliberately stopped after the controlled verification", research)
+        self.assertNotIn("until that separate authorized experiment", research)
+        self.assertNotIn("controlled controlled verification", research.lower())
         self.assertIn(
             "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
             research,
@@ -544,6 +556,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("native JSON capability remains NOT_VERIFIED", why)
         self.assertIn("exact parsing/schema validation", why)
         self.assertIn("Current blocker before ADR acceptance", why)
+        self.assertIn("ADR 0003 ACCEPTANCE + PHASE 3B COMPLETION DECISION", why)
         self.assertIn("State C controlled registry-bound real-runtime verification", why)
         self.assertIn("future hardening / production-certification work", why)
         self.assertIn("Production certification is not part of this Phase 3B closeout", why)

@@ -69,7 +69,7 @@ model claim is made.
 
 **Historical owner-selection gate:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
-**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); GATE E BREADTH RECORDED (EXP-3B-011); MODEL-REGISTRY ACTIVATION REVIEW PASSED (EXP-3B-012); REGISTRY RECORD AVAILABLE; BINDING SOFTWARE SUPPORTED; RUNTIME CURRENTLY STOPPED; STATE C REAL-RUNTIME VERIFICATION PENDING
+**Current local evidence:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); GATE E BREADTH RECORDED (EXP-3B-011); MODEL-REGISTRY ACTIVATION REVIEW PASSED (EXP-3B-012); REGISTRY RECORD AVAILABLE; BINDING SOFTWARE SUPPORTED; STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED (EXP-3B-013); RUNTIME CURRENTLY STOPPED; ADR ACCEPTANCE STILL PENDING
 
 These subsections above describe the state at the official-source research gate.
 The owner subsequently issued explicit download/install/execution authorization.
@@ -79,7 +79,8 @@ merged. Controlled real-provider text-path validation (EXP-3B-005) succeeded,
 then the runtime was stopped. Gate E breadth was recorded (EXP-3B-011).
 Model-registry activation review passed with conservative capability binding
 (EXP-3B-012). This later work does **not** constitute ADR acceptance. State C
-registry-bound real-runtime verification, ADR acceptance, Phase 3B completion
+controlled registry-bound real-runtime verification **passed** under EXP-3B-013
+and the runtime was shut down afterward. ADR acceptance, Phase 3B completion
 and production certification remain pending. ADR status remains **Proposed**.
 
 | Item | Exact recorded value |
@@ -106,9 +107,9 @@ Clarifications:
 - No SIONA-native model claim is made.
 - Capability verification remains separate from artefact verification.
 - Failure of this baseline must not require a SIONA Core redesign.
-- State C registry-bound real-runtime verification, ADR acceptance and Phase 3B
-  completion remain **outstanding** (EXP-3B-011/012 are recorded, not
-  production certification).
+- State C controlled registry-bound real-runtime verification **passed**
+  (EXP-3B-013); ADR acceptance and Phase 3B completion remain **outstanding**
+  (EXP-3B-011/012/013 are recorded, not production certification).
 
 ## Local evidence (2026-08-05) — necessary but not sufficient
 
@@ -137,16 +138,17 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 **Current blocker before ADR acceptance:**
 
-- State C controlled registry-bound real-runtime verification.
+- ADR 0003 ACCEPTANCE + PHASE 3B COMPLETION DECISION.
 
-**Then (after State C):**
+**Completed immediately prior (not an ADR acceptance itself):**
 
-- ADR 0003 acceptance decision;
-- Phase 3B completion decision.
+- State C controlled registry-bound real-runtime verification (EXP-3B-013) —
+  PASSED; runtime shut down afterward; STATE C DOES NOT MEAN AUTOMATIC OR
+  PERMANENT MODEL STARTUP.
 
 **Recorded evidence and conservative limits (not additional Phase 3B closeout blockers):**
 
-- Registry record availability and exact binding software support are complete under EXP-3B-012. Model registry remains inactive at runtime (state C) until that separate authorized verification.
+- Registry record availability and exact binding software support are complete under EXP-3B-012. Model registry remains inactive at steady state after State C shutdown (EXP-3B-013 verified the temporary registry-bound runtime path, then stopped llama.cpp).
 - Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending
 - Identity-guard model-native JSON remains unverified under EXP-3B-010. EXP-3B-011 retained six JSON outputs that passed exact parsing/schema validation, but native JSON capability remains NOT_VERIFIED because the original JSON run did not capture the provider-origin/fallback observation required to prove native-model provenance.
 - Streaming classified unsupported on the pinned baseline (Gate E R08); registry `streaming=false`
@@ -160,7 +162,7 @@ These results are **necessary but not sufficient** for changing ADR status from
 ### Conditions required before changing ADR status from Proposed
 
 1. Owner-approved artifacts remain pinned and checksum-verified
-2. Model registry activation review completes under policy — **passed** EXP-3B-012 with conservative capabilities; operator runtime activation (state C) still separate
+2. Model registry activation review completes under policy — **passed** EXP-3B-012 with conservative capabilities; operator State C registry-bound real-runtime verification **passed** EXP-3B-013 (runtime stopped afterward)
 3. Gate E provider tests and real-model evaluations are recorded honestly
 4. Security and required runtime-resilience gates must pass. Optional behavioural
    capabilities including structured JSON, streaming, tools and multimodal
@@ -178,7 +180,7 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP.
 
-State C means a future controlled verification that:
+State C is a controlled verification that:
 
 - starts the already pinned llama.cpp/Qwen baseline;
 - explicitly enables the local provider;
@@ -190,7 +192,8 @@ State C means a future controlled verification that:
 - keeps loopback-only operation;
 - then shuts the runtime down and verifies port/process closure.
 
-This must be a separate authorized experiment after the EXP-3B-012 PR merges.
+EXP-3B-013 executed that verification and recorded `STATE_C_VERIFIED`. The
+runtime is currently **stopped**.
 
 ## Alternatives
 
@@ -212,12 +215,12 @@ This must be a separate authorized experiment after the EXP-3B-012 PR merges.
 - The portable baseline is now **locally installed and artifact-verified** under
   explicit owner authorization; the limited text path was validated
   (EXP-3B-005); the runtime is currently **stopped**.
-- Further governed work (state C registry-bound real-runtime verification, ADR
-  acceptance, Phase 3B completion) still requires staged approvals in
+- Further governed work (ADR acceptance, Phase 3B completion) still requires
+  staged approvals in
   [PHASE_3B_INSTALLATION_RUNBOOK.md](../PHASE_3B_INSTALLATION_RUNBOOK.md).
-  Gate E (EXP-3B-011) and model-registry activation review (EXP-3B-012) are
-  already recorded; optional capabilities remain conservatively disabled where
-  not verified.
+  Gate E (EXP-3B-011), model-registry activation review (EXP-3B-012), and State C
+  registry-bound real-runtime verification (EXP-3B-013) are already recorded;
+  optional capabilities remain conservatively disabled where not verified.
 - CI remains deterministic; real models stay out of hosted gates unless a later
   ADR explicitly changes that policy.
 - Capability claims remain conservative until artefact and behavioural

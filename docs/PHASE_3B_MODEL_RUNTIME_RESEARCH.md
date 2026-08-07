@@ -13,8 +13,8 @@ Phase 3B completion, Phase 4, or automatic/permanent model startup. Gate E
 breadth is recorded (EXP-3B-011). Model-registry activation review passed with
 conservative capability binding (EXP-3B-012: registry record available; exact
 binding software supported). A controlled real-runtime verification through that
-registry-bound path (state C) remains a separate authorized experiment and is
-**not** automatic or permanent model startup.
+registry-bound path (state C) was verified under EXP-3B-013 and the runtime was
+shut down afterward; STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP.
 
 ## Research status
 
@@ -35,14 +35,14 @@ registry-bound path (state C) remains a separate authorized experiment and is
 | LanguageEngine → real local provider | **Succeeded** |
 | Deterministic fallback after shutdown | **Verified** |
 | Structured JSON probe | **Observed failure; capability remains unverified** |
-| Model registry | **Record available; binding software supported (EXP-3B-012); state C real-runtime verification not yet performed** |
+| Model registry | **Record available; binding software supported (EXP-3B-012); State C real-runtime verification PASSED (EXP-3B-013); runtime currently stopped** |
 | Gate E governed evaluation | **Recorded (EXP-3B-011)** — safety 8/8; runtime R01–R07 passed; timeout/cancellation evaluated; streaming evaluated as UNSUPPORTED_ON_PINNED_BASELINE; native JSON NOT_VERIFIED |
 | Bounded text/chat capability | **Conservatively verified** at locally tested 4096 context (chat=true in registry) |
 | Native JSON / structured_json | **Evaluated; NOT_VERIFIED; disabled in registry (false)** |
 | Streaming | **Evaluated; UNSUPPORTED_ON_PINNED_BASELINE; disabled in registry (false)** |
 | Tools / multimodal | **Disabled in registry (false); multimodal unverified** |
 | Real-model production evaluation | **Not started** |
-| Registry-bound real-runtime verification (state C) | **Pending** — separate authorized experiment after EXP-3B-012 merge |
+| Registry-bound real-runtime verification (state C) | **PASSED** (EXP-3B-013) — temporary loopback verification; runtime shut down |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
@@ -101,11 +101,12 @@ independently verified installation.
 - Short probes alone are **insufficient** for production capability claims;
   Gate E (EXP-3B-011) later recorded broader evidence with conservative limits
 - Registry record availability and exact binding software support are complete
-  under EXP-3B-012. A controlled real-runtime verification through that
-  registry-bound path (state C) remains pending. Model registry runtime remains inactive
-  until that separate authorized experiment. Further provider integration
-  campaigns beyond the recorded conservative registry binding remain
-  unauthorized until explicitly approved.
+  under EXP-3B-012. State C passed under EXP-3B-013 and the runtime was shut
+  down afterward. The model runtime is inactive at steady state because
+  llama.cpp was deliberately stopped after the controlled verification.
+  Further provider integration campaigns beyond the recorded conservative
+  registry binding remain operator-controlled and unauthorized until
+  explicitly approved.
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued
 
@@ -121,8 +122,7 @@ Selection notes:
 - The first baseline is replaceable behind `ModelGateway`.
 - Verified registry behaviour is limited to bounded text/chat at 4096 context;
   tools, structured_json, streaming and multimodal remain false.
-- State C registry-bound real-runtime verification and ADR acceptance still
-  require separate explicit authorization.
+- ADR acceptance still requires separate explicit authorization.
 
 This is **not** SIONA's permanent reasoning model, a final production model, a
 SIONA-native model, or a capability-approved model. The selected baseline is
@@ -515,7 +515,7 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 
 **Historical selection status:** PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION
 
-**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); GATE E BREADTH RECORDED (EXP-3B-011); MODEL-REGISTRY ACTIVATION REVIEW PASSED (EXP-3B-012); REGISTRY RECORD AVAILABLE; BINDING SOFTWARE SUPPORTED; RUNTIME CURRENTLY STOPPED; STATE C REAL-RUNTIME VERIFICATION PENDING
+**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); GATE E BREADTH RECORDED (EXP-3B-011); MODEL-REGISTRY ACTIVATION REVIEW PASSED (EXP-3B-012); REGISTRY RECORD AVAILABLE; BINDING SOFTWARE SUPPORTED; STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED (EXP-3B-013); RUNTIME CURRENTLY STOPPED; ADR ACCEPTANCE STILL PENDING
 
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
@@ -526,8 +526,8 @@ separate explicit owner authorization. Local operator evidence records
 artifact verification, a limited loopback probe, EXP-3B-005 controlled
 real-provider text-path validation, Gate E breadth (EXP-3B-011), and
 model-registry activation review (EXP-3B-012). The runtime is currently
-stopped. State C (controlled registry-bound real-runtime verification) and
-ADR acceptance still require separate authorization.
+stopped. State C (controlled registry-bound real-runtime verification) PASSED
+under EXP-3B-013. ADR acceptance still requires separate authorization.
 
 **Historical owner-selection gate wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
@@ -815,13 +815,13 @@ Comparison: Granite 4.0 Micro Q4_K_M.
   UNSUPPORTED_ON_PINNED_BASELINE; native JSON remains NOT_VERIFIED
 - Registry record availability and exact binding software support are complete
   under EXP-3B-012. A controlled real-runtime verification through that
-  registry-bound path (state C) remains pending.
-- STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP. It is a future
-  controlled verification that starts the pinned llama.cpp/Qwen baseline,
-  enables the local provider, loads the canonical registry, proves exact entry
-  binding and real pinned-model reachability, confirms safe registry
-  observability, performs no tool execution, keeps loopback-only operation,
-  then shuts the runtime down and verifies port/process closure.
+  registry-bound path (state C) PASSED under EXP-3B-013; runtime stopped.
+- STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP. It was a controlled
+  verification that started the pinned llama.cpp/Qwen baseline, enabled the
+  local provider, loaded the canonical registry, proved exact entry binding and
+  real pinned-model reachability, confirmed safe registry observability,
+  performed no tool execution, kept loopback-only operation, then shut the
+  runtime down and verified port/process closure.
 - Verified registry behaviour: bounded text/chat only at context 4096;
   tools=false; structured_json=false; streaming=false; multimodal=false
 - ADR 0003 acceptance remains pending

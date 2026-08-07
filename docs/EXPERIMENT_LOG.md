@@ -651,8 +651,8 @@ Evidence:
   docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md
   docs/evidence/EXP-3B-012_MODEL_REGISTRY_REVIEW.json
   config/model_registry.json
-Outstanding: operator-controlled runtime startup (state C); ADR 0003 acceptance;
-             Phase 3B completion decision
+Outstanding: ADR 0003 acceptance; Phase 3B completion decision
+             (State C later verified under EXP-3B-013)
 Limitations: native text 9/12 VERIFIED (T03/T06/T07 fail); native JSON NOT_VERIFIED;
              not production ready; ADR 0003 remains Proposed; Phase 4 not started
 Artifact references: docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md,
@@ -660,3 +660,55 @@ Artifact references: docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md,
                       docs/evidence/EXP-3B-011_SUMMARY.json
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase3b_model_registry_activation
 ```
+
+### EXP-3B-013 — State C controlled registry-bound real-runtime verification
+
+```text
+Experiment ID: EXP-3B-013
+Date: 2026-08-07
+Git commit: (feat/state-c-registry-bound-runtime-verification tip)
+Runtime mode: controlled temporary local validation (loopback only)
+Dataset: 2 bounded neutral text probes
+Model/provider: build_local_provider_from_env() → LocalOpenWeightProvider
+                openai_chat → llama.cpp b9968 → Qwen3-1.7B-Q4_K_M
+Neuromorphic backend: n/a
+Hardware: Intel i7-1165G7, Iris Xe, CPU-only (ngl 0)
+Configuration:
+  bind 127.0.0.1:8080; ctx 4096; threads 4; n-predict 512; reasoning off
+  -a Qwen3-1.7B-Q4_K_M (advertise approved registry model_id)
+  SSN_OFFLINE=1; SSN_LLM_PROVIDER=local; SSN_MODEL_PROVIDER=local
+  SSN_LOCAL_MODEL_API_DIALECT=openai_chat
+  SSN_LOCAL_MODEL_ENDPOINT=http://127.0.0.1:8080
+  SSN_LOCAL_MODEL_ID=Qwen3-1.7B-Q4_K_M
+  SSN_LOCAL_MODEL_VERIFY_MODEL_ID=1; max_tokens_cap=64
+  canonical registry: config/model_registry.json
+  process-local env only (not persisted)
+Metrics: LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM
+  SC-T01 wall ~1464.8 ms
+  SC-T02 wall ~457.9 ms
+Result: STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED.
+        STATE_C_VERIFIED. STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL
+        STARTUP. RUNTIME SHUT DOWN AFTERWARD.
+Evidence:
+  docs/SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md
+  docs/evidence/EXP-3B-013_STATE_C.json
+  A registry record available: true
+  B registry entry bound: true
+  C real runtime running during experiment: true
+  D real inference completed: true (2/2)
+  E runtime shut down: true
+  real provider calls=2; real model responses=2; live fallback=0; tools=0
+  capabilities unchanged: chat=true; tools=false; structured_json=false;
+    streaming=false; multimodal=false; context_window=4096; siona_native=false
+  registry mutation=false; port 8080 closed after shutdown; no auto-restart
+Outstanding: ADR 0003 acceptance; Phase 3B completion decision
+Limitations: not production ready; ADR 0003 remains Proposed; Phase 3B remains
+             in progress; Phase 4 not started; CI remains model-free;
+             native JSON/streaming/tools/multimodal remain disabled
+Artifact references: docs/SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md,
+                      docs/evidence/EXP-3B-013_STATE_C.json,
+                      docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md,
+                      docs/adr/0003-first-local-model-strategy.md
+Reproduction command: n/a (manual local operator procedure; not CI)
+```
+

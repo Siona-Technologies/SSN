@@ -37,8 +37,10 @@ from ssn.cognition.model_gateway.sanitize import (
 )
 
 ENV_PROVIDER = "SSN_MODEL_PROVIDER"
+ENV_LLM_PROVIDER = "SSN_LLM_PROVIDER"
 ENV_ENDPOINT = "SSN_LOCAL_MODEL_ENDPOINT"
 ENV_MODEL_ID = "SSN_LOCAL_MODEL_ID"
+ENV_REGISTRY_PATH = "SSN_MODEL_REGISTRY_PATH"
 ENV_ALLOW_REMOTE = "SSN_LOCAL_MODEL_ALLOW_REMOTE"
 ENV_TIMEOUT = "SSN_LOCAL_MODEL_TIMEOUT_S"
 ENV_MAX_BYTES = "SSN_LOCAL_MODEL_MAX_RESPONSE_BYTES"
@@ -91,6 +93,12 @@ def local_provider_enabled() -> bool:
         "local_open_weight",
         "open_weight",
     }
+
+
+def local_provider_env_active() -> bool:
+    """True when either SSN_MODEL_PROVIDER or SSN_LLM_PROVIDER selects local."""
+    llm = (os.getenv(ENV_LLM_PROVIDER) or "dummy").strip().lower()
+    return llm == "local" or local_provider_enabled()
 
 
 def _is_finite_number(value: Any) -> bool:
@@ -1136,6 +1144,12 @@ class LocalOpenWeightProvider:
                     "context_window": context_window if cap_status == "verified" and context_window > 0 else None,
                 },
                 "mock_registry": mock,
+                "model_registry_entry_bound": self._registry_entry is not None,
+                "model_registry_artifact_status": art_status,
+                "model_registry_capability_status": cap_status,
+                "model_registry_activation_status": (
+                    "bound" if self._registry_entry is not None else "unbound"
+                ),
                 "sync_mid_request_cancellation": False,
                 "mid_request_cancellation_deferred": "async_provider_transport",
             },
@@ -1153,6 +1167,12 @@ class LocalOpenWeightProvider:
             "endpoint_summary": safe_endpoint_summary(self._endpoint) if self._endpoint else None,
             "trained_siona_native": False,
             "api_dialect": self._api_dialect,
+            "model_registry_entry_bound": self._registry_entry is not None,
+            "model_registry_artifact_status": self._artifact_verification_status(),
+            "model_registry_capability_status": self._capability_verification_status(),
+            "model_registry_activation_status": (
+                "bound" if self._registry_entry is not None else "unbound"
+            ),
         }
         if self._config_error:
             return {**base, "ok": False, "error": self._config_error}
@@ -1265,7 +1285,55 @@ class LocalOpenWeightProvider:
             )
 
 
+def resolve_registry_path() -> Path:
+    from pathlib import Path
+
+    from ssn.cognition.model_gateway.registry import (
+        CANONICAL_REGISTRY_RELATIVE_PATH,
+        repo_root,
+    )
+
+    explicit = (os.getenv(ENV_REGISTRY_PATH) or "").strip()
+    if explicit:
+        return Path(explicit)
+    return repo_root() / CANONICAL_REGISTRY_RELATIVE_PATH
+
+
+def load_bound_registry_entry() -> Any:
+    """Load and return the exact registry entry for the configured local model."""
+    from ssn.cognition.model_gateway.registry import (
+        ModelRegistry,
+        RegistryValidationError,
+    )
+
+    model_id = resolve_model_id()
+    if not model_id:
+        raise LocalProviderError("registry", "model_id_required_for_registry_binding")
+
+    path = resolve_registry_path()
+    if not path.is_file():
+        raise LocalProviderError("registry", "registry_manifest_missing")
+
+    registry = ModelRegistry()
+    try:
+        registry.load_json_file(path)
+    except RegistryValidationError as exc:
+        raise LocalProviderError("registry", f"registry_invalid:{exc}") from exc
+
+    entry = registry.get(model_id, provider_id=LocalOpenWeightProvider.name)
+    if entry is None:
+        raise LocalProviderError("registry", "model_registry_binding_mismatch")
+    if entry.mock:
+        raise LocalProviderError("registry", "mock_registry_entry_rejected")
+    if entry.provider_id != LocalOpenWeightProvider.name:
+        raise LocalProviderError("registry", "model_registry_provider_mismatch")
+    if entry.model_id != model_id:
+        raise LocalProviderError("registry", "model_registry_binding_mismatch")
+    return entry
+
+
 def build_local_provider_from_env() -> Optional[LocalOpenWeightProvider]:
-    if not local_provider_enabled():
+    if not local_provider_env_active():
         return None
-    return LocalOpenWeightProvider()
+    entry = load_bound_registry_entry()
+    return LocalOpenWeightProvider(registry_entry=entry)

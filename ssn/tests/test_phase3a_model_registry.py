@@ -120,6 +120,18 @@ class TestModelRegistry(unittest.TestCase):
                 )
             )
 
+    def test_string_mock_boolean_rejected(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(_base(mock="false"))
+
+    def test_numeric_string_context_window_rejected(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(_base(context_window="4096"))
+
+    def test_bool_context_window_rejected(self):
+        with self.assertRaises(RegistryValidationError):
+            validate_entry_dict(_base(context_window=True))
+
     def test_mock_cannot_claim_verified_capabilities(self):
         with self.assertRaises(RegistryValidationError):
             validate_entry_dict(

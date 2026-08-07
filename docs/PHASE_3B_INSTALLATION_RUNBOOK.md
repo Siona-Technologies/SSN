@@ -2,9 +2,10 @@
 
 **Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
 limited loopback execution and **controlled real SIONA provider text-path
-validation** completed; runtime **stopped** — registry activation, Gate E
-evaluation, capability approval, and ADR acceptance **not** authorized by this
-document  
+validation** completed; Gate E breadth recorded (EXP-3B-011); model-registry
+activation review passed with conservative binding (EXP-3B-012); runtime **stopped**
+— operator runtime activation (state C), ADR acceptance and Phase 3B completion
+**not** authorized by this document alone  
 **Rule:** each destructive or state-changing step beyond the recorded baseline
 requires **explicit approval** before execution
 
@@ -21,8 +22,8 @@ Do not proceed past a stage without recorded approval.
 | A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
 | B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
 | C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; registry/Gate E/capability approval still pending |
-| E — Real-model eval | Gate D | Yes | Pending — not complete |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; Gate E recorded (EXP-3B-011); registry review passed (EXP-3B-012); ADR acceptance still pending |
+| E — Real-model eval | Gate D | Yes | **Gate E breadth recorded** (EXP-3B-011); conservative registry binding reviewed (EXP-3B-012) |
 | F — Rollback drill | Any prior install | Yes | Portable layout ready; post-shutdown deterministic fallback verified; full campaign pending |
 
 ## Provisional safety defaults

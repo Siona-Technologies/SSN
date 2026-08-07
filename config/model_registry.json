@@ -1,0 +1,35 @@
+{
+  "models": [
+    {
+      "provider_id": "siona-local-open-weight-v1",
+      "model_id": "Qwen3-1.7B-Q4_K_M",
+      "model_family": "Qwen3",
+      "model_version": "1.7B",
+      "runtime": "llama.cpp b9968",
+      "format": "GGUF",
+      "quantization": "Q4_K_M",
+      "context_window": 4096,
+      "source": "ggml-org/Qwen3-1.7B-GGUF revision daeb8e2d528a760970442092f6bf1e55c3b659eb",
+      "licence_id": "Apache-2.0",
+      "licence_ref": "ggml-org/Qwen3-1.7B-GGUF@daeb8e2d528a760970442092f6bf1e55c3b659eb",
+      "checksum_algorithm": "sha256",
+      "artifact_checksum": "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
+      "classification": "local",
+      "added_date": "2026-08-07",
+      "artifact_verification_status": "verified",
+      "capability_verification_status": "verified",
+      "capabilities": {
+        "chat": true,
+        "tools": false,
+        "structured_json": false,
+        "streaming": false,
+        "multimodal": false,
+        "context_window": 4096
+      },
+      "notes": "Approved first local open-weight baseline metadata only. Registry binding does not start llama.cpp or download weights.",
+      "limitations": "Native text 9/12 VERIFIED under EXP-3B-011; T03/T06/T07 NOT_VERIFIED. Native JSON NOT_VERIFIED (Gate E exact-schema 6/6 recorded separately; provider-origin not captured). Identity-guard native JSON unverified under EXP-3B-010. Streaming unsupported. No direct tool authority. No multimodal verification. Synchronous mid-request cancellation not supported. Optional replaceable external weights; not SIONA-native; not production certification.",
+      "mock": false,
+      "siona_native": false
+    }
+  ]
+}

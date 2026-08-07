@@ -620,3 +620,43 @@ Artifact references: docs/SIONA_REAL_QWEN_GUARDED_RETEST.md,
                       docs/SIONA_REAL_QWEN_IDENTITY_CAMPAIGN.md
 Reproduction command: python scripts/run_real_guarded_identity_retest.py --regenerate-committed-evidence-from-local
 ```
+
+### EXP-3B-012 — Model registry activation review
+
+```text
+Experiment ID: EXP-3B-012
+Date: 2026-08-07
+Git commit: (feat/model-registry-activation-review tip)
+Runtime mode: offline registry validation and provider-binding review only
+Dataset: n/a
+Model/provider: Qwen3-1.7B-Q4_K_M metadata binding only; no runtime startup
+Configuration:
+  SSN_OFFLINE=1
+  Canonical manifest: config/model_registry.json
+  Exact composite binding: siona-local-open-weight-v1 + Qwen3-1.7B-Q4_K_M
+Metrics:
+  review_decision=ACTIVATION_RECOMMENDED_WITH_CONSERVATIVE_CAPABILITIES
+  chat=true; tools=false; structured_json=false; streaming=false; multimodal=false
+  verified_context_window=4096
+  artifact_verification_status=verified; capability_verification_status=verified
+  runtime_startup_count=0; network_model_calls=0; subprocess_starts=0; gguf_reads=0
+Result: MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY
+        BINDING. THE APPROVED QWEN3-1.7B BASELINE MAY BE REPRESENTED AS A LOCAL
+        OPTIONAL OPEN-WEIGHT REGISTRY ENTRY. VERIFIED REGISTRY CAPABILITIES ARE
+        LIMITED TO BOUNDED TEXT/CHAT INFERENCE AT THE LOCALLY TESTED 4096 CONTEXT.
+        TOOLS, STRUCTURED JSON, STREAMING AND MULTIMODAL CAPABILITIES REMAIN FALSE.
+        REGISTRY BINDING DOES NOT START THE MODEL RUNTIME, DOES NOT GRANT TOOL
+        AUTHORITY, AND DOES NOT MAKE THE EXTERNAL MODEL SIONA-NATIVE.
+Evidence:
+  docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md
+  docs/evidence/EXP-3B-012_MODEL_REGISTRY_REVIEW.json
+  config/model_registry.json
+Outstanding: operator-controlled runtime startup (state C); ADR 0003 acceptance;
+             Phase 3B completion decision
+Limitations: native text 9/12 VERIFIED (T03/T06/T07 fail); native JSON NOT_VERIFIED;
+             not production ready; ADR 0003 remains Proposed; Phase 4 not started
+Artifact references: docs/SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md,
+                      docs/SIONA_GATE_E_BREADTH_EVALUATION.md,
+                      docs/evidence/EXP-3B-011_SUMMARY.json
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase3b_model_registry_activation
+```

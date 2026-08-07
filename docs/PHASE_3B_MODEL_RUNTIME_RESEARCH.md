@@ -33,7 +33,7 @@ authorization.
 | LanguageEngine → real local provider | **Succeeded** |
 | Deterministic fallback after shutdown | **Verified** |
 | Structured JSON probe | **Observed failure; capability remains unverified** |
-| Model registry | **Inactive** |
+| Model registry | **Record available; binding software supported (EXP-3B-012); runtime inactive (state C)** |
 | Gate E governed evaluation | **Pending** |
 | Broad security / timeout / streaming / adversarial / behavioral eval | **Pending** |
 | Real-model production evaluation | **Not started** |
@@ -96,7 +96,7 @@ independently verified installation.
 - Short probes are **insufficient** for broad behavioral or security capability
   claims; capabilities remain limited/unverified beyond the specific observed
   text path
-- Model registry remains **inactive**; Gate E governed evaluation remains
+- Model registry: canonical manifest `config/model_registry.json`; conservative binding reviewed (EXP-3B-012); runtime startup remains operator-controlled
   **pending**
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued
@@ -577,8 +577,8 @@ No final production runtime approval is issued by ADR 0003 (still Proposed).
 | Provenance risk | Low for publisher Q8_0; moderate for ggml-org Q4_K_M |
 | Licence risk | Low (Apache-2.0) if licence/NOTICE obligations preserved |
 | Runtime-maturity risk | Low on llama.cpp for Qwen3 text |
-| Local evaluation status | Limited local loopback smoke completed; controlled real-provider text path validated (EXP-3B-005); Gate E breadth recorded (EXP-3B-011); registry activation not started |
-| Selection status | **OWNER-AUTHORIZED locally installed baseline; controlled real-provider text path validated (EXP-3B-005); runtime currently stopped; registry/Gate E pending** |
+| Local evaluation status | Limited local loopback smoke completed; controlled real-provider text path validated (EXP-3B-005); Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012) |
+| Selection status | **OWNER-AUTHORIZED locally installed baseline; controlled real-provider text path validated (EXP-3B-005); runtime currently stopped; registry record available; ADR acceptance pending** |
 
 ### Candidate B — Qwen3-4B
 
@@ -801,8 +801,8 @@ Comparison: Granite 4.0 Micro Q4_K_M.
 
 - Controlled real SIONA provider text path validated (EXP-3B-005); limited
   text-transport gate only
-- Model registry remains inactive
-- Gate E breadth recorded (EXP-3B-011); registry activation remains pending
+- Model registry record and binding software supported (EXP-3B-012); runtime startup (state C) inactive by default
+- ADR 0003 acceptance remains pending
 - Further provider campaigns beyond the recorded text path require separate
   authorization
 - Further provider integration campaigns (registry activation, Gate E) still

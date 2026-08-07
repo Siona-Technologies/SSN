@@ -134,12 +134,12 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 ### Why ADR status remains Proposed
 
-- Model registry remains inactive
-- Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending
+- Model registry record and binding software supported (EXP-3B-012); runtime startup (state C) remains operator-controlled and inactive by default
+- Gate E breadth recorded (EXP-3B-011); ADR acceptance still pending
 - Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure (Gate E native JSON was separately verified)
 - Streaming classified unsupported on the pinned baseline (Gate E R08)
 - Adversarial/security campaigns beyond Gate E catalogue incomplete
-- Broad behavioral capabilities beyond Gate E remain conservatively unverified for registry activation
+- Broad behavioral capabilities beyond Gate E remain conservatively bounded to verified chat at 4096 context (EXP-3B-012)
 - Production certification not issued
 - Phase 3B not complete
 - Deterministic CI must remain free of real-model dependencies
@@ -148,7 +148,7 @@ These results are **necessary but not sufficient** for changing ADR status from
 ### Conditions required before changing ADR status from Proposed
 
 1. Owner-approved artifacts remain pinned and checksum-verified
-2. Model registry activation completes under policy (when authorized)
+2. Model registry activation review completes under policy — **passed** EXP-3B-012 with conservative capabilities; operator runtime activation (state C) still separate
 3. Gate E provider tests and real-model evaluations are recorded honestly
 4. Security, structured-output, timeout/cancellation and streaming gates pass
 5. Deterministic CI remains free of real-model dependencies

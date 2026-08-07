@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); Gate E breadth recorded (EXP-3B-011: native text recomputed; JSON exact-schema 6/6 separately recorded; native JSON capability NOT_VERIFIED without original provider-origin proof; 8/8 safety containment; streaming unsupported on pinned baseline; registry-review recommendation conservative-allow); model registry activation, ADR 0003 acceptance and Phase 3B completion decision still pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); Gate E breadth recorded (EXP-3B-011: native text recomputed; JSON exact-schema 6/6 separately recorded; native JSON capability NOT_VERIFIED without original provider-origin proof; 8/8 safety containment; streaming unsupported on pinned baseline; registry-review recommendation conservative-allow); model-registry activation review passed with conservative capability binding (EXP-3B-012: canonical manifest `config/model_registry.json`; exact provider binding; runtime not started); ADR 0003 acceptance and Phase 3B completion decision still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -104,24 +104,17 @@ completion remain **pending** and are **not** issued.
 
 ### Still pending
 
-- Model registry record/activation
-- Capability approval for registry capabilities (use EXP-3B-011 matrix conservatively)
-- Streaming remains **UNSUPPORTED_ON_PINNED_BASELINE** (honest Gate E R08)
-- Identity-guard model-native JSON remains unverified under EXP-3B-010 (Gate E native JSON was separately verified 6/6)
-- Bounded-output / adversarial follow-on campaigns beyond Gate E catalogue
+- Operator-controlled model runtime startup (registry state C)
 - ADR 0003 acceptance
-- Phase 3B completion
+- Phase 3B completion decision
 
 ### Current runtime state
 
 - Runtime currently **stopped**
 - Port 8080 currently **not listening**
-- Capabilities beyond EXP-3B-011 Gate E results remain conservatively
-  unverified for registry activation
-- Further provider integration work (registry activation) remains
-  unauthorized without new owner approval
+- Capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context
 - ADR 0003 remains **Proposed**
-- Model registry remains **inactive** (no production entry activated)
+- Model registry: **record available and binding software supported** (EXP-3B-012); **runtime not started** (state C inactive)
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
 Phase 4 remains **not started**.
@@ -141,7 +134,7 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: model-registry activation review; ADR 0003 acceptance; Phase 3B
+Phase 3B: ADR 0003 acceptance; operator-controlled runtime activation (state C); Phase 3B
 completion decision (still optional; CI remains deterministic and model-free).
 EXP-3B-011 Gate E breadth is recorded. EXP-3B-010 guarded-path retest
 acceptance was met; identity-guard model-native JSON remains unverified.

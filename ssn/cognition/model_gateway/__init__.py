@@ -35,6 +35,7 @@ def __getattr__(name: str):
         "LocalOpenWeightProvider",
         "build_local_provider_from_env",
         "local_provider_enabled",
+        "local_provider_env_active",
     }:
         from ssn.cognition.model_gateway import local_provider as _lp
 
@@ -42,6 +43,7 @@ def __getattr__(name: str):
             "LocalOpenWeightProvider": _lp.LocalOpenWeightProvider,
             "build_local_provider_from_env": _lp.build_local_provider_from_env,
             "local_provider_enabled": _lp.local_provider_enabled,
+            "local_provider_env_active": _lp.local_provider_env_active,
         }
         return mapping[name]
     if name in {
@@ -85,6 +87,7 @@ __all__ = [
     "LocalOpenWeightProvider",
     "build_local_provider_from_env",
     "local_provider_enabled",
+    "local_provider_env_active",
     "ModelRegistry",
     "ModelRegistryEntry",
     "load_registry",

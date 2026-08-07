@@ -12,6 +12,8 @@
 | Phase 4 | **Not started — eligible for separate planning/authorization after Phase 3 closeout** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
+Historical note: immediately before this closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 work is not in progress.
+
 ## Governing documents
 
 - [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)

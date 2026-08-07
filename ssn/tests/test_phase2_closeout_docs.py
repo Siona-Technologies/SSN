@@ -103,13 +103,21 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "model registry activation, ADR 0003 acceptance and Phase 3B completion decision still pending",
+            "model-registry activation review passed with conservative capability binding (EXP-3B-012",
+            text,
+        )
+        self.assertIn(
+            "ADR 0003 acceptance and Phase 3B completion decision still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation, adr 0003 acceptance and phase 3b completion decision still pending",
+            "model-registry activation review passed with conservative capability binding (exp-3b-012",
+            text.lower(),
+        )
+        self.assertIn(
+            "adr 0003 acceptance and phase 3b completion decision still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())
@@ -153,6 +161,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
         self.assertIn("EXP-3B-010", experiment)
+        self.assertIn("EXP-3B-012", experiment)
+        self.assertIn(
+            "MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY",
+            experiment,
+        )
         self.assertIn(
             "CONTROLLED REAL LOCAL-MODEL GUARDED-PATH RETEST EXECUTED AGAINST THE",
             experiment,
@@ -235,11 +248,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("RUNTIME CURRENTLY STOPPED", research)
         self.assertIn("CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED", research)
         self.assertIn("EXP-3B-005", research)
-        self.assertIn("REGISTRY INACTIVE", research)
-        self.assertIn("GATE E PENDING", research)
+        self.assertIn("REGISTRY RECORD AVAILABLE", research)
+        self.assertIn("STATE C REAL-RUNTIME VERIFICATION PENDING", research)
+        self.assertIn("GATE E BREADTH RECORDED", research)
         self.assertIn(
-            "Capabilities remain limited/unverified beyond the specific observed text path",
-            research,
+            "bounded text/chat only at context 4096",
+            research.lower(),
         )
         self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
         self.assertNotIn("SIONA provider integration has **not** started", research)
@@ -309,7 +323,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("### Historical pre-install model direction", adr)
         self.assertIn("Current local evidence", adr)
         self.assertIn("Controlled real-provider text path", adr)
-        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending", adr)
+        self.assertIn(
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
+            adr,
+        )
         self.assertNotIn(
             "### Provisional model direction (not approved / not downloaded)",
             adr,
@@ -398,12 +415,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
         self.assertIn(
-            "capabilities beyond exp-3b-011 gate e results remain conservatively",
+            "capabilities beyond exp-3b-011 gate e results and exp-3b-012 conservative binding remain limited to verified chat at 4096 context",
             status.lower(),
         )
         self.assertIn("Limited local loopback smoke completed", research)
         self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); registry activation not started",
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
             research,
         )
         self.assertIn(
@@ -462,8 +479,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
-        self.assertIn("Model registry remains inactive", research)
-        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation remains pending", research)
+        self.assertIn("Model registry runtime remains inactive", research)
+        self.assertIn(
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
+            research,
+        )
         self.assertIn("Offline tests 308 passed / 4 skipped", experiment)
         self.assertIn("readiness working-set sample approximately 2.16 GiB", experiment)
         self.assertIn(
@@ -476,7 +496,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("real-provider text path", combined.lower())
         self.assertIn("runtime currently **stopped**", status.lower())
-        self.assertIn("model registry remains **inactive**", status.lower())
+        self.assertIn("model registry runtime remains **inactive**", status.lower())
         self.assertIn("inactive", combined.lower())
         self.assertIn("unverified", combined.lower())
         self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
@@ -488,8 +508,8 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("In progress", status)
         self.assertIn("Phase 4 remains **not started**", status)
         self.assertIn("Controlled real-provider text path validated", runbook)
-        self.assertIn("Gate E", runbook)
-        self.assertIn("Pending — not complete", runbook)
+        self.assertIn("Gate E breadth recorded (EXP-3B-011)", runbook)
+        self.assertIn("registry review passed (EXP-3B-012)", runbook)
         # Contradiction guards on current-state docs (exclude older experiment entries).
         self.assertNotIn("SIONA provider integration has not started", current_docs)
         self.assertNotIn("SIONA provider integration has **not** started", current_docs)
@@ -510,17 +530,66 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )[0]
         self.assertIn("Model registry remains inactive", why)
         self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending",
+            "Registry record availability and exact binding software support are complete under EXP-3B-012",
             why,
         )
         self.assertIn(
-            "Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure",
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
             why,
         )
-        self.assertIn("Production certification not issued", why)
-        self.assertIn("Phase 3B not complete", why)
+        self.assertIn(
+            "Identity-guard model-native JSON remains unverified under EXP-3B-010",
+            why,
+        )
+        self.assertIn("native JSON capability remains NOT_VERIFIED", why)
+        self.assertIn("exact parsing/schema validation", why)
+        self.assertIn("Current blocker before ADR acceptance", why)
+        self.assertIn("State C controlled registry-bound real-runtime verification", why)
+        self.assertIn("future hardening / production-certification work", why)
+        self.assertIn("Production certification is not part of this Phase 3B closeout", why)
+        self.assertIn("Phase 3B remains In Progress", why)
+        self.assertIn("Phase 4 remains Not Started", why)
+        self.assertNotIn("Gate E native JSON was separately verified", why)
+        self.assertNotIn("Gate E native JSON was separately verified", adr)
         self.assertNotIn("not wired to this baseline yet", why)
 
+    def test_exp3b011_native_json_wording_regression(self):
+        """Reject false native-JSON verification claims in current-state docs."""
+        docs = [
+            ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
+            ROOT / "docs" / "PHASE_STATUS.md",
+            ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md",
+            ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
+            ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+            ROOT / "docs" / "SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md",
+            ROOT / "docs" / "EXPERIMENT_LOG.md",
+        ]
+        combined = "\n".join(p.read_text(encoding="utf-8") for p in docs)
+        self.assertNotIn("Gate E native JSON was separately verified", combined)
+        self.assertIn("native json", combined.lower())
+        self.assertIn("NOT_VERIFIED", combined)
+        self.assertTrue(
+            "exact-schema 6/6" in combined
+            or "JSON exact-schema 6/6" in combined
+            or "exact parsing/schema validation" in combined
+        )
+        self.assertIn("structured_json=false", combined)
+        self.assertIn("streaming=false", combined)
+        self.assertIn("State C", combined)
+        self.assertIn("pending", combined.lower())
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Proposed", status_block)
+        self.assertNotIn("Accepted", status_block)
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        self.assertIn("In progress", status)
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertIn("native JSON capability NOT_VERIFIED", status)
+        self.assertIn("JSON exact-schema 6/6", status)
     def test_identity_information_governance_docs(self):
         identity = (ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md").read_text(
             encoding="utf-8"

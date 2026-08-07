@@ -1,5 +1,5 @@
 """
-Model registry and provenance contracts (Phase 3A).
+Model registry and provenance contracts (Phase 3A/3B).
 
 Strict schema validation with transactional loading.
 CI fixtures use clearly labelled mock entries — never SIONA-native.
@@ -8,11 +8,14 @@ CI fixtures use clearly labelled mock entries — never SIONA-native.
 from __future__ import annotations
 
 import json
+import math
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+ALLOWED_ROOT_FIELDS: Set[str] = {"models"}
 
 ALLOWED_FIELDS: Set[str] = {
     "provider_id",
@@ -64,6 +67,15 @@ MAX_STRING = 2_048
 MAX_NOTES = 4_096
 MAX_HW_KEYS = 16
 MAX_HW_DEPTH = 3
+MAX_REGISTRY_FILE_BYTES = 256_000
+MAX_REGISTRY_ENTRIES = 32
+
+CANONICAL_REGISTRY_RELATIVE_PATH = "config/model_registry.json"
+APPROVED_BASELINE_PROVIDER_ID = "siona-local-open-weight-v1"
+APPROVED_BASELINE_MODEL_ID = "Qwen3-1.7B-Q4_K_M"
+APPROVED_BASELINE_ARTIFACT_SHA256 = (
+    "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5"
+)
 
 _SECRET_KEYS = frozenset(
     {
@@ -103,11 +115,8 @@ class ModelRegistryEntry:
     classification: Optional[str] = "unknown"
     hardware_requirements: Optional[Dict[str, Any]] = None
     added_date: Optional[str] = None
-    # Provenance / artefact verification (checksum, licence, source)
     artifact_verification_status: Optional[str] = "unverified"
-    # Behavioural capability verification (explicit capabilities object)
     capability_verification_status: Optional[str] = "unverified"
-    # Legacy alias retained for readers; mirrors artifact_verification_status
     verification_status: Optional[str] = "unverified"
     capabilities: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
@@ -122,51 +131,111 @@ class ModelRegistryEntry:
         return asdict(self)
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def canonical_registry_path() -> Path:
+    return repo_root() / CANONICAL_REGISTRY_RELATIVE_PATH
+
+
+def _require_exact_dict(value: Any, *, label: str) -> Dict[str, Any]:
+    if type(value) is not dict:
+        raise RegistryValidationError(f"{label}_not_object")
+    return value
+
+
+def _require_exact_list(value: Any, *, label: str) -> List[Any]:
+    if type(value) is not list:
+        raise RegistryValidationError(f"{label}_not_list")
+    return value
+
+
+def _require_exact_bool(value: Any, field: str, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if type(value) is not bool:
+        raise RegistryValidationError(f"expected_bool:{field}")
+    return value
+
+
+def _require_exact_positive_int(value: Any, field: str) -> int:
+    if type(value) is bool:
+        raise RegistryValidationError(f"expected_positive_int:{field}")
+    if type(value) is not int:
+        raise RegistryValidationError(f"expected_positive_int:{field}")
+    if value <= 0:
+        raise RegistryValidationError(f"{field}_not_positive")
+    return value
+
+
+def _require_finite_number(value: Any, field: str) -> float:
+    if type(value) is bool:
+        raise RegistryValidationError(f"expected_finite_number:{field}")
+    if type(value) not in {int, float}:
+        raise RegistryValidationError(f"expected_finite_number:{field}")
+    number = float(value)
+    if not math.isfinite(number):
+        raise RegistryValidationError(f"non_finite_number:{field}")
+    return number
+
+
 def _unknown_or_str(value: Any, *, max_len: int = MAX_STRING) -> Optional[str]:
     if value is None:
         return None
-    if isinstance(value, str):
-        s = value.strip()
-        if not s:
-            return None
-        if s.lower() in {"null", "none"}:
-            return None
-        if len(s) > max_len:
-            raise RegistryValidationError("string_too_long")
-        return s
-    raise RegistryValidationError("expected_string")
+    if type(value) is not str:
+        raise RegistryValidationError("expected_string")
+    s = value.strip()
+    if not s:
+        return None
+    if s.lower() in {"null", "none"}:
+        return None
+    if len(s) > max_len:
+        raise RegistryValidationError("string_too_long")
+    return s
 
 
 def _reject_secrets_recursive(obj: Any, *, depth: int = 0) -> None:
     if depth > 8:
         raise RegistryValidationError("depth_exceeded")
-    if isinstance(obj, dict):
+    if type(obj) is dict:
         for k, v in obj.items():
             key = str(k).lower().replace("-", "_")
             if key in _SECRET_KEYS or key.endswith("_secret") or key.endswith("_password"):
                 raise RegistryValidationError(f"secret_field_forbidden:{k}")
             _reject_secrets_recursive(v, depth=depth + 1)
-    elif isinstance(obj, list):
+    elif type(obj) is list:
         for item in obj[:64]:
             _reject_secrets_recursive(item, depth=depth + 1)
 
 
 def _validate_hw(hw: Any, *, depth: int = 0) -> Dict[str, Any]:
-    if not isinstance(hw, dict):
-        raise RegistryValidationError("hardware_requirements_not_object")
+    hw = _require_exact_dict(hw, label="hardware_requirements")
     if depth > MAX_HW_DEPTH:
         raise RegistryValidationError("hardware_requirements_depth")
     if len(hw) > MAX_HW_KEYS:
         raise RegistryValidationError("hardware_requirements_too_many_keys")
     out: Dict[str, Any] = {}
     for k, v in hw.items():
-        key = str(k)[:64]
-        if isinstance(v, dict):
+        if type(k) is not str:
+            raise RegistryValidationError("hardware_requirements_key_not_string")
+        key = k[:64]
+        if type(v) is dict:
             out[key] = _validate_hw(v, depth=depth + 1)
-        elif isinstance(v, (str, int, float, bool)) or v is None:
-            if isinstance(v, str) and len(v) > MAX_STRING:
+        elif type(v) is bool:
+            out[key] = v
+        elif type(v) is int:
+            _require_finite_number(v, f"hardware_requirements.{key}")
+            out[key] = v
+        elif type(v) is float:
+            _require_finite_number(v, f"hardware_requirements.{key}")
+            out[key] = v
+        elif type(v) is str:
+            if len(v) > MAX_STRING:
                 raise RegistryValidationError("hardware_requirements_string_too_long")
             out[key] = v
+        elif v is None:
+            out[key] = None
         else:
             raise RegistryValidationError("hardware_requirements_invalid_value")
     return out
@@ -189,11 +258,10 @@ def _validate_added_date(value: Optional[str]) -> Optional[str]:
 
 
 def _validate_capabilities(raw: Any) -> Optional[Dict[str, Any]]:
-    """Validate explicit behavioural capabilities; unknowns default to false/null."""
+    """Validate explicit behavioural capabilities with exact types."""
     if raw is None:
         return None
-    if not isinstance(raw, dict):
-        raise RegistryValidationError("capabilities_not_object")
+    raw = _require_exact_dict(raw, label="capabilities")
     unknown = set(raw.keys()) - ALLOWED_CAPABILITY_FIELDS
     if unknown:
         raise RegistryValidationError(f"unknown_capability_fields:{sorted(unknown)}")
@@ -208,23 +276,44 @@ def _validate_capabilities(raw: Any) -> Optional[Dict[str, Any]]:
     for key in ("chat", "tools", "structured_json", "streaming", "multimodal"):
         if key not in raw or raw[key] is None:
             continue
-        if not isinstance(raw[key], bool):
-            raise RegistryValidationError(f"capability_not_bool:{key}")
-        out[key] = raw[key]
+        out[key] = _require_exact_bool(raw[key], key)
     if "context_window" in raw and raw["context_window"] is not None:
-        try:
-            ctx = int(raw["context_window"])
-        except Exception as exc:
-            raise RegistryValidationError(f"invalid_capability_context_window:{exc}") from exc
-        if ctx <= 0:
-            raise RegistryValidationError("capability_context_window_not_positive")
-        out["context_window"] = ctx
+        out["context_window"] = _require_exact_positive_int(raw["context_window"], "context_window")
     return out
 
 
+def _parse_registry_json(raw: str) -> Dict[str, Any]:
+    def pairs_hook(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
+        keys = [k for k, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise RegistryValidationError("duplicate_json_keys")
+        return dict(pairs)
+
+    try:
+        payload = json.loads(raw, object_pairs_hook=pairs_hook)
+    except RegistryValidationError:
+        raise
+    except Exception as exc:
+        raise RegistryValidationError(f"invalid_json:{exc}") from exc
+    return _require_exact_dict(payload, label="registry")
+
+
+def parse_registry_bytes(data: bytes) -> Dict[str, Any]:
+    if len(data) > MAX_REGISTRY_FILE_BYTES:
+        raise RegistryValidationError("registry_file_too_large")
+    try:
+        raw = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RegistryValidationError("registry_not_utf8") from exc
+    payload = _parse_registry_json(raw)
+    unknown_root = set(payload.keys()) - ALLOWED_ROOT_FIELDS
+    if unknown_root:
+        raise RegistryValidationError(f"unknown_root_fields:{sorted(unknown_root)}")
+    return payload
+
+
 def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
-    if not isinstance(data, dict):
-        raise RegistryValidationError("entry_not_object")
+    data = _require_exact_dict(data, label="entry")
 
     unknown = set(data.keys()) - ALLOWED_FIELDS
     if unknown:
@@ -239,15 +328,14 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
     if not model_id or not ID_RE.match(model_id):
         raise RegistryValidationError("invalid_model_id")
 
-    # siona_native forbidden for all Phase 3A entries including mocks
-    if data.get("siona_native") is True:
-        raise RegistryValidationError("siona_native_forbidden")
+    if "siona_native" in data:
+        if _require_exact_bool(data["siona_native"], "siona_native"):
+            raise RegistryValidationError("siona_native_forbidden")
 
     classification = _unknown_or_str(data.get("classification")) or "unknown"
     if classification not in CLASSIFICATIONS:
         raise RegistryValidationError(f"invalid_classification:{classification}")
 
-    # Separate artefact provenance from behavioural capability verification.
     artifact_status = (
         _unknown_or_str(data.get("artifact_verification_status"))
         or _unknown_or_str(data.get("verification_status"))
@@ -262,8 +350,7 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
 
     capabilities = _validate_capabilities(data.get("capabilities"))
 
-    is_mock = bool(data.get("mock", False))
-    # Phase 3A: mocks may not claim verified behavioural capabilities
+    is_mock = _require_exact_bool(data.get("mock"), "mock") if "mock" in data else False
     if is_mock and capability_status == "verified":
         raise RegistryValidationError("mock_cannot_claim_verified_capabilities")
     if is_mock and capabilities:
@@ -273,21 +360,15 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
         ):
             raise RegistryValidationError("mock_cannot_claim_real_model_capabilities")
 
-    # Behavioural capabilities require explicit verified status to be actionable
     if capability_status == "verified" and capabilities is None:
         raise RegistryValidationError("verified_capabilities_require_capabilities_object")
 
     ctx = data.get("context_window")
     context_window: Optional[int]
-    if ctx is None or (isinstance(ctx, str) and ctx.strip().lower() in {"unknown", "null", "none", ""}):
+    if ctx is None or (type(ctx) is str and ctx.strip().lower() in {"unknown", "null", "none", ""}):
         context_window = None
     else:
-        try:
-            context_window = int(ctx)
-        except Exception as exc:
-            raise RegistryValidationError(f"invalid_context_window:{exc}") from exc
-        if context_window <= 0:
-            raise RegistryValidationError("context_window_not_positive")
+        context_window = _require_exact_positive_int(ctx, "context_window")
 
     licence_id = _unknown_or_str(data.get("licence_id"))
     licence_ref = _unknown_or_str(data.get("licence_ref"))
@@ -350,7 +431,6 @@ def validate_entry_dict(data: Dict[str, Any]) -> ModelRegistryEntry:
 
 class ModelRegistry:
     def __init__(self) -> None:
-        # Composite key: (provider_id, model_id)
         self._by_key: Dict[Tuple[str, str], ModelRegistryEntry] = {}
 
     def __len__(self) -> int:
@@ -376,22 +456,22 @@ class ModelRegistry:
         self._by_key[key] = entry
 
     def load_dict(self, payload: Dict[str, Any]) -> None:
-        """
-        Transactional load: validate all records and duplicates first,
-        then commit. On failure the existing registry is unchanged.
-        """
-        if not isinstance(payload, dict):
-            raise RegistryValidationError("registry_not_object")
+        """Transactional load: validate all records first, then commit."""
+        payload = _require_exact_dict(payload, label="registry")
+        unknown_root = set(payload.keys()) - ALLOWED_ROOT_FIELDS
+        if unknown_root:
+            raise RegistryValidationError(f"unknown_root_fields:{sorted(unknown_root)}")
         models = payload.get("models")
         if models is None:
             raise RegistryValidationError("missing_models")
-        if not isinstance(models, list):
-            raise RegistryValidationError("models_not_list")
+        models = _require_exact_list(models, label="models")
+        if len(models) > MAX_REGISTRY_ENTRIES:
+            raise RegistryValidationError("too_many_registry_entries")
 
         pending: List[ModelRegistryEntry] = []
         seen: Set[Tuple[str, str]] = set()
         for i, item in enumerate(models):
-            if not isinstance(item, dict):
+            if type(item) is not dict:
                 raise RegistryValidationError(f"entry_not_object:{i}")
             entry = validate_entry_dict(item)
             key = entry.composite_key()
@@ -406,13 +486,10 @@ class ModelRegistry:
     def load_json_file(self, path: str | Path) -> None:
         p = Path(path)
         try:
-            raw = p.read_text(encoding="utf-8")
+            data = p.read_bytes()
         except Exception as exc:
             raise RegistryValidationError(f"unreadable:{exc}") from exc
-        try:
-            payload = json.loads(raw)
-        except Exception as exc:
-            raise RegistryValidationError(f"invalid_json:{exc}") from exc
+        payload = parse_registry_bytes(data)
         self.load_dict(payload)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -423,6 +500,18 @@ def load_registry(path: str | Path) -> ModelRegistry:
     reg = ModelRegistry()
     reg.load_json_file(path)
     return reg
+
+
+def lookup_registry_entry(
+    registry: ModelRegistry,
+    *,
+    provider_id: str,
+    model_id: str,
+) -> ModelRegistryEntry:
+    entry = registry.get(model_id, provider_id=provider_id)
+    if entry is None:
+        raise RegistryValidationError("registry_entry_not_found")
+    return entry
 
 
 def mock_ci_registry_payload() -> Dict[str, Any]:

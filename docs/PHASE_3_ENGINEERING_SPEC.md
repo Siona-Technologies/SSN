@@ -12,8 +12,7 @@ executed (EXP-3B-008, acceptance not met); governed identity response guard
 implemented and offline-validated with fail-closed hardening (EXP-3B-009);
 controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded
 finals passed; model-native structured JSON remains unverified; deterministic
-JSON fallback contained failures; runtime shut down); model registry activation,
-Gate E evaluation recorded (EXP-3B-011); broad capability registry activation and ADR acceptance pending  
+JSON fallback contained failures; runtime shut down); model-registry activation review passed with conservative capability binding (EXP-3B-012); Gate E evaluation recorded (EXP-3B-011); ADR acceptance and Phase 3B completion pending  
 
 
 This document remains the Phase 3 engineering specification. Phase 3A did **not**
@@ -142,17 +141,28 @@ Phase 3B gates **passed** (local operator evidence, 2026-08-05):
 
 Phase 3B gates remaining **open**:
 
-- Model registry activation
-- Security validation campaign with real runtime
-- Structured-output capability verification
-- Timeout/cancellation validation
-- Streaming validation
+- Controlled real-runtime verification through the registry-bound path (state C)
+  — not automatic or permanent model startup; separate authorized experiment
+- Native JSON / structured_json: evaluated under Gate E / EXP-3B-010;
+  remains NOT_VERIFIED; disabled in registry
+- Streaming: evaluated under Gate E R08; UNSUPPORTED_ON_PINNED_BASELINE;
+  disabled in registry
+- Tools: disabled; multimodal: unverified/disabled
+- Adversarial follow-on campaigns beyond the Gate E catalogue
 - Behavioral / Gate E evaluation suite — **recorded** as EXP-3B-011 (see
   [SIONA_GATE_E_BREADTH_EVALUATION.md](SIONA_GATE_E_BREADTH_EVALUATION.md));
-  streaming remains unsupported on the pinned baseline; registry not activated
-- Capability verification (beyond observed text path)
+  governed safety 8/8; runtime R01–R07 passed; timeout/cancellation evaluated;
+  streaming remains unsupported on the pinned baseline
+- Model-registry activation review — **passed** as EXP-3B-012 with conservative
+  capability binding (`config/model_registry.json`; exact provider binding; no runtime startup);
+  bounded text/chat is the only positively verified registry behaviour at context 4096
 - ADR acceptance
 - Phase 3B completion
+
+Do **not** treat already-completed Gate E safety/timeout/cancellation evaluation
+as wholly pending. Optional capabilities that are unsupported or unverified must
+remain disabled in the registry rather than block ADR readiness when honestly
+recorded.
 
 Additional standing gates:
 

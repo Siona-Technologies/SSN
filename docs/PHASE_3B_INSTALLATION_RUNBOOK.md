@@ -2,9 +2,10 @@
 
 **Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
 limited loopback execution and **controlled real SIONA provider text-path
-validation** completed; runtime **stopped** — registry activation, Gate E
-evaluation, capability approval, and ADR acceptance **not** authorized by this
-document  
+validation** completed; Gate E breadth recorded (EXP-3B-011); model-registry
+activation review passed with conservative binding (EXP-3B-012); runtime **stopped**
+— operator runtime activation (state C), ADR acceptance and Phase 3B completion
+**not** authorized by this document alone  
 **Rule:** each destructive or state-changing step beyond the recorded baseline
 requires **explicit approval** before execution
 
@@ -21,8 +22,8 @@ Do not proceed past a stage without recorded approval.
 | A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
 | B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
 | C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; registry/Gate E/capability approval still pending |
-| E — Real-model eval | Gate D | Yes | Pending — not complete |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; Gate E recorded (EXP-3B-011); registry review passed (EXP-3B-012); ADR acceptance still pending |
+| E — Real-model eval | Gate D | Yes | **Gate E breadth recorded** (EXP-3B-011); conservative registry binding reviewed (EXP-3B-012) |
 | F — Rollback drill | Any prior install | Yes | Portable layout ready; post-shutdown deterministic fallback verified; full campaign pending |
 
 ## Provisional safety defaults
@@ -79,7 +80,7 @@ installation.
 | Maximum output setting (executed) | 512 server default; probe used ≤64 | Recorded |
 | CPU threads (executed) | 4 | Recorded |
 | GPU layers (executed) | 0 | Recorded |
-| Capability status | Unverified beyond specific observed text path; structured JSON unverified | Must remain limited |
+| Capability status | Bounded text/chat conservatively verified at 4096; native JSON NOT_VERIFIED (disabled); streaming UNSUPPORTED (disabled); tools/multimodal disabled | Must remain limited |
 | PATH modification | None | Confirmed |
 | Firewall rule | None | Confirmed |
 | Windows service | None | Confirmed |
@@ -89,16 +90,20 @@ installation.
 | Installation status (this baseline) | Completed portable extract | Local evidence |
 | Execution status | Limited loopback + controlled real-provider text path validated; **runtime currently stopped** | Local evidence |
 | Portable rollback | Available (delete runtime/model/staging dirs; Core untouched) | Design verified |
-| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005); registry still inactive | Local evidence |
+| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005); registry runtime inactive pending state C | Local evidence |
 
 ### Remaining authorization gate
 
-No model-registry activation, Gate E evaluation suite, capability approval,
-ADR acceptance, Phase 3B completion, or Phase 4 work may proceed without
-further explicit owner authorization. Controlled text-path validation does
-**not** certify production use or broad capabilities. Additional provider integration
-campaigns remain unauthorized until explicitly approved.
-`UNAPPROVED` for registry activation, Gate E, capability approval, and ADR acceptance.
+Gate E breadth (EXP-3B-011) and model-registry activation review (EXP-3B-012)
+are recorded. Registry record availability and exact binding software support
+are complete. A controlled real-runtime verification through that registry-bound
+path (state C), ADR acceptance, Phase 3B completion, and Phase 4 work may not
+proceed without further explicit owner authorization. STATE C DOES NOT MEAN
+AUTOMATIC OR PERMANENT MODEL STARTUP. Controlled text-path validation and
+conservative registry binding do **not** certify production use. Additional
+provider integration campaigns remain unauthorized until explicitly approved.
+`UNAPPROVED` for state C real-runtime verification, capability expansion beyond
+the conservative registry matrix, and ADR acceptance.
 
 ## Stages
 

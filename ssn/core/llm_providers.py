@@ -229,18 +229,33 @@ def get_default_provider_from_env() -> LLMProvider:
         try:
             from ssn.cognition.model_gateway import ModelGateway, ModelGatewayAsLLMProvider
             from ssn.cognition.model_gateway.deterministic import DeterministicModelProvider
-            from ssn.cognition.model_gateway.local_provider import LocalOpenWeightProvider
+            from ssn.cognition.model_gateway.local_provider import (
+                LocalOpenWeightProvider,
+                LocalProviderError,
+                build_local_provider_from_env,
+            )
 
-            local = LocalOpenWeightProvider()
-            # Deterministic fallback remains available behind the local provider.
+            local = build_local_provider_from_env()
+            if local is None:
+                return LocalDummyLLMProvider()
             gateway = ModelGateway(providers=[local, DeterministicModelProvider()])
-            # Align LanguageEngine/ModelGateway timeout with local HTTP transport
-            # (transport first; gateway outer bound = transport + 1s margin).
             return ModelGatewayAsLLMProvider(
                 gateway,
                 name="ssn-gateway-local-open-weight-v1",
                 default_timeout_s=local.gateway_timeout_s,
             )
+        except LocalProviderError:
+            try:
+                from ssn.cognition.model_gateway import ModelGateway, ModelGatewayAsLLMProvider
+                from ssn.cognition.model_gateway.deterministic import DeterministicModelProvider
+
+                gateway = ModelGateway(providers=[DeterministicModelProvider()])
+                return ModelGatewayAsLLMProvider(
+                    gateway,
+                    name="ssn-gateway-deterministic-v1",
+                )
+            except Exception:
+                return LocalDummyLLMProvider()
         except Exception:
             return LocalDummyLLMProvider()
 

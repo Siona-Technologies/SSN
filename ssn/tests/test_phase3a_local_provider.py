@@ -35,7 +35,7 @@ class TestLocalProviderConfig(unittest.TestCase):
                 {
                     "SSN_MODEL_PROVIDER": "local",
                     "SSN_LOCAL_MODEL_ENDPOINT": server.generate_url,
-                    "SSN_LOCAL_MODEL_ID": "mock-ci",
+                    "SSN_LOCAL_MODEL_ID": "Qwen3-1.7B-Q4_K_M",
                 },
                 clear=False,
             ):

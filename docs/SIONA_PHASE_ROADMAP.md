@@ -2,7 +2,8 @@
 
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)  
 Current phase status: [PHASE_STATUS.md](PHASE_STATUS.md)  
-Phase 3B acceptance: [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)
+Phase 3B acceptance: [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)  
+Phase 4 planning gate: [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
 
 This roadmap records the **current governed phase sequence**. Older dated
 planning documents may contain earlier phase numbering; when they differ, the
@@ -71,52 +72,67 @@ Key accepted evidence:
 Phase 3 is complete for its defined local-model/evaluation scope. This is not a
 production certification and does not make the external Qwen weights SIONA-native.
 
-## Phase 4 — Planning boundary
+## Phase 4 — Learned neuromorphic backend
 
-**Not started.**
+**Planning gate accepted; implementation/training not started.**
 
-Phase 3 completion makes Phase 4 eligible for a **separate governed planning
-and authorization decision**, but does not define or start Phase 4
-implementation automatically.
+The bounded Phase 4 objective is to deliver the first **real learned SNN
+provider** behind SIONA's existing neuromorphic-provider boundary for a temporal
+salience/classification task.
 
-Before Phase 4 implementation begins, the planning gate must:
+Planning decision:
 
-1. Reconcile older planning documents and current architecture.
-2. Select one bounded Phase 4 objective rather than combining unrelated future
-   capabilities.
-3. Define explicit objectives, non-objectives, tests and acceptance criteria.
-4. Classify every proposed capability using the Vision Charter taxonomy.
-5. Preserve owner-control, policy, tool-authority and physical-safety boundaries.
-6. Identify any hardware-gated work before implementation.
-7. Decide whether a new ADR is required for architectural changes.
-8. Keep Qwen/model startup, model training and capability expansion separately
-   authorized unless the approved Phase 4 specification explicitly includes
-   them.
+- [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
+- [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
+- proposed [ADR 0004](adr/0004-learned-neuromorphic-backend-strategy.md)
 
-Until that planning gate is accepted, **Phase 4 remains NOT STARTED**.
+### Authorized now — Phase 4A only
 
-## Later capabilities — unsequenced until Phase 4 planning
+- read-only neuromorphic contract/reference audit;
+- exact task definition;
+- synthetic/public dataset governance and split design;
+- backend/version/licence research;
+- predeclared metrics and acceptance threshold design;
+- checkpoint/artifact metadata schema design;
+- deterministic test scaffolding that does not require real training.
 
-The following remain future candidates and must not be inferred to be the
-Phase 4 scope merely from their order here:
+### Not authorized yet
+
+- real SNN training execution;
+- new training dependency installation;
+- CUDA/GPU claim;
+- Qwen fine-tuning/adapters;
+- physical actuation/robotics/IoT;
+- memory/database migration;
+- voice/SIBONA embodiment work.
+
+The first real SNN training run requires a separate execution-ready Phase 4A
+record with exact data, backend/version, topology/config, seed, metrics,
+predeclared baseline/threshold and cleanup procedure.
+
+## Later capabilities — unsequenced after the Phase 4 scope
+
+The following remain future candidates and are **not** part of the accepted
+Phase 4 learned-neuromorphic scope:
 
 - Vector / Postgres memory backends behind existing contracts
 - Transactional world-model store
 - Real STT/TTS and voice embodiment work
 - First MQTT or ROS 2 adapter, still safety-gated and confirmation-required
-- Learned neuromorphic backends (for example snnTorch / Norse) as providers
 - Semantic retrieval / embedding backends under explicit governance
 - Production deployment/packaging hardening
 - Explicit product-integration decisions outside present Core scope
 - Future user-facing assistant embodiment (working name: SIBONA)
-- SIONA-specific model adapters/fine-tuning under a separate dataset/training
-  governance decision
-- Future SIONA-native model research under SIONA-controlled training provenance
+- SIONA-specific language-model adapters/fine-tuning under a separate
+  dataset/training governance decision
+- Future SIONA-native foundation-model research under SIONA-controlled training
+  provenance
+- Loihi/FPGA deployment after learned-provider software evidence
 
 ## Legacy planning note
 
 `SIONA_BUILD_PLAN.md` is a dated planning reference whose internal phase numbers
-were created before the later governed Phase 1–3 acceptance sequence. For
-example, its historical “Phase 4” label must **not** be treated as the current
-Phase 4 authorization. Use this roadmap and `PHASE_STATUS.md` for current phase
-state.
+were created before the later governed Phase 1–3 acceptance sequence. Its
+historical “Phase 4” label must **not** be treated as the current Phase 4
+authorization. Use this roadmap, `PHASE_STATUS.md`, and the accepted Phase 4
+planning record for current phase state.

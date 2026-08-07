@@ -1,0 +1,57 @@
+{
+  "record_type": "PHASE_PLANNING_ACCEPTANCE",
+  "phase": "5",
+  "decision_date": "2026-08-07",
+  "planning_base_sha": "e446960c3f1da08f165afd445b46d7c7a915b0ea",
+  "decision": "PHASE_5_PLANNING_ACCEPTED",
+  "objective": "STATEFUL_STREAMING_NEUROMORPHIC_RUNTIME",
+  "phase_4_status": "COMPLETE",
+  "phase_5_planning_status": "ACCEPTED",
+  "phase_5_implementation_status": "NOT_STARTED",
+  "adr_0005_status": "PROPOSED",
+  "accepted_phase4_reference": {
+    "provider_id": "siona-neuro-learned-lif-v1",
+    "artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+    "input_shape": [20, 8],
+    "stateful": false,
+    "runtime_training_dependencies": false
+  },
+  "authorized_phase5a_scope": [
+    "STREAMING_EVENT_CONTRACT",
+    "STREAM_STATE_MACHINE_AND_LIFECYCLE",
+    "ACTIVE_STREAM_AND_TTL_BOUNDS",
+    "PURE_PYTHON_STATEFUL_PROVIDER_USING_UNCHANGED_PHASE4_ARTIFACT",
+    "WINDOW_VS_STREAMING_PARITY_SCAFFOLD",
+    "MULTI_STREAM_ISOLATION_RESET_FAILURE_TESTS"
+  ],
+  "frozen_initial_parity_targets": {
+    "frozen_test_samples": 128,
+    "predicted_class_agreement_required": 128,
+    "spike_count_agreement_required": 128,
+    "max_abs_logit_difference": 1e-12,
+    "max_abs_probability_difference": 1e-12
+  },
+  "existing_async_bus": {
+    "available": true,
+    "bounded_queue": true,
+    "priority_backpressure": true,
+    "event_ttl": true,
+    "handler_timeout": true,
+    "graceful_shutdown": true,
+    "phase5_bus_wiring_authorized_immediately": false
+  },
+  "not_authorized": [
+    "SNN_RETRAINING",
+    "PHASE4_ARTIFACT_OR_WEIGHT_MUTATION",
+    "QWEN_TRAINING_OR_CAPABILITY_CHANGE",
+    "GLOBAL_STREAMING_PROVIDER_DEFAULT_SWITCH",
+    "CUDA_OR_GPU_CLAIM",
+    "LOIHI_FPGA_OR_NEUROMORPHIC_SILICON_CLAIM",
+    "MEASURED_ENERGY_CLAIM",
+    "REAL_EVENT_CAMERA_HARDWARE",
+    "TOOL_OR_PHYSICAL_AUTHORITY",
+    "ROBOTICS_IOT_OR_ACTUATION",
+    "PRODUCTION_CERTIFICATION"
+  ],
+  "next_gate": "EXP-5-001_STREAMING_NEUROMORPHIC_CONTRACT_STATE_MACHINE_READINESS"
+}

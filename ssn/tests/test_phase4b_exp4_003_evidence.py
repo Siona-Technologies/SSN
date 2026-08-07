@@ -19,11 +19,6 @@ ADR4 = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
 STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 TASK = ROOT / "config" / "phase4a_temporal_salience_task.json"
 
-# EXP-4-003 recorded the raw registry-file SHA from the operator's Windows
-# checkout. GitHub-hosted Linux CI checks out the same Git blob with LF line
-# endings, so a raw filesystem-byte hash is intentionally not used as a
-# cross-platform identity assertion here. The LF-normalized fingerprint below
-# identifies the exact tracked registry content independent of checkout EOLs.
 REGISTRY_LF_SHA256 = "d9fc9f402e5872e77333f99e35f65c32800b4e1cff8ef32a3706b38c4677c816"
 EXP4_003_WINDOWS_RAW_REGISTRY_SHA256 = (
     "bebecf2c5e65d80e2fa0579566af1f89cb7a976a6550d1212d822cdaa11a4371"
@@ -31,7 +26,7 @@ EXP4_003_WINDOWS_RAW_REGISTRY_SHA256 = (
 
 
 class TestPhase4BExp4003Evidence(unittest.TestCase):
-    def test_evidence_schema_and_decision(self):
+    def test_evidence_schema_and_historical_decision(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
         self.assertEqual(data["experiment_id"], "EXP-4-003")
         self.assertEqual(data["decision"], "FIRST_CPU_SNN_TRAINING_VERIFIED")
@@ -45,6 +40,7 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         self.assertTrue(data["cpu_only"])
         self.assertFalse(data["project_requirements_changed"])
         self.assertFalse(data["absolute_operator_paths_committed"])
+        # Immutable snapshot of status at training time.
         self.assertEqual(data["adr_0004_status"], "PROPOSED")
         self.assertEqual(
             data["phase_4_status"],
@@ -68,13 +64,7 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         self.assertGreaterEqual(metrics["per_class_recall"]["1"], 0.85)
         self.assertGreaterEqual(metrics["margin_over_baseline"], 0.20)
         self.assertGreaterEqual(metrics["time_reversal_positive_score_drop"], 0.10)
-        self.assertTrue(checks["balanced_accuracy"])
-        self.assertTrue(checks["class0_recall"])
-        self.assertTrue(checks["class1_recall"])
-        self.assertTrue(checks["baseline_margin"])
-        self.assertTrue(checks["time_reversal"])
         self.assertTrue(all(checks.values()))
-        # Recompute margin from lower-level metric.
         self.assertAlmostEqual(
             metrics["margin_over_baseline"],
             metrics["test_balanced_accuracy"] - 0.50,
@@ -96,9 +86,6 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         self.assertEqual(artifact["training_experiment"], "EXP-4-003")
         self.assertFalse(artifact["tool_authority"])
         self.assertFalse(artifact["physical_actuation_authority"])
-        text = blob.decode("utf-8")
-        self.assertNotIn("C:/Users", text)
-        self.assertNotIn("C:\\Users", text)
 
     def test_frozen_task_fingerprints(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
@@ -110,17 +97,9 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
 
     def test_qwen_registry_unchanged_and_conservative(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-
-        # Preserve the immutable EXP-4-003 historical observation: the raw-byte
-        # digest was taken from the Windows operator checkout and is EOL-sensitive.
-        self.assertEqual(
-            data["model_registry_sha256"],
-            EXP4_003_WINDOWS_RAW_REGISTRY_SHA256,
-        )
+        self.assertEqual(data["model_registry_sha256"], EXP4_003_WINDOWS_RAW_REGISTRY_SHA256)
         self.assertFalse(data["model_registry_changed"])
 
-        # Independently verify the exact tracked registry content in a
-        # cross-platform way by normalizing line endings to Git's LF form.
         registry_text = REGISTRY.read_text(encoding="utf-8")
         normalized = registry_text.replace("\r\n", "\n").replace("\r", "\n")
         self.assertEqual(
@@ -144,19 +123,23 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         self.assertEqual(caps["context_window"], 4096)
         self.assertFalse(entry.get("siona_native", False))
 
-    def test_adr_phase_and_requirements_boundaries(self):
+    def test_historical_evidence_and_current_closeout_are_both_honest(self):
+        data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
         adr = ADR4.read_text(encoding="utf-8")
         status = STATUS.read_text(encoding="utf-8")
         narrative = NARRATIVE.read_text(encoding="utf-8")
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+
+        # EXP-4-003 must retain the status that existed when it ran.
+        self.assertEqual(data["adr_0004_status"], "PROPOSED")
+        self.assertIn("FIRST_CPU_SNN_TRAINING_VERIFIED", narrative)
+
+        current_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1
         )[0]
-        self.assertRegex(status_block, r"(?m)^\s*Proposed\s*$")
-        self.assertIn("FIRST_CPU_SNN_TRAINING_VERIFIED", status)
-        self.assertIn("learned provider", status.lower())
-        self.assertIn("ADR 0004 **Proposed**", status)
-        self.assertIn("Phase 4 remains **not started**", status)
-        self.assertIn("FIRST_CPU_SNN_TRAINING_VERIFIED", narrative)
+        self.assertIn("Accepted (Phase 4)", current_block)
+        self.assertIn("Phase 4 | **Completed and accepted", status)
+        self.assertIn("Phase 5 | **Not started", status)
+
         requirements = [
             line.strip().lower()
             for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines()

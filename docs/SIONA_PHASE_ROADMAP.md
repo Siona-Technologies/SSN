@@ -3,7 +3,7 @@
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)  
 Current phase status: [PHASE_STATUS.md](PHASE_STATUS.md)  
 Phase 3B acceptance: [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)  
-Phase 4 planning gate: [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
+Phase 4 acceptance: [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md)
 
 This roadmap records the **current governed phase sequence**. Older dated
 planning documents may contain earlier phase numbering; when they differ, the
@@ -74,69 +74,86 @@ production certification and does not make the external Qwen weights SIONA-nativ
 
 ## Phase 4 — Learned neuromorphic backend
 
-**Planning gate accepted; EXP-4-003/004/005 verified; ADR 0004 acceptance and Phase 4 completion pending.**
+**Completed and accepted.**
 
-The bounded Phase 4 objective is to deliver the first **real learned SNN
-provider** behind SIONA's existing neuromorphic-provider boundary for a temporal
-salience/classification task. EXP-4-003 verified a CPU candidate artifact.
-EXP-4-004 integrated an explicit pure-Python learned provider with snnTorch
-parity and deterministic fallback. EXP-4-005 hardened artifact/input/batch
-safety and recorded breadth/integrity evidence. ADR 0004 acceptance and Phase 4
-completion remain separately gated.
+Phase 4 delivered SIONA's first genuine learned software SNN component behind
+the existing neuromorphic-provider boundary while preserving deterministic
+fallback and authority separation.
 
-Planning / gate records:
+Accepted evidence chain:
 
-- [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
-- [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
-- [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
-- [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
-- [SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md](SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md)
-- [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
-- proposed [ADR 0004](adr/0004-learned-neuromorphic-backend-strategy.md)
+- EXP-4-001 — readiness/task/data/backend governance;
+- EXP-4-003 — `FIRST_CPU_SNN_TRAINING_VERIFIED`;
+- EXP-4-004 — `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`;
+- EXP-4-005 — `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`;
+- ADR 0004 — **Accepted (Phase 4)**;
+- [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md).
 
-### Completed through EXP-4-005
+Accepted learned component:
 
-- Phase 4A readiness (EXP-4-001);
-- Phase 4B frozen training gate;
-- one controlled CPU training/evaluation run (`FIRST_CPU_SNN_TRAINING_VERIFIED`);
-- canonical candidate JSON under `artifacts/neuromorphic/`;
-- explicit learned provider + fallback/parity (`LEARNED_SNN_PROVIDER_PARITY_VERIFIED`);
-- breadth/safety/integrity gate (`PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`).
+- provider: `siona-neuro-learned-lif-v1`;
+- task: `phase4a-temporal-salience-v1`;
+- architecture: `phase4b-lif-final-membrane-v1`;
+- canonical artifact SHA-256:
+  `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`;
+- deterministic/reference provider remains default/fallback;
+- normal runtime is standard-library only;
+- no torch/snnTorch/numpy runtime dependency;
+- no Qwen capability or registry change;
+- no tool or physical authority;
+- CPU software SNN only; no CUDA/GPU, Loihi, FPGA or neuromorphic-silicon claim.
 
-### Not authorized yet
+Phase 4 is complete for its defined learned-neuromorphic software scope. This is
+not production-security certification and does not authorize physical actuation,
+Qwen adaptation, or automatic promotion of the learned provider to global
+default.
 
-- ADR 0004 acceptance / Phase 4 completion;
-- CUDA/GPU claim;
-- Qwen fine-tuning/adapters;
-- physical actuation/robotics/IoT;
-- memory/database migration;
-- voice/SIBONA embodiment work.
+## Phase 5 — Planning boundary
 
-The next controlled blocker is **ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION**.
+**Not started.**
 
-## Later capabilities — unsequenced after the Phase 4 scope
+Phase 4 completion makes Phase 5 eligible for a separate governed planning
+decision. Phase 5 scope is deliberately **not** inferred from old phase numbering
+or from the remaining deferred-capability list.
 
-The following remain future candidates and are **not** part of the accepted
-Phase 4 learned-neuromorphic scope:
+Before Phase 5 implementation begins, the planning gate must:
 
-- Vector / Postgres memory backends behind existing contracts
-- Transactional world-model store
-- Real STT/TTS and voice embodiment work
-- First MQTT or ROS 2 adapter, still safety-gated and confirmation-required
-- Semantic retrieval / embedding backends under explicit governance
-- Production deployment/packaging hardening
-- Explicit product-integration decisions outside present Core scope
-- Future user-facing assistant embodiment (working name: SIBONA)
-- SIONA-specific language-model adapters/fine-tuning under a separate
-  dataset/training governance decision
-- Future SIONA-native foundation-model research under SIONA-controlled training
-  provenance
-- Loihi/FPGA deployment after learned-provider software evidence
+1. select one bounded objective;
+2. define explicit objectives and non-objectives;
+3. specify data/model/hardware dependencies and authority implications;
+4. define tests, evidence and acceptance criteria before implementation;
+5. preserve deterministic policy, owner-control and physical-safety boundaries;
+6. decide whether a new ADR is required;
+7. keep Qwen fine-tuning, physical embodiment, memory migration, voice and
+   asynchronous/event-stream SNN expansion separately authorized unless one is
+   explicitly chosen as the Phase 5 objective.
+
+Until that planning gate is accepted, **Phase 5 remains NOT STARTED**.
+
+## Later capabilities — unsequenced until Phase 5 planning
+
+Future candidates include:
+
+- true streaming/event-by-event learned SNN state updates;
+- vector/Postgres memory backends behind existing contracts;
+- transactional world-model store;
+- real STT/TTS and voice embodiment work;
+- first MQTT or ROS 2 adapter with separate physical-safety gates;
+- semantic retrieval / embedding backends under explicit governance;
+- production deployment/packaging hardening;
+- SIONA-specific language-model adapters/fine-tuning under separate data/training
+  governance;
+- future SIONA-native foundation-model research under SIONA-controlled training
+  provenance;
+- CUDA/GPU benchmarking for learned neuromorphic workloads;
+- Loihi/FPGA/neuromorphic-silicon deployment;
+- future user-facing assistant embodiment (working name: SIBONA).
+
+None of these is automatically Phase 5 merely because it appears in this list.
 
 ## Legacy planning note
 
 `SIONA_BUILD_PLAN.md` is a dated planning reference whose internal phase numbers
-were created before the later governed Phase 1–3 acceptance sequence. Its
-historical “Phase 4” label must **not** be treated as the current Phase 4
-authorization. Use this roadmap, `PHASE_STATUS.md`, and the accepted Phase 4
-planning record for current phase state.
+were created before the later governed Phase 1–4 acceptance sequence. Its older
+phase labels must **not** be treated as current authorization. Use this roadmap,
+`PHASE_STATUS.md`, and accepted phase/ADR records for current state.

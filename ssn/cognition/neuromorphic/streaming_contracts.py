@@ -100,6 +100,7 @@ class StreamingTemporalStep:
 @dataclass(frozen=True)
 class StreamingStreamSnapshot:
     stream_id: str
+    generation: int
     next_step_index: int
     membrane: Tuple[float, ...]
     cumulative_spike_count: int
@@ -109,6 +110,8 @@ class StreamingStreamSnapshot:
 
     def __post_init__(self) -> None:
         validate_stream_id(self.stream_id)
+        if type(self.generation) is not int or self.generation <= 0:
+            raise StreamingNeuromorphicContractError("generation_invalid")
         if type(self.next_step_index) is not int or not 0 <= self.next_step_index <= STEPS_PER_STREAM:
             raise StreamingNeuromorphicContractError("next_step_index_invalid")
         object.__setattr__(self, "membrane", validate_membrane(self.membrane))

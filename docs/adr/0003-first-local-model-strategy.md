@@ -32,8 +32,9 @@ SIONA does not currently own a trained foundation model.
 5. For the accepted Phase 3B baseline, the approved optional local pairing is
    **llama.cpp b9968 + Qwen3-1.7B-Q4_K_M**, bound through the canonical model
    registry and existing provider/gateway boundary. This acceptance is limited
-   to the conservative verified capability set recorded below. It is not a
-   production-security certification and is not a SIONA-native model claim.
+   to the conservative verified capability set recorded below.
+
+This ADR is not a production-security certification and is not a SIONA-native model claim.
 
 ## Official-source research outcome (2026-08-05)
 

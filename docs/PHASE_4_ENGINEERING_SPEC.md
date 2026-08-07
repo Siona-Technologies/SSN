@@ -1,6 +1,6 @@
 # Phase 4 Engineering Specification — Learned Neuromorphic Backend
 
-**Status:** Proposed planning gate — implementation not started  
+**Status:** Planning gate accepted — Phase 4A research/scaffolding authorized; implementation/training not started  
 **Phase 3 prerequisite:** Complete and accepted  
 **Primary objective:** Replace the simulation-only neuromorphic path with the first **real learned SNN provider** for a bounded salience/temporal classification task, while preserving deterministic safety, replaceable providers, and model-free hosted CI.  
 **Governing charter:** [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
@@ -16,8 +16,8 @@ neuromorphic/SNN processing: salience, novelty, temporal activity and reflex
 
 The repository already records:
 
-- `HW-SNN-001` — CUDA-accelerated SNN training, target Phase 4;
-- `HW-BENCH-001` — GPU benchmarking, target Phase 4;
+- `HW-SNN-001` — learned SNN training / later CUDA acceleration, target Phase 4;
+- `HW-BENCH-001` — GPU benchmarking, hardware-gated Phase 4 evidence;
 - a replaceable neuromorphic provider abstraction;
 - only a deterministic/reference neuromorphic provider as the current executable
   baseline.
@@ -98,7 +98,8 @@ Preferred initial stack for evaluation:
   before adoption.
 
 A tiny CPU reference training run is permitted only when the training plan,
-data/provenance and thresholds are already recorded.
+data/provenance and thresholds are already recorded and a separate execution
+gate authorizes that run.
 
 ### Phase 4C — Provider integration
 
@@ -136,9 +137,8 @@ machine must not cause Phase 4 software architecture to pretend GPU execution
 occurred.
 
 A Phase 4 CPU learned-provider acceptance may be possible without the GPU
-benchmark if the acceptance criteria below are met; `HW-SNN-001` GPU execution
-and `HW-BENCH-001` remain explicitly open/hardware-gated until separately
-verified.
+benchmark if the acceptance criteria below are met; CUDA execution and
+`HW-BENCH-001` remain explicitly open/hardware-gated until separately verified.
 
 ---
 
@@ -282,14 +282,15 @@ justify acceptance.
 
 ## 12. Phase 4 entry decision
 
-Merging the Phase 4 planning gate may authorize implementation of **Phase 4A
-only**: contract audit, dataset/task governance, test scaffolding, and dependency
-research.
+The accepted Phase 4 planning gate authorizes **Phase 4A only**: contract audit,
+dataset/task governance, deterministic test scaffolding, artifact-schema design,
+and official-source dependency research.
 
-It does **not** by itself authorize a real training run or a new dependency
-installation. Before the first real SNN training execution, the Phase 4A records
-must identify the exact task, data source/generator, backend/version, dependency
-licences, metrics and acceptance threshold.
+It does **not** authorize a real SNN training run or new dependency installation.
+Before the first real SNN training execution, Phase 4A must identify the exact
+task, data source/generator, backend/version, dependency licences, metrics,
+predeclared baseline, acceptance threshold, model topology/configuration and
+cleanup/rollback procedure.
 
 This preserves the Vision Charter rule that planning, implementation, training
 and capability claims are separate governed transitions.

@@ -54,12 +54,51 @@ def validate_plan() -> Dict[str, Any]:
         raise TrainingGateError("task ID mismatch")
     if plan["environment"]["required_python"] != "3.11.x 64-bit":
         raise TrainingGateError("Python gate drift")
+    bootstrap = plan["environment"].get("python_bootstrap")
+    if not isinstance(bootstrap, dict):
+        raise TrainingGateError("python_bootstrap gate missing")
+    if bootstrap.get("allowed_if_missing") is not True:
+        raise TrainingGateError("python bootstrap must be allowed only when missing")
+    if bootstrap.get("one_controlled_installation") is not True:
+        raise TrainingGateError("python bootstrap must remain one controlled installation")
+    if bootstrap.get("required_family") != "CPython":
+        raise TrainingGateError("python bootstrap family drift")
+    if bootstrap.get("required_version") != "3.11.x":
+        raise TrainingGateError("python bootstrap version drift")
+    if bootstrap.get("required_architecture") != "x64":
+        raise TrainingGateError("python bootstrap architecture drift")
+    if bootstrap.get("preferred_package_manager") != "winget":
+        raise TrainingGateError("python bootstrap package manager drift")
+    if bootstrap.get("package_id") != "Python.Python.3.11":
+        raise TrainingGateError("python bootstrap package ID drift")
+    if bootstrap.get("scope") != "user":
+        raise TrainingGateError("python bootstrap scope drift")
+    if bootstrap.get("side_by_side_only") is not True:
+        raise TrainingGateError("python bootstrap must remain side-by-side only")
+    if bootstrap.get("may_uninstall_existing_python") is not False:
+        raise TrainingGateError("python bootstrap must not uninstall existing Python")
+    if bootstrap.get("may_modify_qgis_python") is not False:
+        raise TrainingGateError("python bootstrap must not modify QGIS Python")
+    if bootstrap.get("may_manually_edit_path") is not False:
+        raise TrainingGateError("python bootstrap must not manually edit PATH")
+    if bootstrap.get("may_change_global_default_python") is not False:
+        raise TrainingGateError("python bootstrap must not change global default Python")
+    if bootstrap.get("verify_python_launcher_registration") is not True:
+        raise TrainingGateError("python launcher verification required")
+    if bootstrap.get("verify_existing_python314_still_available") is not True:
+        raise TrainingGateError("Python 3.14 preservation verification required")
+    if bootstrap.get("training_may_resume_only_after_verification") is not True:
+        raise TrainingGateError("training resume must wait for python verification")
+    if bootstrap.get("bootstrap_does_not_consume_training_run") is not True:
+        raise TrainingGateError("bootstrap must not consume the training run")
     if plan["environment"]["torch"]["version"] != "2.13.0+cpu":
         raise TrainingGateError("PyTorch version drift")
     if plan["environment"]["snntorch"]["version"] != "1.0.0":
         raise TrainingGateError("snnTorch version drift")
     if plan["execution"]["cuda_allowed"] is not False:
         raise TrainingGateError("CUDA must remain disabled")
+    if plan["execution"]["one_controlled_training_run_authorized_after_merge"] is not True:
+        raise TrainingGateError("one-run authorization drift")
     if plan["environment"]["project_requirements_file_must_remain_unchanged"] is not True:
         raise TrainingGateError("project requirements boundary missing")
     expected_fingerprints = {

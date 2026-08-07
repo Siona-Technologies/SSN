@@ -80,6 +80,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase4b_training_gate",
     "ssn.tests.test_phase4b_exp4_003_evidence",
     "ssn.tests.test_phase4c_learned_snn_provider",
+    "ssn.tests.test_phase4d_learned_snn_breadth_safety",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

@@ -74,14 +74,15 @@ production certification and does not make the external Qwen weights SIONA-nativ
 
 ## Phase 4 — Learned neuromorphic backend
 
-**Planning gate accepted; EXP-4-003 training verified; EXP-4-004 learned provider integrated + parity verified; breadth/safety gate pending.**
+**Planning gate accepted; EXP-4-003/004/005 verified; ADR 0004 acceptance and Phase 4 completion pending.**
 
 The bounded Phase 4 objective is to deliver the first **real learned SNN
 provider** behind SIONA's existing neuromorphic-provider boundary for a temporal
 salience/classification task. EXP-4-003 verified a CPU candidate artifact.
 EXP-4-004 integrated an explicit pure-Python learned provider with snnTorch
-parity and deterministic fallback. ADR 0004 acceptance and Phase 4 completion
-remain separately gated.
+parity and deterministic fallback. EXP-4-005 hardened artifact/input/batch
+safety and recorded breadth/integrity evidence. ADR 0004 acceptance and Phase 4
+completion remain separately gated.
 
 Planning / gate records:
 
@@ -90,19 +91,20 @@ Planning / gate records:
 - [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
 - [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
 - [SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md](SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md)
+- [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
 - proposed [ADR 0004](adr/0004-learned-neuromorphic-backend-strategy.md)
 
-### Completed through EXP-4-004
+### Completed through EXP-4-005
 
 - Phase 4A readiness (EXP-4-001);
 - Phase 4B frozen training gate;
 - one controlled CPU training/evaluation run (`FIRST_CPU_SNN_TRAINING_VERIFIED`);
 - canonical candidate JSON under `artifacts/neuromorphic/`;
-- explicit learned provider + fallback/parity (`LEARNED_SNN_PROVIDER_PARITY_VERIFIED`).
+- explicit learned provider + fallback/parity (`LEARNED_SNN_PROVIDER_PARITY_VERIFIED`);
+- breadth/safety/integrity gate (`PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`).
 
 ### Not authorized yet
 
-- Phase 4 breadth / safety / evidence gate (EXP-4-005);
 - ADR 0004 acceptance / Phase 4 completion;
 - CUDA/GPU claim;
 - Qwen fine-tuning/adapters;
@@ -110,7 +112,7 @@ Planning / gate records:
 - memory/database migration;
 - voice/SIBONA embodiment work.
 
-The next controlled blocker is **EXP-4-005 PHASE 4 BREADTH / SAFETY / EVIDENCE GATE**.
+The next controlled blocker is **ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION**.
 
 ## Later capabilities — unsequenced after the Phase 4 scope
 

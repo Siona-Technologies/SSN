@@ -12,15 +12,17 @@
 | Phase 4 | **Completed and accepted — EXP-4-003 training VERIFIED; EXP-4-004 learned-provider parity VERIFIED; EXP-4-005 breadth/safety VERIFIED; ADR 0004 Accepted (Phase 4)** |
 | Phase 4 accepted evidence baseline | `05de2b04279a72ece4834a984461a505de1188b3` |
 | Phase 4 architecture decision | ADR 0004 **Accepted (Phase 4)** |
-| Next phase | **Not started — requires a separate governed planning decision** |
+| Phase 5 | **Planning accepted — Stateful Streaming Neuromorphic Runtime; implementation not started; Phase 5A contract/state/parity work authorized** |
+| Phase 5 architecture decision | ADR 0005 **Proposed** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
 Historical status preservation: immediately before Phase 3 closeout, Phase 3B
 was **In progress**. During the Phase 3 closeout transition the authoritative
-record also stated that Phase 4 remains **not started**. Later Phase 4 planning,
-training, provider integration and breadth/safety evidence superseded that
-historical current-state wording. Experiment records retain the governance state
-that existed when each experiment ran and are not rewritten retroactively.
+record also stated that Phase 4 remains **not started**. At Phase 4 closeout, the
+accepted record stated that **no next phase has started** and that a separate
+governed planning decision was required. The later Phase 5 planning decision
+supersedes that historical current-state wording without rewriting the Phase 4
+acceptance snapshot or experiment records.
 
 ## Governing documents
 
@@ -31,6 +33,8 @@ that existed when each experiment ran and are not rewritten retroactively.
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
 - [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
 - [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
+- [PHASE_5_ENGINEERING_SPEC.md](PHASE_5_ENGINEERING_SPEC.md)
+- [PHASE_5_PLANNING_ACCEPTANCE.md](PHASE_5_PLANNING_ACCEPTANCE.md)
 - [SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md](SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md)
 - [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
 - [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
@@ -41,6 +45,7 @@ that existed when each experiment ran and are not rewritten retroactively.
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
 - [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
 - [adr/0004-learned-neuromorphic-backend-strategy.md](adr/0004-learned-neuromorphic-backend-strategy.md)
+- [adr/0005-stateful-streaming-neuromorphic-strategy.md](adr/0005-stateful-streaming-neuromorphic-strategy.md)
 
 ## Phase 3A status (completed)
 
@@ -150,6 +155,29 @@ Phase 4 does not claim or authorize:
 The learned artifact is a SIONA-trained software SNN artifact; it does not make
 external Qwen foundation weights SIONA-native.
 
+## Phase 5 status (planning accepted; implementation not started)
+
+Phase 5 is selected as **Stateful Streaming Neuromorphic Runtime**.
+
+The first goal is to reuse the exact accepted Phase 4 artifact while changing
+the software execution contract from one complete 20 × 8 window per call to
+bounded stateful processing of one 8-channel timestep at a time.
+
+Phase 5A is authorized for:
+
+- exact streaming event/state/lifecycle schema;
+- active-stream and TTL/ordering bounds;
+- pure-Python stateful provider implementation using unchanged Phase 4 weights;
+- parity tests against the accepted fixed-window provider;
+- deterministic multi-stream isolation/reset/failure tests.
+
+The existing `AsyncEventBus` already provides bounded queues, priority-aware
+backpressure, TTL, handler timeouts and graceful shutdown. Async bus wiring is a
+later Phase 5 stage after standalone streaming state semantics are proven.
+
+ADR 0005 remains **Proposed**. No Phase 5 implementation has yet been accepted.
+No SNN retraining is authorized for the initial streaming milestone.
+
 ## Known limitations carried forward
 
 - Optional local Qwen provider requires explicitly configured endpoint and model ID.
@@ -158,17 +186,13 @@ external Qwen foundation weights SIONA-native.
 - Artefact verification remains separate from broader production certification.
 - Default Front Door path remains the legacy dummy provider unless opted in.
 - Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated.
-- The accepted SNN task is intentionally narrow and window-based, not persistent
-  event-by-event asynchronous neuromorphic execution.
+- The accepted Phase 4 SNN remains window-based until Phase 5 streaming evidence
+  is implemented and accepted.
 
 ## Next
 
-Phases 1–4 are complete for their defined scopes.
+The next authorized engineering work is **EXP-5-001 — streaming neuromorphic
+contract/state-machine readiness**, followed by model-free implementation/parity.
 
-**No next phase has started.** The next objective must be selected through a
-separate governed planning decision. Older historical documents must not be used
-to infer or auto-start a new phase.
-
-Phase 4 acceptance is not permission to start Qwen automatically, promote Qwen
-optional capabilities, retrain either model, or grant learned-model tool or
-physical authority.
+Phase 5 planning is not permission to retrain the SNN, alter Qwen, make a learned
+provider globally default, or grant tool/physical authority.

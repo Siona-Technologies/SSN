@@ -2,7 +2,7 @@
 
 Durable IDs for work that is architecturally prepared but not yet fully executed
 or verified. Current phase authority comes from `PHASE_STATUS.md`, accepted ADRs,
-and phase acceptance/specification records.
+and phase acceptance/planning/specification records.
 
 ---
 
@@ -12,8 +12,16 @@ and phase acceptance/specification records.
 - **Accepted implementation:** `siona-neuro-learned-lif-v1` using the verified `phase4b-lif-final-membrane-v1` artifact; pure-Python runtime; deterministic provider retained as default/fallback
 - **Accepted task:** `phase4a-temporal-salience-v1` (20 × 8 binary temporal sequence)
 - **Accepted evidence:** EXP-4-003 training, EXP-4-004 parity, EXP-4-005 breadth/safety, ADR 0004 Accepted, `PHASE_4_ACCEPTANCE.md`
-- **Still deferred:** CUDA/GPU training or benchmarking, event-by-event persistent streaming SNN inference, real event-camera input, Loihi/FPGA/neuromorphic-silicon execution, measured energy-efficiency claims
-- **Hardware-gated work:** CUDA training/benchmark remains deferred until an approved CUDA-capable environment exists
+- **Still hardware-gated:** CUDA/GPU training or benchmarking, real event-camera input, Loihi/FPGA/neuromorphic-silicon execution, measured energy-efficiency claims
+
+### ID: SNN-STREAM-001
+- **Capability:** Persistent event-by-event / timestep-by-timestep stateful learned SNN software inference
+- **Status:** **Selected for governed Phase 5; planning accepted, implementation not started**
+- **Reason:** Phase 4 proved the learned fixed-window SNN; SIONA already has a bounded asynchronous event bus, but the learned provider does not yet preserve membrane state across individual arriving temporal steps
+- **Planned implementation:** `siona-neuro-streaming-lif-v1` candidate using the unchanged accepted Phase 4 artifact and pure-Python LIF semantics
+- **Required evidence:** full 128-sample streaming/window parity, bounded multi-stream state, ordering/reset/TTL/isolation safety, AsyncEventBus backpressure/timeout/shutdown integration
+- **Retraining required for initial milestone:** No
+- **Target phase:** Current governed Phase 5
 
 ### ID: HW-LLM-001
 - **Capability:** Optional local open-weight language-model inference
@@ -45,7 +53,7 @@ and phase acceptance/specification records.
 - **Capability:** GPU benchmarking for learned neuromorphic workloads
 - **Status:** Hardware-gated / deferred
 - **Reason:** No CUDA GPU on current development computer
-- **Target phase:** Later optional hardware-gated evidence; not required for accepted Phase 4 software scope
+- **Target phase:** Later optional hardware-gated evidence; not required for accepted Phase 4 software scope or initial Phase 5 streaming work
 - **Acceptance evidence:** Reproducible benchmark on identified GPU/runtime; never inferred from CPU measurements
 
 ### ID: HW-SIM-001
@@ -57,7 +65,7 @@ and phase acceptance/specification records.
 ### ID: HW-SENS-001
 - **Capability:** Event-camera hardware
 - **Status:** Deferred
-- **Reason:** No event-camera is part of the accepted SIONA Core learned-SNN baseline
+- **Reason:** Phase 5 targets software streaming semantics first; real sensor hardware remains separately gated
 - **Target phase:** Later
 
 ### ID: HW-IOT-001
@@ -87,7 +95,7 @@ and phase acceptance/specification records.
 ### ID: VOICE-001
 - **Capability:** Real STT/TTS / voice embodiment
 - **Status:** Deferred
-- **Reason:** User-facing embodiment is separate from the accepted learned neuromorphic core milestone
+- **Reason:** User-facing embodiment is separate from current streaming-neuromorphic work
 - **Target phase:** Later
 
 ### ID: CLOUD-001

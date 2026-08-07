@@ -3,63 +3,35 @@
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)  
 Current phase status: [PHASE_STATUS.md](PHASE_STATUS.md)  
 Phase 3B acceptance: [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)  
-Phase 4 acceptance: [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md)
+Phase 4 acceptance: [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md)  
+Phase 5 planning: [PHASE_5_PLANNING_ACCEPTANCE.md](PHASE_5_PLANNING_ACCEPTANCE.md)
 
 This roadmap records the **current governed phase sequence**. Older dated
 planning documents may contain earlier phase numbering; when they differ, the
-Vision Charter, `PHASE_STATUS.md`, accepted ADRs, and phase acceptance records
-control current status and authorization.
+Vision Charter, `PHASE_STATUS.md`, accepted ADRs, and phase acceptance/planning
+records control current status and authorization.
 
 ## Phase 1 — Cognitive runtime foundation
 
 **Completed and hardened** (`183fa70`).
 
-Delivered:
-
-- Event fabric + workspace + attention
-- Model gateway contracts + legacy adapters
-- Neuromorphic provider abstraction + deterministic reference
-- Cognitive loop skeleton
-- Memory / world boundaries
-- Embodiment contracts + mock adapter
-- Docs + deterministic tests
-- Owner-control freeze respected
+Delivered event fabric, workspace/attention, model and neuromorphic provider
+contracts, cognitive-loop skeleton, memory/world boundaries, embodiment
+contracts, documentation and deterministic tests.
 
 ## Phase 2 — Runtime integration
 
 **Completed and hardened.** Accepted implementation gate: `7b92114`.  
 Formal record: [PHASE_2_ACCEPTANCE.md](PHASE_2_ACCEPTANCE.md).
 
-Delivered:
-
-- Runtime modes (`legacy`, `shadow`, `cognitive_experimental`)
-- Integration facade and observation bridges
-- Exact legacy Front Door compatibility
-- Trace continuity and shared-deps isolation
-- Safe async observation lifecycle
-- Governance documentation
-
 ## Phase 3 — Local model and evaluation layer
 
 **Completed and accepted.**
 
-Phase 3A established the optional provider/evaluation foundation with
-deterministic, model-free CI. Phase 3B installed and governed the first real
-optional local open-weight language-model baseline and completed controlled
-registry-bound runtime verification.
-
-Accepted Phase 3B baseline:
-
-- llama.cpp b9968;
-- `Qwen3-1.7B-Q4_K_M`;
-- registry provider `siona-local-open-weight-v1`;
-- `chat=true` at context 4096;
-- `tools=false`;
-- `structured_json=false` (`NOT_VERIFIED` natively);
-- `streaming=false` (`UNSUPPORTED_ON_PINNED_BASELINE`);
-- `multimodal=false`;
-- `siona_native=false`;
-- steady-state runtime stopped.
+Phase 3 accepted the optional local Qwen/llama.cpp path behind the governed model
+registry and gateway. Conservative capabilities remain `chat=true` at context
+4096 with tools/structured JSON/streaming/multimodal false and
+`siona_native=false`.
 
 ADR 0003 is **Accepted (Phase 3B)**.
 
@@ -67,83 +39,87 @@ ADR 0003 is **Accepted (Phase 3B)**.
 
 **Completed and accepted.**
 
-Phase 4 delivered the first real learned SNN provider behind SIONA's existing
-neuromorphic-provider boundary for a bounded temporal salience/classification
-task.
+Phase 4 delivered the first real learned SNN provider behind SIONA's
+neuromorphic-provider boundary for a bounded temporal-salience task.
 
 Accepted provider:
 
-- provider ID: `siona-neuro-learned-lif-v1`;
-- task: `phase4a-temporal-salience-v1`;
-- architecture: `phase4b-lif-final-membrane-v1`;
-- input: explicit `temporal_salience_v1`, 20 × 8 binary sequence;
-- trained artifact SHA-256:
-  `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`;
-- accepted runtime: pure Python without torch/snnTorch/numpy/Norse;
-- explicit activation only;
-- deterministic provider remains default/reference/fallback;
-- tool authority false;
-- physical actuation authority false;
-- energy metrics false.
+- `siona-neuro-learned-lif-v1`;
+- task `phase4a-temporal-salience-v1`;
+- architecture `phase4b-lif-final-membrane-v1`;
+- 20 × 8 binary complete-window input;
+- pure-Python runtime using verified SIONA-trained artifact;
+- deterministic provider retained as default/reference/fallback;
+- tool and physical authority false.
 
-Accepted evidence chain:
+Evidence chain:
 
-- EXP-4-001 — readiness/task/data governance;
-- Phase 4B frozen training gate;
 - EXP-4-003 — `FIRST_CPU_SNN_TRAINING_VERIFIED`;
 - EXP-4-004 — `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`;
 - EXP-4-005 — `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`;
-- ADR 0004 — **Accepted (Phase 4)**;
-- [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md).
+- ADR 0004 — **Accepted (Phase 4)**.
 
-Key bounded evidence:
+Phase 4 deliberately did not claim persistent event-by-event streaming,
+neuromorphic silicon, GPU training, measured energy efficiency or physical
+actuation.
 
-- 128/128 held-out samples correct;
-- balanced accuracy 1.0 and class recalls 1.0/1.0;
-- 197/197 class/spike parity samples against the retained snnTorch reference;
-- 64 reversed-positive controls with mean score drop ≈0.99943249;
-- 9/9 valid edge controls;
-- malformed learned inputs fail closed;
-- corrupt artifacts reject before inference;
-- unsupported modalities use deterministic fallback;
-- maximum batch 256;
-- maximum artifact 256 KiB with bounded read.
+## Phase 5 — Stateful streaming neuromorphic runtime
 
-Phase 4 is complete for this **learned neuromorphic software-provider scope**.
-This does not claim fully asynchronous neuromorphic hardware execution or a
-general SNN brain.
+**Planning accepted; implementation not started.**
 
-### Explicitly deferred beyond Phase 4
+The current governed Phase 5 objective is to reuse the unchanged accepted Phase
+4 learned artifact while evolving the software execution contract from one
+complete 20 × 8 window per call to bounded stateful processing of individual
+8-channel temporal steps.
 
-- event-by-event persistent/stateful streaming SNN inference;
-- CUDA/GPU SNN training or benchmark claims;
-- Loihi/FPGA/neuromorphic-silicon deployment;
-- measured SNN energy efficiency;
-- real event-camera input;
-- making the learned provider globally default;
-- Qwen fine-tuning/adapters;
-- physical actuation/robotics/IoT;
-- semantic/vector memory migration;
-- voice/SIBONA embodiment work;
-- production-security certification.
+Planning records:
 
-## Next phase — not selected
+- [PHASE_5_ENGINEERING_SPEC.md](PHASE_5_ENGINEERING_SPEC.md)
+- [PHASE_5_PLANNING_ACCEPTANCE.md](PHASE_5_PLANNING_ACCEPTANCE.md)
+- proposed [ADR 0005](adr/0005-stateful-streaming-neuromorphic-strategy.md)
 
-**No next phase has started.**
+### Phase 5A authorized now
 
-Completion of Phase 4 does not automatically select Phase 5 or inherit phase
-numbers/scopes from historical planning documents.
+- exact streaming event/state/lifecycle contract;
+- frozen active-stream/order/TTL/state bounds;
+- pure-Python streaming provider using the unchanged Phase 4 artifact;
+- full 128-sample streaming/window parity scaffolding;
+- deterministic interleaved-stream isolation/reset/failure tests.
 
-The next objective must be selected through a **separate governed planning decision**. That planning decision must choose one bounded objective, define its non-objectives and acceptance criteria, and determine whether a new ADR is required before implementation starts.
+### Later Phase 5 stages
 
-## Future capability candidates — unsequenced
+After standalone stateful semantics are proven:
 
-The following remain candidates only until a future planning decision selects
-one:
+- multi-stream breadth/safety evidence;
+- integration with the existing `AsyncEventBus`;
+- backpressure/TTL/timeout/shutdown evidence;
+- final breadth gate and ADR 0005 acceptance decision.
 
-- streaming/event-by-event neuromorphic processing;
+### Not authorized by Phase 5 planning
+
+- SNN retraining or weight mutation;
+- Qwen adaptation/capability changes;
+- global learned-provider default switch;
+- CUDA/GPU, Loihi/FPGA or measured-energy claims;
+- real event-camera hardware;
+- tools, robotics, IoT or physical actuation;
+- production certification.
+
+This phase targets **event-driven software state**, not neuromorphic-silicon
+execution.
+
+## Historical Phase 4 closeout note
+
+At the Phase 4 closeout boundary, **no next phase had started** and a **separate
+governed planning decision** was required. That requirement has now been
+satisfied by the Phase 5 planning record; the historical Phase 4 acceptance
+snapshot remains unchanged.
+
+## Future capability candidates — unsequenced beyond current Phase 5
+
 - GPU or neuromorphic-hardware SNN benchmarking;
-- Vector / Postgres memory backends;
+- real event-camera input;
+- Vector/Postgres memory backends;
 - transactional world-model store;
 - semantic retrieval / embedding backends;
 - real STT/TTS and voice embodiment;
@@ -157,7 +133,7 @@ one:
 
 ## Legacy planning note
 
-`SIONA_BUILD_PLAN.md` is a dated planning reference whose internal phase numbers
-were created before the later governed phase acceptance sequence. Its historical
-phase labels must **not** be treated as current authorization. Use this roadmap,
-`PHASE_STATUS.md`, and accepted phase records for current state.
+`SIONA_BUILD_PLAN.md` and older code/test names such as historical `phase5_*`
+labels predate the current governed sequence. Their numeric labels do **not**
+define current Phase 5 authorization. Use this roadmap, `PHASE_STATUS.md`, and
+the Phase 5 planning record for current state.

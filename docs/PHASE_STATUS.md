@@ -17,7 +17,7 @@
 
 Historical note: immediately before Phase 4 closeout, Phase 4 was **In progress** and ADR 0004 was **Proposed**. EXP-4-005 removed the final breadth/safety blocker. The accepted current state is Phase 4 complete and ADR 0004 Accepted (Phase 4). Phase 5 remains **not started**.
 
-Historical Phase 3 closeout snapshot retained for evidence/test chronology: **Phase 4 remains not started** at that earlier point. This sentence is historical only and does not override the current accepted Phase 4 status above.
+Historical Phase 3 closeout wording retained only for chronology and older regression evidence: Phase 4 remains **not started** at that earlier point. This historical sentence does not override the current accepted Phase 4 status above.
 
 ## Governing documents
 

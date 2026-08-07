@@ -19,6 +19,15 @@ from ssn.cognition.neuromorphic.legacy_adapter import (
     LegacySNNEngineAdapter,
     NeuromorphicSNNFacade,
 )
+from ssn.cognition.neuromorphic.learned_artifact import (
+    LearnedNeuromorphicArtifactError,
+    load_learned_artifact,
+)
+from ssn.cognition.neuromorphic.learned_provider import (
+    LearnedNeuromorphicInputError,
+    LearnedTemporalSalienceProvider,
+    build_learned_temporal_salience_provider,
+)
 
 __all__ = [
     "AnomalyOutput",
@@ -32,4 +41,9 @@ __all__ = [
     "data_to_neuromorphic_event",
     "LegacySNNEngineAdapter",
     "NeuromorphicSNNFacade",
+    "LearnedNeuromorphicArtifactError",
+    "LearnedNeuromorphicInputError",
+    "LearnedTemporalSalienceProvider",
+    "build_learned_temporal_salience_provider",
+    "load_learned_artifact",
 ]

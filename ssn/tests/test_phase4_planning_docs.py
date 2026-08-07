@@ -33,15 +33,15 @@ class TestPhase4PlanningDocs(unittest.TestCase):
         self.assertIn("Phase 4A only", acceptance)
         self.assertIn("A real SNN training run is **not yet authorized**", acceptance)
         self.assertIn("Phase 4 | **In progress", status)
-        self.assertIn("EXP-4-003 first CPU SNN training VERIFIED", status)
+        self.assertIn("EXP-4-004 learned provider integrated + parity VERIFIED", status)
         self.assertIn("ADR 0004 **Proposed**", status)
         self.assertIn(
-            "Phase 4 remains **not started** at the learned-provider integration and Phase 4 completion level",
+            "Phase 4 remains **not started** at the Phase 4 completion / ADR 0004 acceptance level",
             status,
         )
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
         self.assertIn(
-            "Planning gate accepted; EXP-4-003 first CPU SNN training verified; learned-provider integration pending",
+            "EXP-4-004 learned provider integrated + parity verified; breadth/safety gate pending",
             roadmap,
         )
 

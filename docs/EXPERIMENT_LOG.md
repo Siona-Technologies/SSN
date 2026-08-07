@@ -750,3 +750,36 @@ Artifact references: docs/PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md,
 Reproduction command: n/a (operator-local venv/wheels; not hosted CI training)
 ```
 
+### EXP-4-004 — Learned SNN provider integration + parity
+
+```text
+Experiment ID: EXP-4-004
+Date: 2026-08-07
+Git commit: (feat/phase4c-learned-snn-provider-integration tip)
+Runtime mode: model-free provider integration + operator-local parity only
+Dataset: phase4a-temporal-salience-v1 frozen test + reversed positives + edges
+Model/provider: siona-neuro-learned-lif-v1 (pure Python); snnTorch reference only
+Neuromorphic backend: phase4b-lif-final-membrane-v1 (committed JSON candidate)
+Hardware: Intel i7-1165G7, Iris Xe, CPU-only (CUDA false)
+Configuration:
+  artifact SHA-256 dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc
+  modality temporal_salience_v1; shape 20x8 binary; default facade unchanged
+  no training; requirements.txt unchanged
+Metrics:
+  parity samples=197 (128 test + 64 reversed + 5 edges)
+  max |dlogit|≈5.95e-6; max |dprob|≈7.69e-8
+  class agreement 197/197; spike agreement 197/197
+Result: LEARNED_SNN_PROVIDER_PARITY_VERIFIED
+Evidence:
+  docs/SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md
+  docs/evidence/EXP-4-004_LEARNED_SNN_PROVIDER_PARITY.json
+  docs/evidence/EXP-4-004_PARITY_FIXTURE.json
+Outstanding: EXP-4-005 PHASE 4 BREADTH / SAFETY / EVIDENCE GATE
+Limitations: ADR 0004 remains Proposed; Phase 4 incomplete; learned provider
+             is explicit opt-in only; not neuromorphic silicon
+Artifact references: docs/SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md,
+                      docs/evidence/EXP-4-004_LEARNED_SNN_PROVIDER_PARITY.json,
+                      artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase4c_learned_snn_provider
+```
+

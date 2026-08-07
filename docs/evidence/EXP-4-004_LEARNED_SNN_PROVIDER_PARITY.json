@@ -1,0 +1,68 @@
+{
+  "experiment_id": "EXP-4-004",
+  "date": "2026-08-07",
+  "decision": "LEARNED_SNN_PROVIDER_PARITY_VERIFIED",
+  "base_main_sha": "3c23b5dc98a0162c5aee4587704afc3cfd182b1a",
+  "candidate_artifact_path": "artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json",
+  "candidate_artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+  "provider_id": "siona-neuro-learned-lif-v1",
+  "task_id": "phase4a-temporal-salience-v1",
+  "architecture_id": "phase4b-lif-final-membrane-v1",
+  "training_experiment_source": "EXP-4-003",
+  "provider_runtime_dependencies": ["python-stdlib-only"],
+  "learned_input_modality": "temporal_salience_v1",
+  "learned_input_shape": [20, 8],
+  "parity_stack": {
+    "python": "3.11.9",
+    "torch": "2.13.0+cpu",
+    "snntorch": "1.0.0",
+    "cuda_available": false,
+    "cuda_version": null
+  },
+  "parity_sample_counts": {
+    "held_out_test": 128,
+    "reversed_positive": 64,
+    "edge_controls": 5,
+    "total": 197
+  },
+  "tolerances_predeclared": {
+    "max_abs_logit_difference": 1e-05,
+    "max_abs_probability_difference": 1e-05
+  },
+  "max_abs_logit_difference": 5.95092208754977e-06,
+  "max_abs_probability_difference": 7.693232717542742e-08,
+  "predicted_class_agreement": {
+    "count": 197,
+    "rate": 1.0
+  },
+  "spike_count_agreement": {
+    "count": 197,
+    "rate": 1.0,
+    "exposed": true
+  },
+  "parity_fixture_path": "docs/evidence/EXP-4-004_PARITY_FIXTURE.json",
+  "parity_fixture_sample_count": 5,
+  "parity_records_sha256": "f25e0d7af6e024260e48dd7052a2a10e642adf9fc35c919370dc240f8f45f659",
+  "fallback": {
+    "unsupported_modality_uses_deterministic_fallback": true,
+    "malformed_learned_events_fail_closed": true,
+    "fallback_metadata_explicit": true
+  },
+  "default_facade_provider": "siona-neuro-deterministic-v1",
+  "learned_provider_defaulted": false,
+  "training_run_count": 0,
+  "qwen_run_count": 0,
+  "tool_execution_count": 0,
+  "tool_authority": false,
+  "physical_actuation_authority": false,
+  "reflex_proposals_generated": 0,
+  "requirements_txt_changed": false,
+  "torch_snntorch_added_to_requirements": false,
+  "qwen_registry_changed": false,
+  "ssn_data_changed": false,
+  "website_changed": false,
+  "adr_0004_status": "PROPOSED",
+  "phase_4_status": "IN_PROGRESS_LEARNED_PROVIDER_INTEGRATED_PARITY_VERIFIED",
+  "next_blocker": "EXP-4-005 PHASE 4 BREADTH / SAFETY / EVIDENCE GATE",
+  "absolute_operator_paths_committed": false
+}

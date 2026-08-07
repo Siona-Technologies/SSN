@@ -32,6 +32,7 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertFalse(data["qwen_runtime_started"])
         self.assertEqual(data["real_model_calls"], 0)
         self.assertEqual(data["tool_executions"], 0)
+        # Immutable historical governance at the time EXP-4-001 ran.
         self.assertEqual(data["adr_0004_status"], "PROPOSED")
 
     def test_existing_contract_is_provider_replaceable(self):
@@ -86,6 +87,7 @@ class TestPhase4AReadiness(unittest.TestCase):
         expected = data["task"]["split_fingerprints"]
         for split in ("train", "validation", "test"):
             self.assertEqual(split_fingerprint(split), expected[split])
+        # Task config remains the frozen pre-training record.
         self.assertFalse(task["training"]["authorized"])
         self.assertFalse(task["candidate_backend"]["dependency_installation_authorized"])
 
@@ -106,15 +108,17 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertEqual(caps["context_window"], 4096)
         self.assertFalse(entry["siona_native"])
 
-    def test_adr4_and_status_do_not_claim_training_complete(self):
+    def test_historical_readiness_and_current_accepted_status_are_distinct(self):
+        data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+        self.assertEqual(data["adr_0004_status"], "PROPOSED")
         adr = ADR4.read_text(encoding="utf-8")
         status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1
         )[0]
-        self.assertRegex(status_block, r"(?m)^\s*Proposed\s*$")
+        self.assertIn("Accepted (Phase 4)", status_block)
         status = STATUS.read_text(encoding="utf-8")
-        self.assertIn("Phase 4A", status)
-        self.assertIn("training", status.lower())
+        self.assertIn("Phase 4 | **Completed and accepted", status)
+        self.assertIn("ADR 0004 **Accepted (Phase 4)**", status)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,36 @@
+{
+  "record_type": "PHASE_ACCEPTANCE",
+  "phase": "4",
+  "decision_date": "2026-08-07",
+  "accepted_evidence_baseline": "05de2b04279a72ece4834a984461a505de1188b3",
+  "decision": "PHASE_4_ACCEPTED",
+  "adr_0004_status": "ACCEPTED_PHASE_4",
+  "phase_4_status": "COMPLETE",
+  "phase_5_status": "NOT_STARTED",
+  "scope": "LEARNED_NEUROMORPHIC_BACKEND_AND_EVALUATION",
+  "accepted_provider": "siona-neuro-learned-lif-v1",
+  "task_id": "phase4a-temporal-salience-v1",
+  "architecture_id": "phase4b-lif-final-membrane-v1",
+  "artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+  "required_evidence": {
+    "EXP-4-003": "FIRST_CPU_SNN_TRAINING_VERIFIED",
+    "EXP-4-004": "LEARNED_SNN_PROVIDER_PARITY_VERIFIED",
+    "EXP-4-005": "PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED"
+  },
+  "accepted_boundaries": {
+    "cpu_software_snn": true,
+    "deterministic_fallback_retained": true,
+    "runtime_torch_dependency": false,
+    "runtime_snntorch_dependency": false,
+    "runtime_numpy_dependency": false,
+    "qwen_registry_changed": false,
+    "tool_authority": false,
+    "physical_actuation_authority": false,
+    "production_certified": false,
+    "cuda_gpu_verified": false,
+    "neuromorphic_silicon_verified": false,
+    "qwen_fine_tuning_authorized": false,
+    "global_default_promotion_authorized": false
+  },
+  "next_gate": "SEPARATE_PHASE_5_PLANNING_DECISION"
+}

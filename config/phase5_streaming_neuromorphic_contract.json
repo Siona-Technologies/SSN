@@ -47,8 +47,10 @@
       "membrane",
       "cumulative_spike_count",
       "created_at_monotonic",
-      "last_activity_monotonic"
+      "last_activity_monotonic",
+      "revision"
     ],
+    "revision_required_for_prepare_commit_consistency": true,
     "raw_input_history_retained": false,
     "logits_retained_before_completion": false,
     "probabilities_retained_before_completion": false

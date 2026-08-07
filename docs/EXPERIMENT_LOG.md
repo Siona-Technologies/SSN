@@ -712,3 +712,41 @@ Artifact references: docs/SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md,
 Reproduction command: n/a (manual local operator procedure; not CI)
 ```
 
+### EXP-4-003 — First controlled CPU SNN training/evaluation
+
+```text
+Experiment ID: EXP-4-003
+Date: 2026-08-07
+Git commit: (exp/phase4b-first-cpu-snn-training tip)
+Runtime mode: isolated local CPU training (no Qwen; no tools)
+Dataset: phase4a-temporal-salience-v1 frozen splits
+Model/provider: snnTorch 1.0.0 + PyTorch 2.13.0+cpu (isolated venv)
+Neuromorphic backend: phase4b-lif-final-membrane-v1 (candidate artifact only)
+Hardware: Intel i7-1165G7, Iris Xe, CPU-only (CUDA false)
+Configuration:
+  CPython 3.11.9 x64; seed 42007; max_epochs 80; Adam lr=0.01
+  torch wheel SHA-256 10717d8b3b67c45a4788bf7ffc0bab1ea1e5ebbedd24466be6100102d141fac1
+  snntorch wheel SHA-256 b5a85f6f44c6d27c8a1dcea16cb18a630d00b8d2f3cfec85b7e580cb177e606b
+  project requirements.txt unchanged
+Metrics:
+  epochs=80; selected_epoch=79; stop=max_epochs; wall≈7.08s
+  test balanced accuracy=1.0; class recalls=1.0/1.0; margin=0.5
+  time-reversal positive-score drop≈0.99943
+  confusion [[64,0],[0,64]]
+Result: FIRST_CPU_SNN_TRAINING_VERIFIED
+Evidence:
+  docs/SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md
+  docs/evidence/EXP-4-003_FIRST_CPU_SNN_TRAINING.json
+  artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json
+  candidate SHA-256 dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc
+  raw .pt outside Git; tools=0; physical=false; Qwen unused/stopped
+Outstanding: LEARNED SNN PROVIDER INTEGRATION + FALLBACK/PARITY VERIFICATION
+Limitations: ADR 0004 remains Proposed; Phase 4 incomplete; no provider
+             integration; no CUDA claim; CI remains training-stack-free
+Artifact references: docs/PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md,
+                      docs/SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md,
+                      docs/evidence/EXP-4-003_FIRST_CPU_SNN_TRAINING.json,
+                      artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json
+Reproduction command: n/a (operator-local venv/wheels; not hosted CI training)
+```
+

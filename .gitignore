@@ -93,8 +93,11 @@ dist/
 # ============================
 # EVAL / ARTIFACT OUTPUTS
 # ============================
-artifacts/
+# Ignore generated eval/runtime outputs under artifacts/, but keep the
+# EXP-4-003 verified CPU SNN candidate JSON (no raw .pt checkpoints).
 artifacts/**
+!artifacts/neuromorphic/
+!artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json
 ssn/data/eval_reports/
 ssn/data/eval_reports/**
 

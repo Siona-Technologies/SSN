@@ -248,11 +248,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("RUNTIME CURRENTLY STOPPED", research)
         self.assertIn("CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED", research)
         self.assertIn("EXP-3B-005", research)
-        self.assertIn("REGISTRY INACTIVE", research)
-        self.assertIn("GATE E PENDING", research)
+        self.assertIn("REGISTRY RECORD AVAILABLE", research)
+        self.assertIn("STATE C REAL-RUNTIME VERIFICATION PENDING", research)
+        self.assertIn("GATE E BREADTH RECORDED", research)
         self.assertIn(
-            "Capabilities remain limited/unverified beyond the specific observed text path",
-            research,
+            "bounded text/chat only at context 4096",
+            research.lower(),
         )
         self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
         self.assertNotIn("SIONA provider integration has **not** started", research)
@@ -528,6 +529,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "### Conditions", 1
         )[0]
         self.assertIn("Model registry remains inactive", why)
+        self.assertIn(
+            "Registry record availability and exact binding software support are complete under EXP-3B-012",
+            why,
+        )
         self.assertIn(
             "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
             why,

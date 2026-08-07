@@ -8,11 +8,13 @@ validated (EXP-3B-005); runtime currently **stopped**.
 **Source-access date:** 2026-08-05  
 **Hardware baseline:** HP EliteBook 840 G8; Intel i7-1165G7 (4C/8T); Intel Iris Xe; ~15.73 GiB RAM; no CUDA  
 
-**Non-authorization:** This document does **not** authorize model-registry
-activation, Gate E governed evaluation, broad capability approval, ADR
-acceptance, Phase 3B completion, or Phase 4. Further provider campaigns beyond
-the recorded limited text-transport gate still require explicit owner
-authorization.
+**Non-authorization:** This document does **not** authorize ADR acceptance,
+Phase 3B completion, Phase 4, or automatic/permanent model startup. Gate E
+breadth is recorded (EXP-3B-011). Model-registry activation review passed with
+conservative capability binding (EXP-3B-012: registry record available; exact
+binding software supported). A controlled real-runtime verification through that
+registry-bound path (state C) remains a separate authorized experiment and is
+**not** automatic or permanent model startup.
 
 ## Research status
 
@@ -33,11 +35,14 @@ authorization.
 | LanguageEngine → real local provider | **Succeeded** |
 | Deterministic fallback after shutdown | **Verified** |
 | Structured JSON probe | **Observed failure; capability remains unverified** |
-| Model registry | **Record available; binding software supported (EXP-3B-012); runtime inactive (state C)** |
-| Gate E governed evaluation | **Pending** |
-| Broad security / timeout / streaming / adversarial / behavioral eval | **Pending** |
+| Model registry | **Record available; binding software supported (EXP-3B-012); state C real-runtime verification not yet performed** |
+| Gate E governed evaluation | **Recorded (EXP-3B-011)** — safety 8/8; runtime R01–R07 passed; timeout/cancellation evaluated; streaming evaluated as UNSUPPORTED_ON_PINNED_BASELINE; native JSON NOT_VERIFIED |
+| Bounded text/chat capability | **Conservatively verified** at locally tested 4096 context (chat=true in registry) |
+| Native JSON / structured_json | **Evaluated; NOT_VERIFIED; disabled in registry (false)** |
+| Streaming | **Evaluated; UNSUPPORTED_ON_PINNED_BASELINE; disabled in registry (false)** |
+| Tools / multimodal | **Disabled in registry (false); multimodal unverified** |
 | Real-model production evaluation | **Not started** |
-| Capabilities | **Limited/unverified beyond the specific observed text path** |
+| Registry-bound real-runtime verification (state C) | **Pending** — separate authorized experiment after EXP-3B-012 merge |
 | ADR 0003 | **Proposed** |
 | Phase 3B | **In progress** |
 | Phase 4 | **Not started** |
@@ -93,11 +98,14 @@ independently verified installation.
 - Deterministic fallback verified after shutdown
 - Structured JSON probe **observed failure**; structured JSON capability remains
   **unverified**
-- Short probes are **insufficient** for broad behavioral or security capability
-  claims; capabilities remain limited/unverified beyond the specific observed
-  text path
-- Model registry runtime remains inactive (state C); EXP-3B-012 record and binding software supported
-  **pending**
+- Short probes alone are **insufficient** for production capability claims;
+  Gate E (EXP-3B-011) later recorded broader evidence with conservative limits
+- Registry record availability and exact binding software support are complete
+  under EXP-3B-012. A controlled real-runtime verification through that
+  registry-bound path (state C) remains pending. Model registry runtime remains inactive
+  until that separate authorized experiment. Further provider integration
+  campaigns beyond the recorded conservative registry binding remain
+  unauthorized until explicitly approved.
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued
 
@@ -111,9 +119,9 @@ Selection notes:
 - Publisher Q8_0 remains a possible later comparison.
 - Qwen3-4B and Granite remain later comparison candidates.
 - The first baseline is replaceable behind `ModelGateway`.
-- Broad runtime/model capability remains unverified beyond the specific observed
-  text path.
-- Further provider campaigns, registry activation and Gate E evaluation still
+- Verified registry behaviour is limited to bounded text/chat at 4096 context;
+  tools, structured_json, streaming and multimodal remain false.
+- State C registry-bound real-runtime verification and ADR acceptance still
   require separate explicit authorization.
 
 This is **not** SIONA's permanent reasoning model, a final production model, a
@@ -507,7 +515,7 @@ Do not convert unknowns into engineering facts. Do not fabricate tokens/s.
 
 **Historical selection status:** PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION
 
-**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); RUNTIME CURRENTLY STOPPED; REGISTRY INACTIVE; GATE E PENDING
+**Current status:** OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED; ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED; OPENAI_CHAT TRANSPORT IMPLEMENTED; CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED (EXP-3B-005); GATE E BREADTH RECORDED (EXP-3B-011); MODEL-REGISTRY ACTIVATION REVIEW PASSED (EXP-3B-012); REGISTRY RECORD AVAILABLE; BINDING SOFTWARE SUPPORTED; RUNTIME CURRENTLY STOPPED; STATE C REAL-RUNTIME VERIFICATION PENDING
 
 Primary first baseline remains **llama.cpp native Windows x64 CPU**
 (tag **b9968** / commit `1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f`).
@@ -515,10 +523,11 @@ Primary first baseline remains **llama.cpp native Windows x64 CPU**
 The historical recommendation remains useful as decision provenance. It is
 **not** the current installation state. Installation occurred later under
 separate explicit owner authorization. Local operator evidence records
-artifact verification, a limited loopback probe, and EXP-3B-005 controlled
-real-provider text-path validation; the runtime is currently stopped. Further
-provider campaigns, registry activation and Gate E evaluation still require
-separate authorization.
+artifact verification, a limited loopback probe, EXP-3B-005 controlled
+real-provider text-path validation, Gate E breadth (EXP-3B-011), and
+model-registry activation review (EXP-3B-012). The runtime is currently
+stopped. State C (controlled registry-bound real-runtime verification) and
+ADR acceptance still require separate authorization.
 
 **Historical owner-selection gate wording:** OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY
 
@@ -801,22 +810,27 @@ Comparison: Granite 4.0 Micro Q4_K_M.
 
 - Controlled real SIONA provider text path validated (EXP-3B-005); limited
   text-transport gate only
-- Model registry record and binding software supported (EXP-3B-012); runtime startup (state C) inactive by default
+- Gate E breadth recorded (EXP-3B-011): governed safety 8/8; runtime R01–R07
+  passed; timeout/cancellation evaluated; streaming evaluated and classified
+  UNSUPPORTED_ON_PINNED_BASELINE; native JSON remains NOT_VERIFIED
+- Registry record availability and exact binding software support are complete
+  under EXP-3B-012. A controlled real-runtime verification through that
+  registry-bound path (state C) remains pending.
+- STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP. It is a future
+  controlled verification that starts the pinned llama.cpp/Qwen baseline,
+  enables the local provider, loads the canonical registry, proves exact entry
+  binding and real pinned-model reachability, confirms safe registry
+  observability, performs no tool execution, keeps loopback-only operation,
+  then shuts the runtime down and verifies port/process closure.
+- Verified registry behaviour: bounded text/chat only at context 4096;
+  tools=false; structured_json=false; streaming=false; multimodal=false
 - ADR 0003 acceptance remains pending
-- Further provider campaigns beyond the recorded text path require separate
-  authorization
-- Further provider integration campaigns (registry activation, Gate E) still
-  require separate explicit authorization
-- Structured JSON capability remains unverified after observed probe failure
-- Broad security, timeout/cancellation, streaming, adversarial and behavioral
-  evaluation remains pending
-- Capabilities remain limited/unverified beyond the specific observed text path
 - ADR 0003 remains Proposed
 - Phase 3B remains in progress
 - Phase 4 remains not started
 - Runtime currently stopped
-
-No real-model production evaluation suite (Gate E) has been completed.
+- Further adversarial follow-on campaigns beyond the Gate E catalogue require
+  separate explicit authorization
 
 ---
 

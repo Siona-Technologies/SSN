@@ -92,3 +92,19 @@ MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY BINDING. TH
 ## Remaining blocker
 
 Operator-controlled runtime startup (state C) and ADR 0003 acceptance remain required before any production capability claim beyond this conservative registry representation.
+
+STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP.
+
+State C means a future controlled verification that:
+
+- starts the already pinned llama.cpp/Qwen baseline;
+- explicitly enables the local provider;
+- loads the canonical registry;
+- proves the exact registry entry is bound;
+- proves the provider reaches the real pinned model through that binding;
+- confirms safe registry observability;
+- performs no tool execution;
+- keeps loopback-only operation;
+- then shuts the runtime down and verifies port/process closure.
+
+This must be a separate authorized experiment after PR #17 merges.

@@ -73,10 +73,14 @@ Phase 3B remains **in progress**. The first runtime/model baseline has been
 **installed and artifact-verified locally**. A **controlled real SIONA provider
 text-path validation** (LanguageEngine → ModelGateway → LocalOpenWeightProvider
 → llama.cpp → Qwen) completed against the pinned runtime, then the runtime was
-**stopped**. Gate E breadth evaluation is **recorded** (EXP-3B-011). Model
-registry activation, capability approval, adr acceptance, and phase 3b
-completion remain **pending** and are **not** issued. Further provider integration
-work beyond the recorded conservative registry binding remains operator-controlled.
+**stopped**. Gate E breadth evaluation is **recorded** (EXP-3B-011). Model-registry
+activation review **passed** with conservative capability binding (EXP-3B-012:
+registry record available; exact binding software supported). ADR acceptance and
+Phase 3B completion remain **pending** and are **not** issued. A controlled
+real-runtime verification through the registry-bound path (state C) remains
+operator-controlled and is **not** automatic or permanent model startup. Further
+provider integration work beyond the recorded conservative registry binding
+remains operator-controlled.
 
 ### Completed (local operator evidence, 2026-08-05)
 
@@ -105,9 +109,18 @@ work beyond the recorded conservative registry binding remains operator-controll
 
 ### Still pending
 
-- Operator-controlled model runtime startup (registry state C)
+- Controlled real-runtime verification through the registry-bound path (state C)
+  — not automatic or permanent model startup
 - ADR 0003 acceptance
 - Phase 3B completion decision
+
+### Capability distinctions (current)
+
+- Bounded text/chat: conservatively verified at 4096 context (registry chat=true)
+- Native JSON / structured_json: evaluated, NOT_VERIFIED, disabled in registry
+- Streaming: evaluated, UNSUPPORTED_ON_PINNED_BASELINE, disabled in registry
+- Tools: disabled
+- Multimodal: unverified/disabled
 
 ### Current runtime state
 
@@ -115,7 +128,7 @@ work beyond the recorded conservative registry binding remains operator-controll
 - Port 8080 currently **not listening**
 - Capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context
 - ADR 0003 remains **Proposed**
-- Model registry: record available and binding software supported (EXP-3B-012); model registry runtime remains **inactive** (state C — llama.cpp not started)
+- Model registry: record available and binding software supported (EXP-3B-012); model registry runtime remains **inactive** (state C — llama.cpp not started). Registry record availability and exact binding software support are complete under EXP-3B-012. A controlled real-runtime verification through that registry-bound path (state C) remains pending.
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
 Phase 4 remains **not started**.

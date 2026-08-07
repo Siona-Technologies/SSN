@@ -113,9 +113,7 @@ Phase 4 acceptance does **not** claim or authorize:
 - robotics/IoT/physical actuation;
 - production-security certification.
 
-The accepted artifact is a **SIONA-trained learned neuromorphic software
-artifact**, not a claim that the external Qwen foundation weights are
-SIONA-native.
+The accepted artifact is a **SIONA-trained learned neuromorphic software artifact**, not a claim that the external Qwen foundation weights are SIONA-native.
 
 ## Runtime/dependency disposition
 
@@ -133,9 +131,7 @@ The deterministic/reference provider remains the default and fallback.
 **Phase 4 is COMPLETE** for its defined learned-neuromorphic software-provider
 scope.
 
-Completion does not automatically start another phase. The next phase/objective
-must be selected through a separate governed planning decision rather than being
-inferred from older historical phase numbering.
+No subsequent phase starts automatically. The next phase/objective must be selected through a separate governed planning decision rather than being inferred from older historical phase numbering.
 
 ## Related records
 

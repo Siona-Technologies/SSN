@@ -96,7 +96,7 @@ independently verified installation.
 - Short probes are **insufficient** for broad behavioral or security capability
   claims; capabilities remain limited/unverified beyond the specific observed
   text path
-- Model registry: canonical manifest `config/model_registry.json`; conservative binding reviewed (EXP-3B-012); runtime startup remains operator-controlled
+- Model registry runtime remains inactive (state C); EXP-3B-012 record and binding software supported
   **pending**
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued

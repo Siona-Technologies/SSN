@@ -114,7 +114,7 @@ completion remain **pending** and are **not** issued.
 - Port 8080 currently **not listening**
 - Capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context
 - ADR 0003 remains **Proposed**
-- Model registry: **record available and binding software supported** (EXP-3B-012); **runtime not started** (state C inactive)
+- Model registry: record available and binding software supported (EXP-3B-012); model registry runtime remains **inactive** (state C — llama.cpp not started)
 
 Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
 Phase 4 remains **not started**.

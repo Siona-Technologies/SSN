@@ -103,13 +103,17 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "model registry activation, ADR 0003 acceptance and Phase 3B completion decision still pending",
+            "model-registry activation review passed with conservative capability binding (EXP-3B-012",
+            text,
+        )
+        self.assertIn(
+            "ADR 0003 acceptance and Phase 3B completion decision still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation, adr 0003 acceptance and phase 3b completion decision still pending",
+            "model-registry activation review passed (exp-3b-012); adr 0003 acceptance and phase 3b completion decision still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())
@@ -153,6 +157,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
         self.assertIn("EXP-3B-010", experiment)
+        self.assertIn("EXP-3B-012", experiment)
+        self.assertIn(
+            "MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY",
+            experiment,
+        )
         self.assertIn(
             "CONTROLLED REAL LOCAL-MODEL GUARDED-PATH RETEST EXECUTED AGAINST THE",
             experiment,
@@ -309,7 +318,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("### Historical pre-install model direction", adr)
         self.assertIn("Current local evidence", adr)
         self.assertIn("Controlled real-provider text path", adr)
-        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending", adr)
+        self.assertIn(
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
+            adr,
+        )
         self.assertNotIn(
             "### Provisional model direction (not approved / not downloaded)",
             adr,
@@ -398,12 +410,12 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
         self.assertIn(
-            "capabilities beyond exp-3b-011 gate e results remain conservatively",
-            status.lower(),
+            "capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context",
+            status,
         )
         self.assertIn("Limited local loopback smoke completed", research)
         self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); registry activation not started",
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
             research,
         )
         self.assertIn(
@@ -462,8 +474,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
-        self.assertIn("Model registry remains inactive", research)
-        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation remains pending", research)
+        self.assertIn("Model registry runtime remains inactive", research)
+        self.assertIn(
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
+            research,
+        )
         self.assertIn("Offline tests 308 passed / 4 skipped", experiment)
         self.assertIn("readiness working-set sample approximately 2.16 GiB", experiment)
         self.assertIn(
@@ -476,7 +491,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )
         self.assertIn("real-provider text path", combined.lower())
         self.assertIn("runtime currently **stopped**", status.lower())
-        self.assertIn("model registry remains **inactive**", status.lower())
+        self.assertIn("model registry runtime remains **inactive**", status.lower())
         self.assertIn("inactive", combined.lower())
         self.assertIn("unverified", combined.lower())
         self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
@@ -488,8 +503,8 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("In progress", status)
         self.assertIn("Phase 4 remains **not started**", status)
         self.assertIn("Controlled real-provider text path validated", runbook)
-        self.assertIn("Gate E", runbook)
-        self.assertIn("Pending — not complete", runbook)
+        self.assertIn("Gate E breadth recorded (EXP-3B-011)", runbook)
+        self.assertIn("registry review passed (EXP-3B-012)", runbook)
         # Contradiction guards on current-state docs (exclude older experiment entries).
         self.assertNotIn("SIONA provider integration has not started", current_docs)
         self.assertNotIn("SIONA provider integration has **not** started", current_docs)
@@ -510,7 +525,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         )[0]
         self.assertIn("Model registry remains inactive", why)
         self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending",
+            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
             why,
         )
         self.assertIn(

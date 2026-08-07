@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "docs" / "PHASE_4_ENGINEERING_SPEC.md"
 PLANNING = ROOT / "docs" / "PHASE_4_PLANNING_ACCEPTANCE.md"
 ACCEPTANCE = ROOT / "docs" / "PHASE_4_ACCEPTANCE.md"
+ACCEPTANCE_JSON = ROOT / "docs" / "evidence" / "PHASE_4_ACCEPTANCE.json"
 ADR = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
 STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 ROADMAP = ROOT / "docs" / "SIONA_PHASE_ROADMAP.md"
@@ -56,6 +57,7 @@ class TestPhase4PlanningDocs(unittest.TestCase):
             p.read_text(encoding="utf-8")
             for p in (SPEC, PLANNING, ACCEPTANCE, ADR, STATUS, ROADMAP, DEFERRED, NEURO)
         ).lower()
+        record = json.loads(ACCEPTANCE_JSON.read_text(encoding="utf-8"))
 
         for required in (
             "qwen lora/qlora/peft",
@@ -68,9 +70,16 @@ class TestPhase4PlanningDocs(unittest.TestCase):
             self.assertIn(required, combined)
 
         self.assertIn("software snn", combined)
-        self.assertIn("hardware_neuromorphic", combined)
         self.assertIn("learned snn provider", combined)
         self.assertIn("event-by-event", combined)
+
+        provider = record["provider"]
+        self.assertTrue(provider["trained"])
+        self.assertTrue(provider["learned"])
+        self.assertTrue(provider["software_snn"])
+        self.assertFalse(provider["hardware_neuromorphic"])
+        self.assertFalse(provider["stateful_streaming"])
+        self.assertFalse(provider["energy_metrics"])
 
     def test_existing_qwen_registry_is_not_promoted(self):
         registry = json.loads(REGISTRY.read_text(encoding="utf-8"))

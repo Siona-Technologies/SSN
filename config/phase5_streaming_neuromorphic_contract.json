@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "contract_id": "phase5-streaming-neuromorphic-v1",
+  "status": "EXP_5_001_READINESS_DEFINED_IMPLEMENTATION_NOT_VERIFIED",
+  "provider_target": "siona-neuro-streaming-lif-v1",
+  "reference_provider": "siona-neuro-learned-lif-v1",
+  "reference_task": "phase4a-temporal-salience-v1",
+  "reference_architecture": "phase4b-lif-final-membrane-v1",
+  "reference_artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+  "streaming_modality": "temporal_salience_step_v1",
+  "lifecycle": {
+    "explicit_start_required": true,
+    "implicit_start_on_step_zero": false,
+    "ordered_steps_required": true,
+    "first_step_index": 0,
+    "final_step_index": 19,
+    "steps_per_stream": 20,
+    "completion_removes_stream_state": true,
+    "named_reset_supported": true,
+    "provider_wide_reset_supported": true,
+    "duplicate_step_policy": "FAIL_CLOSED_NO_MUTATION",
+    "out_of_order_step_policy": "FAIL_CLOSED_NO_MUTATION",
+    "step_for_unknown_stream_policy": "FAIL_CLOSED_NO_IMPLICIT_START"
+  },
+  "step_envelope": {
+    "stream_id_type": "str",
+    "stream_id_non_empty": true,
+    "stream_id_max_chars": 128,
+    "event_id_type": "str",
+    "event_id_non_empty": true,
+    "event_id_max_chars": 128,
+    "step_index_type": "int_not_bool",
+    "step_index_min": 0,
+    "step_index_max": 19,
+    "values_type": "tuple_or_list",
+    "values_length": 8,
+    "values_numeric_binary_only": true,
+    "bool_values_rejected": true,
+    "nan_infinity_rejected": true,
+    "extra_payload_fields_allowed": false
+  },
+  "stream_state": {
+    "hidden_membrane_units": 16,
+    "fields": [
+      "stream_id",
+      "next_step_index",
+      "membrane",
+      "cumulative_spike_count",
+      "created_at_monotonic",
+      "last_activity_monotonic"
+    ],
+    "raw_input_history_retained": false,
+    "logits_retained_before_completion": false,
+    "probabilities_retained_before_completion": false
+  },
+  "resource_bounds": {
+    "max_active_streams": 64,
+    "idle_ttl_seconds": 60.0,
+    "expiration_clock": "monotonic",
+    "expired_cleanup_before_capacity_check": true,
+    "active_stream_eviction_allowed": false,
+    "capacity_policy": "REJECT_NEW_STREAM_AFTER_EXPIRED_CLEANUP",
+    "unbounded_generator_input_allowed": false
+  },
+  "intermediate_result": {
+    "class_prediction_exposed": false,
+    "salience_score_exposed": false,
+    "attention_trigger_exposed": false,
+    "final_neuromorphic_output": null,
+    "reason": "INCOMPLETE_STREAM_HAS_NO_ACCEPTED_PHASE4_READOUT"
+  },
+  "completion_result": {
+    "final_neuromorphic_output_required": true,
+    "must_match_phase4_window_provider": true,
+    "tool_authority": false,
+    "physical_actuation_authority": false,
+    "policy_authority": false,
+    "memory_mutation_authority": false
+  },
+  "parity_targets": {
+    "frozen_test_samples": 128,
+    "predicted_class_agreement_required": 128,
+    "spike_count_agreement_required": 128,
+    "max_abs_logit_difference": 1e-12,
+    "max_abs_probability_difference": 1e-12
+  },
+  "phase5a_execution": {
+    "snn_retraining_authorized": false,
+    "artifact_or_weight_mutation_authorized": false,
+    "qwen_runtime_required": false,
+    "torch_runtime_required": false,
+    "snntorch_runtime_required": false,
+    "async_event_bus_wiring_authorized_in_exp_5_001": false,
+    "tool_execution_authorized": false,
+    "physical_actuation_authorized": false
+  }
+}

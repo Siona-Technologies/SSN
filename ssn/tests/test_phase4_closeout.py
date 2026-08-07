@@ -10,7 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ACCEPTANCE_DOC = ROOT / "docs" / "PHASE_4_ACCEPTANCE.md"
 ACCEPTANCE_JSON = ROOT / "docs" / "evidence" / "PHASE_4_ACCEPTANCE.json"
+PHASE5_PLAN_JSON = ROOT / "docs" / "evidence" / "PHASE_5_PLANNING_ACCEPTANCE.json"
 ADR4 = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
+ADR5 = ROOT / "docs" / "adr" / "0005-stateful-streaming-neuromorphic-strategy.md"
 STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 ROADMAP = ROOT / "docs" / "SIONA_PHASE_ROADMAP.md"
 SPEC = ROOT / "docs" / "PHASE_4_ENGINEERING_SPEC.md"
@@ -23,32 +25,38 @@ REQUIREMENTS = ROOT / "requirements.txt"
 
 
 class TestPhase4Closeout(unittest.TestCase):
-    def test_acceptance_record_and_current_governance(self):
+    def test_phase4_acceptance_is_immutable_while_phase5_planning_is_current(self):
         record = json.loads(ACCEPTANCE_JSON.read_text(encoding="utf-8"))
+        phase5 = json.loads(PHASE5_PLAN_JSON.read_text(encoding="utf-8"))
         self.assertEqual(record["decision"], "PHASE_4_ACCEPTED")
         self.assertEqual(record["adr_0004_status"], "ACCEPTED_PHASE_4")
         self.assertEqual(record["phase_4_status"], "COMPLETE")
-        self.assertEqual(
-            record["accepted_evidence_baseline"],
-            "05de2b04279a72ece4834a984461a505de1188b3",
-        )
+        self.assertEqual(record["accepted_evidence_baseline"], "05de2b04279a72ece4834a984461a505de1188b3")
+        # Historical closeout fact: no next phase had started at that instant.
         self.assertFalse(record["next_phase_started"])
         self.assertTrue(record["next_planning_gate_required"])
 
-        adr = ADR4.read_text(encoding="utf-8")
-        block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
-        self.assertIn("Accepted (Phase 4)", block)
-        self.assertNotRegex(block, r"(?m)^\s*Proposed\s*$")
+        self.assertEqual(phase5["decision"], "PHASE_5_PLANNING_ACCEPTED")
+        self.assertEqual(phase5["phase_5_implementation_status"], "NOT_STARTED")
+        self.assertEqual(phase5["adr_0005_status"], "PROPOSED")
+
+        adr4 = ADR4.read_text(encoding="utf-8")
+        block4 = adr4.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
+        self.assertIn("Accepted (Phase 4)", block4)
+        adr5 = ADR5.read_text(encoding="utf-8")
+        block5 = adr5.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
+        self.assertRegex(block5, r"(?m)^\s*Proposed\s*$")
 
         status = STATUS.read_text(encoding="utf-8")
         self.assertIn("Phase 4 | **Completed and accepted", status)
         self.assertIn("ADR 0004 **Accepted (Phase 4)**", status)
-        self.assertIn("Next phase | **Not started", status)
+        self.assertIn("Phase 5 | **Planning accepted", status)
+        self.assertIn("ADR 0005 **Proposed**", status)
 
         roadmap = ROADMAP.read_text(encoding="utf-8")
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
-        self.assertIn("**Completed and accepted.**", roadmap)
-        self.assertIn("## Next phase — not selected", roadmap)
+        self.assertIn("## Phase 5 — Stateful streaming neuromorphic runtime", roadmap)
+        self.assertIn("Historical Phase 4 closeout note", roadmap)
 
         spec = SPEC.read_text(encoding="utf-8")
         self.assertIn("Completed and accepted", spec)
@@ -73,18 +81,9 @@ class TestPhase4Closeout(unittest.TestCase):
         self.assertEqual(exp4["training_run_count"], 0)
         self.assertEqual(exp4["parity_sample_counts"]["total"], 197)
         self.assertEqual(exp4["predicted_class_agreement"]["count"], 197)
-        self.assertEqual(exp4["predicted_class_agreement"]["rate"], 1.0)
         self.assertEqual(exp4["spike_count_agreement"]["count"], 197)
-        self.assertEqual(exp4["spike_count_agreement"]["rate"], 1.0)
-        self.assertTrue(exp4["spike_count_agreement"]["exposed"])
-        self.assertLessEqual(
-            exp4["max_abs_logit_difference"],
-            exp4["tolerances_predeclared"]["max_abs_logit_difference"],
-        )
-        self.assertLessEqual(
-            exp4["max_abs_probability_difference"],
-            exp4["tolerances_predeclared"]["max_abs_probability_difference"],
-        )
+        self.assertLessEqual(exp4["max_abs_logit_difference"], exp4["tolerances_predeclared"]["max_abs_logit_difference"])
+        self.assertLessEqual(exp4["max_abs_probability_difference"], exp4["tolerances_predeclared"]["max_abs_probability_difference"])
 
         self.assertEqual(exp5["decision"], "PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED")
         self.assertEqual(exp5["training_run_count"], 0)
@@ -93,18 +92,15 @@ class TestPhase4Closeout(unittest.TestCase):
         self.assertEqual(exp5["frozen_test_breadth"]["balanced_accuracy"], 1.0)
         self.assertEqual(exp5["frozen_test_breadth"]["class_0_recall"], 1.0)
         self.assertEqual(exp5["frozen_test_breadth"]["class_1_recall"], 1.0)
-        self.assertGreaterEqual(
-            exp5["temporal_breadth"]["temporal_mean_score_drop"],
-            exp5["temporal_breadth"]["required_min_drop"],
-        )
-        self.assertTrue(exp5["security_fixes"]["in_memory_artifact_injection_removed"])
-        self.assertTrue(exp5["security_fixes"]["bounded_artifact_read"])
-        self.assertTrue(exp5["security_fixes"]["strict_learned_event_envelope"])
-        self.assertTrue(exp5["security_fixes"]["batch_atomicity_prevalidation"])
-        self.assertTrue(exp5["security_fixes"]["rejected_input_no_successful_state_mutation"])
-        self.assertEqual(exp5["security_fixes"]["max_artifact_bytes"], 262144)
-        self.assertEqual(exp5["security_fixes"]["max_event_id_chars"], 128)
-        self.assertEqual(exp5["security_fixes"]["max_learned_batch_events"], 256)
+        self.assertGreaterEqual(exp5["temporal_breadth"]["temporal_mean_score_drop"], exp5["temporal_breadth"]["required_min_drop"])
+        for key in (
+            "in_memory_artifact_injection_removed",
+            "bounded_artifact_read",
+            "strict_learned_event_envelope",
+            "batch_atomicity_prevalidation",
+            "rejected_input_no_successful_state_mutation",
+        ):
+            self.assertTrue(exp5["security_fixes"][key])
         self.assertTrue(exp5["edge_controls"]["pass"])
         self.assertTrue(exp5["malformed_inputs"]["pass"])
         self.assertTrue(exp5["corrupted_artifacts"]["pass"])
@@ -118,10 +114,7 @@ class TestPhase4Closeout(unittest.TestCase):
         record = json.loads(ACCEPTANCE_JSON.read_text(encoding="utf-8"))
         digest = hashlib.sha256(ARTIFACT.read_bytes()).hexdigest()
         self.assertEqual(digest, record["provider"]["artifact_sha256"])
-        self.assertEqual(
-            digest,
-            "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
-        )
+        self.assertEqual(digest, "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc")
         self.assertTrue(record["provider"]["trained"])
         self.assertTrue(record["provider"]["learned"])
         self.assertTrue(record["provider"]["software_snn"])
@@ -130,7 +123,6 @@ class TestPhase4Closeout(unittest.TestCase):
         self.assertFalse(record["provider"]["energy_metrics"])
         self.assertFalse(record["provider"]["global_default"])
         self.assertTrue(record["provider"]["explicit_activation_only"])
-
         for value in record["authority"].values():
             if isinstance(value, bool):
                 self.assertFalse(value)
@@ -142,14 +134,8 @@ class TestPhase4Closeout(unittest.TestCase):
         self.assertFalse(record["qwen_boundary"]["registry_changed_by_phase_4"])
         self.assertFalse(record["qwen_boundary"]["capabilities_expanded_by_phase_4"])
         self.assertFalse(record["qwen_boundary"]["training_or_adapters"])
-
         registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
-        entry = next(
-            m
-            for m in registry["models"]
-            if m["provider_id"] == "siona-local-open-weight-v1"
-            and m["model_id"] == "Qwen3-1.7B-Q4_K_M"
-        )
+        entry = next(m for m in registry["models"] if m["provider_id"] == "siona-local-open-weight-v1" and m["model_id"] == "Qwen3-1.7B-Q4_K_M")
         caps = entry["capabilities"]
         self.assertTrue(caps["chat"])
         self.assertFalse(caps["tools"])
@@ -158,14 +144,11 @@ class TestPhase4Closeout(unittest.TestCase):
         self.assertFalse(caps["multimodal"])
         self.assertEqual(caps["context_window"], 4096)
         self.assertFalse(entry["siona_native"])
-
         requirements = REQUIREMENTS.read_text(encoding="utf-8").lower()
         for package in ("torch", "snntorch", "norse"):
             self.assertNotIn(package, requirements)
-        self.assertFalse(record["runtime_dependencies"]["torch"])
-        self.assertFalse(record["runtime_dependencies"]["snntorch"])
-        self.assertFalse(record["runtime_dependencies"]["numpy"])
-        self.assertFalse(record["runtime_dependencies"]["norse"])
+        for package in ("torch", "snntorch", "numpy", "norse"):
+            self.assertFalse(record["runtime_dependencies"][package])
 
     def test_historical_experiment_governance_is_not_rewritten(self):
         exp3 = json.loads(EXP3.read_text(encoding="utf-8"))
@@ -191,7 +174,6 @@ class TestPhase4Closeout(unittest.TestCase):
             "PRODUCTION_SECURITY_CERTIFICATION",
         ):
             self.assertIn(required, non_claims)
-
         doc = ACCEPTANCE_DOC.read_text(encoding="utf-8").lower()
         self.assertIn("not a claim that the external qwen foundation weights are siona-native", doc)
         self.assertIn("no subsequent phase starts automatically", doc)

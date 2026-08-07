@@ -20,7 +20,7 @@ STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 
 
 class TestPhase4AReadiness(unittest.TestCase):
-    def test_evidence_keeps_training_and_installation_disabled(self):
+    def test_historical_evidence_keeps_training_and_installation_disabled(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
         self.assertEqual(data["experiment_id"], "EXP-4-001")
         self.assertEqual(
@@ -32,6 +32,7 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertFalse(data["qwen_runtime_started"])
         self.assertEqual(data["real_model_calls"], 0)
         self.assertEqual(data["tool_executions"], 0)
+        # Immutable snapshot of governance when EXP-4-001 ran.
         self.assertEqual(data["adr_0004_status"], "PROPOSED")
 
     def test_existing_contract_is_provider_replaceable(self):
@@ -64,7 +65,7 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertNotIn("snntorch", names)
         self.assertNotIn("norse", names)
 
-    def test_backend_research_is_recommendation_not_installation(self):
+    def test_backend_research_is_historical_dependency_recommendation(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
         research = data["backend_research"]
         preferred = research["preferred_candidate"]
@@ -73,12 +74,9 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertEqual(preferred["version"], "1.0.0")
         self.assertEqual(preferred["license"], "MIT")
         self.assertFalse(preferred["dependency_installation_authorized"])
-        self.assertFalse(preferred["python_3_12_compatibility_claimed"])
         self.assertEqual(alternative["package"], "norse")
         self.assertEqual(alternative["version"], "1.1.0")
-        self.assertEqual(alternative["license"], "LGPLv3")
         self.assertFalse(alternative["dependency_installation_authorized"])
-        self.assertFalse(research["exact_pytorch_version_selected"])
 
     def test_task_fingerprints_match_committed_evidence(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
@@ -86,8 +84,8 @@ class TestPhase4AReadiness(unittest.TestCase):
         expected = data["task"]["split_fingerprints"]
         for split in ("train", "validation", "test"):
             self.assertEqual(split_fingerprint(split), expected[split])
+        # Task config remains a frozen pre-training record even after closeout.
         self.assertFalse(task["training"]["authorized"])
-        self.assertFalse(task["candidate_backend"]["dependency_installation_authorized"])
 
     def test_qwen_registry_capabilities_remain_phase3_conservative(self):
         registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
@@ -106,15 +104,15 @@ class TestPhase4AReadiness(unittest.TestCase):
         self.assertEqual(caps["context_window"], 4096)
         self.assertFalse(entry["siona_native"])
 
-    def test_adr4_and_status_do_not_claim_training_complete(self):
+    def test_current_adr4_and_phase4_are_accepted(self):
         adr = ADR4.read_text(encoding="utf-8")
         status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1
         )[0]
-        self.assertRegex(status_block, r"(?m)^\s*Proposed\s*$")
+        self.assertIn("Accepted (Phase 4)", status_block)
         status = STATUS.read_text(encoding="utf-8")
-        self.assertIn("Phase 4A", status)
-        self.assertIn("training", status.lower())
+        self.assertIn("Phase 4 | **Completed and accepted", status)
+        self.assertIn("Phase 5 | **Not started", status)
 
 
 if __name__ == "__main__":

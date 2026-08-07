@@ -17,9 +17,9 @@ PLAN5 = ROOT / "docs" / "PHASE_5_PLANNING_ACCEPTANCE.md"
 
 
 def _plain_words(text: str) -> str:
-    """Normalize Markdown emphasis and wrapping for semantic prose assertions."""
-    without_emphasis = re.sub(r"\*+", "", text).lower()
-    return re.sub(r"\s+", " ", without_emphasis).strip()
+    """Normalize Markdown decoration and wrapping for semantic prose assertions."""
+    without_markup = re.sub(r"[`*]+", "", text).lower()
+    return re.sub(r"\s+", " ", without_markup).strip()
 
 
 class TestPhaseRoadmapCurrentStatus(unittest.TestCase):

@@ -19,6 +19,16 @@ ADR4 = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
 STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 TASK = ROOT / "config" / "phase4a_temporal_salience_task.json"
 
+# EXP-4-003 recorded the raw registry-file SHA from the operator's Windows
+# checkout. GitHub-hosted Linux CI checks out the same Git blob with LF line
+# endings, so a raw filesystem-byte hash is intentionally not used as a
+# cross-platform identity assertion here. The LF-normalized fingerprint below
+# identifies the exact tracked registry content independent of checkout EOLs.
+REGISTRY_LF_SHA256 = "d9fc9f402e5872e77333f99e35f65c32800b4e1cff8ef32a3706b38c4677c816"
+EXP4_003_WINDOWS_RAW_REGISTRY_SHA256 = (
+    "bebecf2c5e65d80e2fa0579566af1f89cb7a976a6550d1212d822cdaa11a4371"
+)
+
 
 class TestPhase4BExp4003Evidence(unittest.TestCase):
     def test_evidence_schema_and_decision(self):
@@ -100,12 +110,25 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
 
     def test_qwen_registry_unchanged_and_conservative(self):
         data = json.loads(EVIDENCE.read_text(encoding="utf-8"))
-        registry_bytes = REGISTRY.read_bytes()
+
+        # Preserve the immutable EXP-4-003 historical observation: the raw-byte
+        # digest was taken from the Windows operator checkout and is EOL-sensitive.
         self.assertEqual(
-            hashlib.sha256(registry_bytes).hexdigest(),
             data["model_registry_sha256"],
+            EXP4_003_WINDOWS_RAW_REGISTRY_SHA256,
         )
-        registry = json.loads(registry_bytes.decode("utf-8"))
+        self.assertFalse(data["model_registry_changed"])
+
+        # Independently verify the exact tracked registry content in a
+        # cross-platform way by normalizing line endings to Git's LF form.
+        registry_text = REGISTRY.read_text(encoding="utf-8")
+        normalized = registry_text.replace("\r\n", "\n").replace("\r", "\n")
+        self.assertEqual(
+            hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            REGISTRY_LF_SHA256,
+        )
+
+        registry = json.loads(registry_text)
         entry = next(
             model
             for model in registry["models"]
@@ -118,6 +141,7 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         self.assertFalse(caps["structured_json"])
         self.assertFalse(caps["streaming"])
         self.assertFalse(caps["multimodal"])
+        self.assertEqual(caps["context_window"], 4096)
         self.assertFalse(entry.get("siona_native", False))
 
     def test_adr_phase_and_requirements_boundaries(self):

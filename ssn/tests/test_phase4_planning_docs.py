@@ -29,14 +29,21 @@ class TestPhase4PlanningDocs(unittest.TestCase):
         self.assertIn("Phase 4A", spec)
         self.assertIn("implementation/training not started", spec)
         self.assertIn("**Status:** Accepted planning gate", acceptance)
-        self.assertIn("**Implementation status:** Not started", acceptance)
+        self.assertIn("**Implementation status:** Phase 4A readiness defined; learned-provider implementation/training not started", acceptance)
         self.assertIn("Phase 4A only", acceptance)
         self.assertIn("A real SNN training run is **not yet authorized**", acceptance)
-        self.assertIn("Phase 4 | **Planning gate accepted", status)
+        self.assertIn("Phase 4 | **In progress", status)
+        self.assertIn("EXP-4-003 first CPU SNN training VERIFIED", status)
         self.assertIn("ADR 0004 **Proposed**", status)
-        self.assertIn("Phase 4 remains **not started** at the implementation/training level", status)
+        self.assertIn(
+            "Phase 4 remains **not started** at the learned-provider integration and Phase 4 completion level",
+            status,
+        )
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
-        self.assertIn("Planning gate accepted; implementation/training not started", roadmap)
+        self.assertIn(
+            "Planning gate accepted; EXP-4-003 first CPU SNN training verified; learned-provider integration pending",
+            roadmap,
+        )
 
     def test_adr0004_remains_proposed(self):
         adr = ADR.read_text(encoding="utf-8")

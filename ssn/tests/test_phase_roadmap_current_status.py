@@ -26,9 +26,12 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
         self.assertIn("Phase 3 is complete", roadmap)
 
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
-        self.assertIn("**Planning gate accepted; implementation/training not started.**", roadmap)
-        self.assertIn("Phase 4A only", roadmap)
-        self.assertIn("real SNN training execution", roadmap)
+        self.assertIn(
+            "**Planning gate accepted; EXP-4-003 first CPU SNN training verified; learned-provider integration pending.**",
+            roadmap,
+        )
+        self.assertIn("Completed through EXP-4-003", roadmap)
+        self.assertIn("learned-provider runtime integration", roadmap)
         self.assertIn("SIONA_BUILD_PLAN.md", roadmap)
         self.assertIn("dated planning reference", roadmap)
 
@@ -37,8 +40,8 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
 
         self.assertIn("Phase 3 | **Completed", status)
         self.assertIn("Phase 3B | **Completed and accepted", status)
-        self.assertIn("Phase 4 | **Planning gate accepted", status)
-        self.assertIn("implementation/training not started", status)
+        self.assertIn("Phase 4 | **In progress", status)
+        self.assertIn("EXP-4-003 first CPU SNN training VERIFIED", status)
         self.assertIn("ADR 0004 **Proposed**", status)
 
         leading_status3 = adr3.replace("\r\n", "\n").split("## Status", 1)[1].split(

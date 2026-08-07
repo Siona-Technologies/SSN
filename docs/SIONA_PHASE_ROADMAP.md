@@ -74,41 +74,41 @@ production certification and does not make the external Qwen weights SIONA-nativ
 
 ## Phase 4 — Learned neuromorphic backend
 
-**Planning gate accepted; implementation/training not started.**
+**Planning gate accepted; EXP-4-003 first CPU SNN training verified; learned-provider integration pending.**
 
 The bounded Phase 4 objective is to deliver the first **real learned SNN
 provider** behind SIONA's existing neuromorphic-provider boundary for a temporal
-salience/classification task.
+salience/classification task. EXP-4-003 verified a CPU candidate artifact;
+learned-provider integration, fallback/parity verification, ADR 0004 acceptance,
+and Phase 4 completion remain separately gated.
 
-Planning decision:
+Planning / gate records:
 
 - [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
 - [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
+- [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
+- [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
 - proposed [ADR 0004](adr/0004-learned-neuromorphic-backend-strategy.md)
 
-### Authorized now — Phase 4A only
+### Completed through EXP-4-003
 
-- read-only neuromorphic contract/reference audit;
-- exact task definition;
-- synthetic/public dataset governance and split design;
-- backend/version/licence research;
-- predeclared metrics and acceptance threshold design;
-- checkpoint/artifact metadata schema design;
-- deterministic test scaffolding that does not require real training.
+- Phase 4A readiness (EXP-4-001);
+- Phase 4B frozen training gate;
+- one controlled CPU training/evaluation run (`FIRST_CPU_SNN_TRAINING_VERIFIED`);
+- canonical candidate JSON under `artifacts/neuromorphic/`.
 
 ### Not authorized yet
 
-- real SNN training execution;
-- new training dependency installation;
+- learned-provider runtime integration / fallback-parity verification;
+- ADR 0004 acceptance / Phase 4 completion;
 - CUDA/GPU claim;
 - Qwen fine-tuning/adapters;
 - physical actuation/robotics/IoT;
 - memory/database migration;
 - voice/SIBONA embodiment work.
 
-The first real SNN training run requires a separate execution-ready Phase 4A
-record with exact data, backend/version, topology/config, seed, metrics,
-predeclared baseline/threshold and cleanup procedure.
+The next controlled blocker is learned SNN provider integration with
+fallback/parity verification against the EXP-4-003 candidate.
 
 ## Later capabilities — unsequenced after the Phase 4 scope
 

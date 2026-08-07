@@ -27,7 +27,9 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertFalse(plan["execution"]["cuda_allowed"])
         self.assertTrue(plan["execution"]["cpu_only"])
         self.assertFalse(plan["execution"]["hosted_ci_training_allowed"])
+        self.assertTrue(plan["execution"]["one_controlled_training_run_authorized_after_merge"])
         self.assertTrue(plan["environment"]["project_requirements_file_must_remain_unchanged"])
+        self.assertNotIn("if_python_3_11_unavailable", plan["environment"])
 
         model = plan["model"]
         self.assertEqual(model["architecture_id"], "phase4b-lif-final-membrane-v1")
@@ -53,6 +55,39 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertFalse(training["test_tuning_allowed"])
         self.assertTrue(training["torch_deterministic_algorithms"])
 
+    def test_python_bootstrap_gate_is_controlled_and_narrow(self):
+        plan = json.loads(PLAN.read_text(encoding="utf-8"))
+        bootstrap = plan["environment"]["python_bootstrap"]
+        self.assertTrue(bootstrap["allowed_if_missing"])
+        self.assertTrue(bootstrap["one_controlled_installation"])
+        self.assertEqual(bootstrap["required_family"], "CPython")
+        self.assertEqual(bootstrap["required_version"], "3.11.x")
+        self.assertEqual(bootstrap["required_architecture"], "x64")
+        self.assertEqual(bootstrap["preferred_package_manager"], "winget")
+        self.assertEqual(bootstrap["package_id"], "Python.Python.3.11")
+        self.assertEqual(bootstrap["scope"], "user")
+        self.assertTrue(bootstrap["side_by_side_only"])
+        self.assertFalse(bootstrap["may_uninstall_existing_python"])
+        self.assertFalse(bootstrap["may_modify_qgis_python"])
+        self.assertFalse(bootstrap["may_manually_edit_path"])
+        self.assertFalse(bootstrap["may_change_global_default_python"])
+        self.assertTrue(bootstrap["verify_python_launcher_registration"])
+        self.assertTrue(bootstrap["verify_existing_python314_still_available"])
+        self.assertTrue(bootstrap["training_may_resume_only_after_verification"])
+        self.assertTrue(bootstrap["bootstrap_does_not_consume_training_run"])
+
+        gate = GATE.read_text(encoding="utf-8")
+        self.assertIn("Python.Python.3.11", gate)
+        self.assertIn("one controlled side-by-side", gate.lower())
+        self.assertIn("does **not** consume the EXP-4-003 training", gate)
+        self.assertIn("preserve existing Python 3.14", gate)
+        self.assertIn("preserve QGIS Python", gate)
+        self.assertIn("avoid manual PATH edits", gate)
+        self.assertNotIn("STOP_DO_NOT_INSTALL_PYTHON_AUTOMATICALLY", gate)
+        self.assertNotIn(
+            "This gate does not authorize\ninstalling another Python distribution.",
+            gate,
+        )
     def test_acceptance_thresholds_remain_predeclared(self):
         plan = json.loads(PLAN.read_text(encoding="utf-8"))
         gate = plan["acceptance"]

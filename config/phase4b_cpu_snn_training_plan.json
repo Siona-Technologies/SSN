@@ -14,7 +14,25 @@
   },
   "environment": {
     "required_python": "3.11.x 64-bit",
-    "if_python_3_11_unavailable": "STOP_DO_NOT_INSTALL_PYTHON_AUTOMATICALLY",
+    "python_bootstrap": {
+      "allowed_if_missing": true,
+      "one_controlled_installation": true,
+      "required_family": "CPython",
+      "required_version": "3.11.x",
+      "required_architecture": "x64",
+      "preferred_package_manager": "winget",
+      "package_id": "Python.Python.3.11",
+      "scope": "user",
+      "side_by_side_only": true,
+      "may_uninstall_existing_python": false,
+      "may_modify_qgis_python": false,
+      "may_manually_edit_path": false,
+      "may_change_global_default_python": false,
+      "verify_python_launcher_registration": true,
+      "verify_existing_python314_still_available": true,
+      "training_may_resume_only_after_verification": true,
+      "bootstrap_does_not_consume_training_run": true
+    },
     "isolated_venv_outside_git": true,
     "torch": {
       "version": "2.13.0+cpu",

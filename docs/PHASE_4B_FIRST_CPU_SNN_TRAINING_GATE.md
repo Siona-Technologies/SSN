@@ -43,8 +43,31 @@ After installation, record `python --version`, `pip --version`,
 `torch.__version__`, `snntorch.__version__`, `torch.version.cuda`,
 `torch.cuda.is_available()` and `pip freeze`.
 
-If Python 3.11 is not already available, **stop**. This gate does not authorize
-installing another Python distribution.
+### Controlled CPython 3.11 bootstrap (only if missing)
+
+If CPython **3.11.x 64-bit** is already available, use it and do not install
+another distribution.
+
+If CPython 3.11 x64 is absent, this gate permits **one controlled side-by-side
+installation** using the official WinGet package:
+
+`Python.Python.3.11`
+
+The installation must:
+
+- be user-scoped where supported;
+- preserve existing Python 3.14;
+- preserve QGIS Python;
+- avoid manual PATH edits;
+- avoid intentionally changing the user's global/default Python;
+- verify 3.11 through the Python launcher after installation;
+- stop if the installed interpreter is not CPython 3.11.x x64.
+
+This controlled Python bootstrap does **not** consume the EXP-4-003 training
+run. Training remains authorized exactly once after the interpreter is verified.
+
+Do not use Chocolatey, Microsoft Store aliases, Conda, uv, embedded Python,
+QGIS Python, or another distribution as a substitute.
 
 ## Resource preflight
 
@@ -217,7 +240,8 @@ contain bounded summaries and hashes.
 
 Stop without improvising if:
 
-- Python 3.11 is unavailable;
+- Python 3.11 remains unavailable after the controlled bootstrap attempt, or
+  bootstrap verification fails;
 - direct dependency version/filename differs;
 - a required wheel cannot be downloaded from the approved source;
 - dataset fingerprints differ;

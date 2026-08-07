@@ -9,10 +9,11 @@
 | Phase 3B | **Completed and accepted — baseline installed/verified; `openai_chat` dialect implemented; controlled real-provider text path validated; governed prompt-context bridge and approved identity registry merged; governed response guard hardened; real-Qwen guarded retest passed; Gate E breadth recorded; conservative model registry activated at the metadata/binding layer; State C registry-bound real-runtime verification passed and runtime shut down; ADR 0003 Accepted (Phase 3B)** |
 | Phase 3B accepted evidence baseline | `1e1237e1a635dda52a0868a080a84623c74950ec` |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
-| Phase 4 | **Not started — eligible for separate planning/authorization after Phase 3 closeout** |
+| Phase 4 | **Planning gate accepted — implementation/training not started; Phase 4A research/scaffolding authorized** |
+| Phase 4 architecture decision | ADR 0004 **Proposed** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
-Historical note: immediately before this closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 work is not in progress.
+Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 implementation/training is not in progress.
 
 ## Governing documents
 
@@ -20,9 +21,13 @@ Historical note: immediately before this closeout, Phase 3B was recorded as **In
 - [PHASE_2_ACCEPTANCE.md](PHASE_2_ACCEPTANCE.md)
 - [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
+- [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
+- [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
+- [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
 - [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
+- [adr/0004-learned-neuromorphic-backend-strategy.md](adr/0004-learned-neuromorphic-backend-strategy.md)
 - [PHASE_3B_HARDWARE_INVENTORY.md](PHASE_3B_HARDWARE_INVENTORY.md)
 - [PHASE_3B_MODEL_INDEPENDENCE.md](PHASE_3B_MODEL_INDEPENDENCE.md)
 - [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](PHASE_3B_MODEL_RUNTIME_RESEARCH.md)
@@ -147,7 +152,36 @@ this remains separate from native-provider JSON capability verification.
 Phase 3B is **complete**. With Phase 3A and Phase 3B both accepted, Phase 3 is
 **complete for its defined local-model/evaluation scope**.
 
-Phase 4 remains **not started**.
+Phase 4 remains **not started** at the implementation/training level; its planning gate is accepted and Phase 4A research/scaffolding is authorized.
+
+## Phase 4 planning status
+
+Phase 4 planning is **accepted** as **Learned Neuromorphic Backend & Evaluation**.
+The first objective is a real learned SNN provider for a bounded temporal
+salience/classification task behind the existing neuromorphic provider boundary.
+
+Authorized now (Phase 4A only):
+
+- current neuromorphic contract/reference audit;
+- exact task and synthetic/public-data governance;
+- deterministic split/seed design;
+- candidate backend/version/licence research;
+- predeclared metrics/baseline/acceptance threshold design;
+- checkpoint metadata/provenance schema design;
+- deterministic model-free test scaffolding.
+
+Not yet authorized:
+
+- real SNN training execution;
+- installing a new SNN training dependency;
+- CUDA/GPU claims;
+- Qwen fine-tuning/adapters;
+- physical actuation/robotics/IoT;
+- semantic/vector memory migration;
+- voice/SIBONA implementation.
+
+ADR 0004 remains **Proposed** until real learned-provider evidence supports an
+acceptance decision.
 
 ## Known limitations carried forward
 
@@ -163,15 +197,21 @@ Phase 4 remains **not started**.
 - Preferred pre-inference free-RAM target is 6–8 GiB; measured free RAM may be lower
 - Broader adversarial/security hardening beyond Gate E remains future
   production-certification work
+- Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated
 
 ## Next
 
-Phase 3 is closed. Phase 4 remains **not started** and must begin only through a
-separate governed Phase 4 planning/authorization decision.
+Phase 3 is closed. Phase 4A planning/research/scaffolding is the next authorized
+work package.
+
+Before the first real SNN training run, Phase 4A must produce an execution-ready
+record with the exact task, dataset/generator, backend/version, dependencies,
+seed/split, topology/configuration, metrics, predeclared baseline and threshold,
+and cleanup/rollback procedure.
 
 Phase 4 work must not reinterpret Phase 3B acceptance as permission to:
 
 - start Qwen automatically;
 - promote tools/structured JSON/streaming/multimodal capabilities;
 - claim the external Qwen baseline is SIONA-native;
-- begin model training or adapter training without a separate approved plan.
+- begin Qwen/model adapter training without a separate approved plan.

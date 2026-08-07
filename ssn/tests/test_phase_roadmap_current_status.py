@@ -16,6 +16,12 @@ ACCEPT4 = ROOT / "docs" / "PHASE_4_ACCEPTANCE.md"
 PLAN5 = ROOT / "docs" / "PHASE_5_PLANNING_ACCEPTANCE.md"
 
 
+def _plain_words(text: str) -> str:
+    """Normalize Markdown emphasis and wrapping for semantic prose assertions."""
+    without_emphasis = re.sub(r"\*+", "", text).lower()
+    return re.sub(r"\s+", " ", without_emphasis).strip()
+
+
 class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
     def test_current_phase_sequence_matches_accepted_governance(self):
         roadmap = ROADMAP.read_text(encoding="utf-8")
@@ -50,17 +56,17 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
         # Historical Phase 4 closeout remains immutable even after Phase 5 is selected.
         self.assertIn("**Phase 4 is COMPLETE**", acceptance4)
         self.assertIn("No subsequent phase starts automatically", acceptance4)
-        self.assertIn("At the Phase 4 closeout boundary", roadmap)
-        self.assertIn("separate\ngoverned planning decision", roadmap)
+        roadmap_plain = _plain_words(roadmap)
+        self.assertIn("at the phase 4 closeout boundary", roadmap_plain)
+        self.assertIn("separate governed planning decision", roadmap_plain)
         self.assertIn("**Status:** Accepted planning gate", planning5)
 
     def test_phase_numbering_is_not_silently_inherited_from_legacy_plans(self):
-        roadmap = ROADMAP.read_text(encoding="utf-8")
-        lower_plain = re.sub(r"\*+", "", roadmap).lower()
-        self.assertIn("siona_build_plan.md", lower_plain)
-        self.assertIn("do not define current phase 5 authorization", lower_plain)
-        self.assertIn("historical phase5", lower_plain)
-        self.assertIn("stateful streaming neuromorphic", lower_plain)
+        roadmap_plain = _plain_words(ROADMAP.read_text(encoding="utf-8"))
+        self.assertIn("siona_build_plan.md", roadmap_plain)
+        self.assertIn("do not define current phase 5 authorization", roadmap_plain)
+        self.assertIn("historical phase5", roadmap_plain)
+        self.assertIn("stateful streaming neuromorphic", roadmap_plain)
 
 
 if __name__ == "__main__":

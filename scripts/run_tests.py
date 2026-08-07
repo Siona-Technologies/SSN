@@ -28,6 +28,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_http_front_door",
     "ssn.tests.test_phase3_tenant_law",
     "ssn.tests.test_phase4_speech_and_senses",
+    # Historical implementation labels below are not the current governed phase numbering.
     "ssn.tests.test_phase5_embedding_and_knowledge_rag",
     "ssn.tests.test_phase6_production_shape",
     # Eval harness
@@ -82,6 +83,8 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase4c_learned_snn_provider",
     "ssn.tests.test_phase4d_learned_snn_breadth_safety",
     "ssn.tests.test_phase4_closeout",
+    # Governed Phase 5 — stateful streaming neuromorphic planning
+    "ssn.tests.test_phase5_streaming_neuromorphic_planning",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

@@ -101,11 +101,12 @@ independently verified installation.
 - Short probes alone are **insufficient** for production capability claims;
   Gate E (EXP-3B-011) later recorded broader evidence with conservative limits
 - Registry record availability and exact binding software support are complete
-  under EXP-3B-012. A controlled real-runtime verification through that
-  registry-bound path (state C) PASSED under EXP-3B-013 then shut down. Model registry runtime remains inactive at steady state
-  until that separate authorized experiment. Further provider integration
-  campaigns beyond the recorded conservative registry binding remain
-  unauthorized until explicitly approved.
+  under EXP-3B-012. State C passed under EXP-3B-013 and the runtime was shut
+  down afterward. The model runtime is inactive at steady state because
+  llama.cpp was deliberately stopped after the controlled verification.
+  Further provider integration campaigns beyond the recorded conservative
+  registry binding remain operator-controlled and unauthorized until
+  explicitly approved.
 - The model remains external, optional and replaceable; **not** SIONA-native
 - No tool capability is approved; no production recommendation is issued
 
@@ -816,11 +817,11 @@ Comparison: Granite 4.0 Micro Q4_K_M.
   under EXP-3B-012. A controlled real-runtime verification through that
   registry-bound path (state C) PASSED under EXP-3B-013; runtime stopped.
 - STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP. It was a controlled
-  controlled verification that starts the pinned llama.cpp/Qwen baseline,
-  enables the local provider, loads the canonical registry, proves exact entry
-  binding and real pinned-model reachability, confirms safe registry
-  observability, performs no tool execution, keeps loopback-only operation,
-  then shuts the runtime down and verifies port/process closure.
+  verification that started the pinned llama.cpp/Qwen baseline, enabled the
+  local provider, loaded the canonical registry, proved exact entry binding and
+  real pinned-model reachability, confirmed safe registry observability,
+  performed no tool execution, kept loopback-only operation, then shut the
+  runtime down and verified port/process closure.
 - Verified registry behaviour: bounded text/chat only at context 4096;
   tools=false; structured_json=false; streaming=false; multimodal=false
 - ADR 0003 acceptance remains pending

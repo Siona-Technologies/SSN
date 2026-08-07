@@ -488,7 +488,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
-        self.assertIn("Model registry runtime remains inactive", research)
+        self.assertIn("model runtime is inactive at steady state", research.lower())
+        self.assertIn("deliberately stopped after the controlled verification", research)
+        self.assertNotIn("until that separate authorized experiment", research)
+        self.assertNotIn("controlled controlled verification", research.lower())
         self.assertIn(
             "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
             research,

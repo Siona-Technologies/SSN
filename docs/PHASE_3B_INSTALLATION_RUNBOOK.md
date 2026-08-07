@@ -95,16 +95,17 @@ installation.
 
 ### Remaining authorization gate
 
-Gate E breadth (EXP-3B-011) and model-registry activation review (EXP-3B-012)
-are recorded. Registry record availability and exact binding software support
-are complete. A controlled real-runtime verification through that registry-bound
-ADR acceptance, Phase 3B completion, and Phase 4 work may not
-proceed without further explicit owner authorization. STATE C DOES NOT MEAN
+Gate E breadth (EXP-3B-011), model-registry activation review (EXP-3B-012),
+and State C controlled registry-bound real-runtime verification (EXP-3B-013)
+are recorded. Registry record availability, exact binding software support,
+and the temporary real-runtime verification are complete. The runtime was shut
+down after State C. ADR acceptance, Phase 3B completion, and Phase 4 work may
+not proceed without further explicit owner authorization. STATE C DOES NOT MEAN
 AUTOMATIC OR PERMANENT MODEL STARTUP. Controlled text-path validation and
 conservative registry binding do **not** certify production use. Additional
 provider integration campaigns remain unauthorized until explicitly approved.
-`UNAPPROVED` for ADR acceptance / Phase 3B completion, capability expansion beyond
-the conservative registry matrix, and ADR acceptance.
+`UNAPPROVED` for ADR acceptance / Phase 3B completion and for capability
+expansion beyond the conservative registry matrix.
 
 ## Stages
 

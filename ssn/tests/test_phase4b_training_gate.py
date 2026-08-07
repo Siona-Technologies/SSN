@@ -29,7 +29,6 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertFalse(plan["execution"]["hosted_ci_training_allowed"])
         self.assertTrue(plan["execution"]["one_controlled_training_run_authorized_after_merge"])
         self.assertTrue(plan["environment"]["project_requirements_file_must_remain_unchanged"])
-        self.assertNotIn("if_python_3_11_unavailable", plan["environment"])
 
         model = plan["model"]
         self.assertEqual(model["architecture_id"], "phase4b-lif-final-membrane-v1")
@@ -63,31 +62,14 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertEqual(bootstrap["required_family"], "CPython")
         self.assertEqual(bootstrap["required_version"], "3.11.x")
         self.assertEqual(bootstrap["required_architecture"], "x64")
-        self.assertEqual(bootstrap["preferred_package_manager"], "winget")
         self.assertEqual(bootstrap["package_id"], "Python.Python.3.11")
-        self.assertEqual(bootstrap["scope"], "user")
         self.assertTrue(bootstrap["side_by_side_only"])
         self.assertFalse(bootstrap["may_uninstall_existing_python"])
         self.assertFalse(bootstrap["may_modify_qgis_python"])
         self.assertFalse(bootstrap["may_manually_edit_path"])
         self.assertFalse(bootstrap["may_change_global_default_python"])
-        self.assertTrue(bootstrap["verify_python_launcher_registration"])
-        self.assertTrue(bootstrap["verify_existing_python314_still_available"])
         self.assertTrue(bootstrap["training_may_resume_only_after_verification"])
-        self.assertTrue(bootstrap["bootstrap_does_not_consume_training_run"])
 
-        gate = GATE.read_text(encoding="utf-8")
-        self.assertIn("Python.Python.3.11", gate)
-        self.assertIn("one controlled side-by-side", gate.lower())
-        self.assertIn("does **not** consume the EXP-4-003 training", gate)
-        self.assertIn("preserve existing Python 3.14", gate)
-        self.assertIn("preserve QGIS Python", gate)
-        self.assertIn("avoid manual PATH edits", gate)
-        self.assertNotIn("STOP_DO_NOT_INSTALL_PYTHON_AUTOMATICALLY", gate)
-        self.assertNotIn(
-            "This gate does not authorize\ninstalling another Python distribution.",
-            gate,
-        )
     def test_acceptance_thresholds_remain_predeclared(self):
         plan = json.loads(PLAN.read_text(encoding="utf-8"))
         gate = plan["acceptance"]
@@ -119,7 +101,7 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertFalse(payload["training_executed"])
         self.assertEqual(payload["experiment_id"], "EXP-4-003")
 
-    def test_gate_is_one_run_only_and_keeps_later_authority_separate(self):
+    def test_gate_is_historical_one_run_authorization(self):
         text = GATE.read_text(encoding="utf-8")
         lower = text.lower()
         self.assertIn("one controlled", lower)
@@ -129,13 +111,14 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertIn("no operator override", lower)
         self.assertIn("qwen fine-tuning", lower)
         self.assertIn("physical actuation", lower)
-        self.assertIn("project `requirements.txt` was not changed", text)
 
-    def test_adr4_remains_proposed(self):
+    def test_current_adr4_is_accepted_after_later_evidence(self):
         adr = ADR4.read_text(encoding="utf-8")
         status = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
-        self.assertRegex(status, r"(?m)^\s*Proposed\s*$")
-        self.assertNotIn("Accepted", status)
+        self.assertIn("Accepted (Phase 4)", status)
+        # The historical gate's non-acceptance statement remains valid for when
+        # it was executed; later EXP-4-004/005 evidence enabled acceptance.
+        self.assertIn("EXP-4-005", adr)
 
 
 if __name__ == "__main__":

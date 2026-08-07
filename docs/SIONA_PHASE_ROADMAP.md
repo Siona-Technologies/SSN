@@ -134,9 +134,7 @@ general SNN brain.
 Completion of Phase 4 does not automatically select Phase 5 or inherit phase
 numbers/scopes from historical planning documents.
 
-The next governed planning gate must choose one bounded objective, define its
-non-objectives and acceptance criteria, and determine whether a new ADR is
-required before implementation starts.
+The next objective must be selected through a **separate governed planning decision**. That planning decision must choose one bounded objective, define its non-objectives and acceptance criteria, and determine whether a new ADR is required before implementation starts.
 
 ## Future capability candidates — unsequenced
 

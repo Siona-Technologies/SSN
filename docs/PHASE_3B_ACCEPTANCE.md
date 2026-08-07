@@ -51,6 +51,29 @@ rather than trusted only from the stored decision label.
 
 ---
 
+## Historical status preservation
+
+Phase 3B experiment and research artifacts are evidence snapshots. They are not
+rewritten merely because governance subsequently advances.
+
+In particular:
+
+- `docs/evidence/EXP-3B-013_STATE_C.json` correctly retains the governance state
+  that existed when State C ran: ADR 0003 `PROPOSED`, Phase 3B `IN_PROGRESS`,
+  Phase 4 `NOT_STARTED`, with the closeout decision still outstanding.
+- Pre-closeout status wording preserved inside
+  `PHASE_3B_MODEL_RUNTIME_RESEARCH.md` is historical research/evidence context.
+- Current authoritative governance after this closeout is defined by this
+  acceptance record, `PHASE_STATUS.md`, `PHASE_3_ENGINEERING_SPEC.md`, and the
+  leading status section of ADR 0003.
+
+Therefore historical `Proposed` / `In progress` snapshots must not be interpreted
+as overriding the accepted current state, and they should not be silently
+rewritten as if acceptance had already existed when those observations were
+recorded.
+
+---
+
 ## Accepted architecture
 
 The accepted Phase 3B architecture is:
@@ -162,6 +185,7 @@ automatically.
 
 - [PHASE_STATUS.md](PHASE_STATUS.md)
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
+- [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](PHASE_3B_MODEL_RUNTIME_RESEARCH.md)
 - [SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md](SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md)
 - [SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md](SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md)
 - [SIONA_GATE_E_BREADTH_EVALUATION.md](SIONA_GATE_E_BREADTH_EVALUATION.md)

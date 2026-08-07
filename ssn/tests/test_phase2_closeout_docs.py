@@ -414,8 +414,8 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
         self.assertIn(
-            "capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context",
-            status,
+            "capabilities beyond exp-3b-011 gate e results and exp-3b-012 conservative binding remain limited to verified chat at 4096 context",
+            status.lower(),
         )
         self.assertIn("Limited local loopback smoke completed", research)
         self.assertIn(

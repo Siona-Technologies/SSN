@@ -83,7 +83,7 @@ Accepted Qwen capability distinctions remain:
 - `multimodal=false`;
 - `siona_native=false`.
 
-The Qwen/llama runtime remains optional and inactive at steady state. The runtime currently **stopped** after its controlled verification, and no automatic restart is approved.
+The Qwen/llama runtime remains optional and inactive at steady state. The runtime currently **stopped** after its controlled verification, port 8080 is **not listening**, and no automatic restart is approved.
 Production certification is not claimed.
 
 ## Phase 4 status (completed and accepted)

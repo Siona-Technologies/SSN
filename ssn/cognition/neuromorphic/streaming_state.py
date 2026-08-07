@@ -32,6 +32,7 @@ class StreamingNeuromorphicStateError(StreamingNeuromorphicContractError):
 @dataclass
 class _MutableState:
     stream_id: str
+    generation: int
     next_step_index: int
     membrane: Tuple[float, ...]
     cumulative_spike_count: int
@@ -62,6 +63,9 @@ class StreamingStateTable:
         self._idle_ttl_seconds = float(idle_ttl_seconds)
         self._clock = clock
         self._states: Dict[str, _MutableState] = {}
+        # Monotonic process-local generation token prevents an old prepared step
+        # from committing into a reset/restarted stream with the same stream_id.
+        self._generation_counter = 0
 
     @property
     def max_active_streams(self) -> int:
@@ -81,6 +85,7 @@ class StreamingStateTable:
     def _snapshot(state: _MutableState) -> StreamingStreamSnapshot:
         return StreamingStreamSnapshot(
             stream_id=state.stream_id,
+            generation=state.generation,
             next_step_index=state.next_step_index,
             membrane=state.membrane,
             cumulative_spike_count=state.cumulative_spike_count,
@@ -115,8 +120,10 @@ class StreamingStateTable:
         if len(self._states) >= self._max_active_streams:
             raise StreamingNeuromorphicStateError("active_stream_capacity_reached")
         now = self._now()
+        self._generation_counter += 1
         state = _MutableState(
             stream_id=stream_id,
+            generation=self._generation_counter,
             next_step_index=0,
             membrane=(0.0,) * HIDDEN_MEMBRANE_UNITS,
             cumulative_spike_count=0,
@@ -162,7 +169,11 @@ class StreamingStateTable:
         state = self._states.get(prepared.step.stream_id)
         if state is None:
             raise StreamingNeuromorphicStateError("stream_not_active")
-        if state.revision != prepared.state.revision or state.next_step_index != prepared.step.step_index:
+        if (
+            state.generation != prepared.state.generation
+            or state.revision != prepared.state.revision
+            or state.next_step_index != prepared.step.step_index
+        ):
             raise StreamingNeuromorphicStateError("prepared_state_stale")
 
         now = self._now()
@@ -170,6 +181,7 @@ class StreamingStateTable:
         completed = next_index == STEPS_PER_STREAM
         committed = _MutableState(
             stream_id=state.stream_id,
+            generation=state.generation,
             next_step_index=next_index,
             membrane=parsed_membrane,
             cumulative_spike_count=state.cumulative_spike_count + spike_increment,

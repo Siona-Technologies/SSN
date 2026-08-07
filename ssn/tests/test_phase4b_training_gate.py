@@ -84,10 +84,7 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertIn("preserve QGIS Python", gate)
         self.assertIn("avoid manual PATH edits", gate)
         self.assertNotIn("STOP_DO_NOT_INSTALL_PYTHON_AUTOMATICALLY", gate)
-        self.assertNotIn(
-            "This gate does not authorize\ninstalling another Python distribution.",
-            gate,
-        )
+
     def test_acceptance_thresholds_remain_predeclared(self):
         plan = json.loads(PLAN.read_text(encoding="utf-8"))
         gate = plan["acceptance"]
@@ -119,7 +116,7 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertFalse(payload["training_executed"])
         self.assertEqual(payload["experiment_id"], "EXP-4-003")
 
-    def test_gate_is_one_run_only_and_keeps_later_authority_separate(self):
+    def test_gate_is_historical_one_run_authorization_and_keeps_authority_separate(self):
         text = GATE.read_text(encoding="utf-8")
         lower = text.lower()
         self.assertIn("one controlled", lower)
@@ -131,11 +128,13 @@ class TestPhase4BTrainingGate(unittest.TestCase):
         self.assertIn("physical actuation", lower)
         self.assertIn("project `requirements.txt` was not changed", text)
 
-    def test_adr4_remains_proposed(self):
+    def test_current_adr4_is_accepted_without_rewriting_historical_gate(self):
         adr = ADR4.read_text(encoding="utf-8")
         status = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
-        self.assertRegex(status, r"(?m)^\s*Proposed\s*$")
-        self.assertNotIn("Accepted", status)
+        self.assertIn("Accepted (Phase 4)", status)
+        self.assertNotRegex(status, r"(?m)^\s*Proposed\s*$")
+        gate = GATE.read_text(encoding="utf-8")
+        self.assertIn("does not accept ADR 0004", gate)
 
 
 if __name__ == "__main__":

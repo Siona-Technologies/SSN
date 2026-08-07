@@ -1,0 +1,89 @@
+{
+  "record_type": "PHASE_ACCEPTANCE",
+  "phase": "4",
+  "decision_date": "2026-08-07",
+  "accepted_evidence_baseline": "05de2b04279a72ece4834a984461a505de1188b3",
+  "decision": "PHASE_4_ACCEPTED",
+  "adr_0004_status": "ACCEPTED_PHASE_4",
+  "phase_4_status": "COMPLETE",
+  "scope": "LEARNED_NEUROMORPHIC_SOFTWARE_PROVIDER",
+  "provider": {
+    "provider_id": "siona-neuro-learned-lif-v1",
+    "task_id": "phase4a-temporal-salience-v1",
+    "architecture_id": "phase4b-lif-final-membrane-v1",
+    "input_modality": "temporal_salience_v1",
+    "input_shape": [20, 8],
+    "artifact_path": "artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json",
+    "artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+    "explicit_activation_only": true,
+    "global_default": false,
+    "runtime_standard_library_only": true,
+    "trained": true,
+    "learned": true,
+    "software_snn": true,
+    "hardware_neuromorphic": false,
+    "stateful_streaming": false,
+    "energy_metrics": false
+  },
+  "evidence_chain": {
+    "EXP-4-001": "PHASE_4A_READINESS_DEFINED_TRAINING_NOT_AUTHORIZED",
+    "EXP-4-003": "FIRST_CPU_SNN_TRAINING_VERIFIED",
+    "EXP-4-004": "LEARNED_SNN_PROVIDER_PARITY_VERIFIED",
+    "EXP-4-005": "PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED"
+  },
+  "accepted_metrics": {
+    "frozen_test_samples": 128,
+    "frozen_test_correct": 128,
+    "balanced_accuracy": 1.0,
+    "class_0_recall": 1.0,
+    "class_1_recall": 1.0,
+    "reversed_positive_count": 64,
+    "temporal_mean_score_drop": 0.999432492605459,
+    "parity_samples": 197,
+    "parity_class_agreement": 197,
+    "parity_spike_count_agreement": 197,
+    "edge_controls_passed": 9,
+    "max_batch_events": 256,
+    "max_artifact_bytes": 262144
+  },
+  "authority": {
+    "tool_authority": false,
+    "physical_actuation_authority": false,
+    "policy_authority": false,
+    "memory_mutation_authority": false,
+    "reflex_proposals_generated_on_learned_path": 0
+  },
+  "runtime_dependencies": {
+    "torch": false,
+    "snntorch": false,
+    "numpy": false,
+    "norse": false
+  },
+  "training_evidence": {
+    "training_run_count": 1,
+    "training_cpu_only": true,
+    "cuda_used": false,
+    "training_backend": "PyTorch 2.13.0+cpu + snnTorch 1.0.0"
+  },
+  "qwen_boundary": {
+    "registry_changed_by_phase_4": false,
+    "capabilities_expanded_by_phase_4": false,
+    "training_or_adapters": false
+  },
+  "non_claims": [
+    "NEUROMORPHIC_SILICON_EXECUTION",
+    "LOIHI_OR_FPGA_DEPLOYMENT",
+    "CUDA_GPU_SNN_TRAINING_OR_BENCHMARK",
+    "MEASURED_ENERGY_EFFICIENCY",
+    "EVENT_BY_EVENT_PERSISTENT_STREAMING_SNN",
+    "REAL_EVENT_CAMERA_INPUT",
+    "GENERAL_SNN_INTELLIGENCE",
+    "GLOBAL_DEFAULT_LEARNED_PROVIDER",
+    "QWEN_FINE_TUNING_OR_ADAPTERS",
+    "SIONA_NATIVE_FOUNDATION_LANGUAGE_MODEL",
+    "ROBOTICS_OR_PHYSICAL_ACTUATION",
+    "PRODUCTION_SECURITY_CERTIFICATION"
+  ],
+  "next_phase_started": false,
+  "next_planning_gate_required": true
+}

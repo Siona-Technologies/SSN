@@ -2,155 +2,213 @@
 
 ## Status
 
-Proposed
+Accepted (Phase 4)
 
 ## Context
 
-SIONA's hybrid architecture intentionally separates deliberative foundation-model
-reasoning from a neuromorphic layer responsible for bounded temporal processing,
-salience, novelty, anomaly and reflex **proposals**.
+SIONA's hybrid architecture separates deliberative foundation-model reasoning
+from a neuromorphic layer responsible for bounded temporal processing, salience,
+novelty, anomaly and reflex **proposals**.
 
-Phase 3 accepted the first real optional local foundation-model path. The
-neuromorphic provider remains deterministic/reference-only; no trained SNN is
-currently claimed in SIONA Core.
+Phase 3 accepted the first real optional local foundation-model path. Phase 4
+was created to establish the first genuine learned neuromorphic software
+component without collapsing the whole intelligence architecture into an SNN or
+granting learned outputs tool/actuator authority.
 
-`DEFERRED_CAPABILITIES.md` records SNN training and GPU benchmarking as Phase 4
-or hardware-gated work. The current development machine has no CUDA GPU, so the
-architecture must distinguish a reproducible CPU learned-provider proof from a
-future CUDA benchmark.
+The development machine has no CUDA GPU, so Phase 4 deliberately separated a
+reproducible CPU learned-provider proof from future hardware-gated GPU or
+neuromorphic-silicon evidence.
 
-## Decision under evaluation
+## Decision
 
-Phase 4 will evaluate a **replaceable learned SNN provider** behind the existing
+SIONA accepts a **replaceable learned software SNN provider** behind the existing
 neuromorphic-provider boundary.
 
-The first accepted learned SNN, if evidence supports it, will:
+The accepted provider is:
 
-- solve a bounded temporal salience/classification task;
-- remain advisory only;
-- produce proposals/signals rather than authorization;
-- use a versioned, governed dataset/generator and deterministic split;
-- record backend/version, training configuration, seed and checkpoint checksum;
-- retain the deterministic/reference provider as CI path and fallback;
-- remain independent of Qwen and the local language-model registry;
-- not require physical hardware or actuator access.
+- provider ID: `siona-neuro-learned-lif-v1`;
+- task: `phase4a-temporal-salience-v1`;
+- architecture: `phase4b-lif-final-membrane-v1`;
+- input: explicit `temporal_salience_v1`, 20 × 8 binary temporal sequence;
+- training: one authorized CPU run using PyTorch 2.13.0+cpu and snnTorch 1.0.0;
+- accepted artifact: `artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json`;
+- artifact SHA-256: `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`;
+- runtime inference: pure Python, no torch/snnTorch/numpy/Norse dependency;
+- activation: explicit only;
+- default/fallback: deterministic reference provider remains intact.
 
-## Candidate implementation direction
+The learned SNN may produce bounded temporal classification, salience,
+attention-trigger and software spike-count signals. Those outputs are advisory
+signals, not authorization.
 
-snnTorch and Norse may be evaluated as candidate Python/PyTorch-compatible
-backends. Neither is approved by this ADR merely by being named.
+## Evidence basis
 
-Before adopting a backend, Phase 4A must record:
+Phase 4 acceptance is supported by the governed evidence chain:
 
-- official project/source;
-- exact version;
-- licence;
-- Python/PyTorch compatibility;
-- CPU support;
-- deterministic/reproducibility considerations;
-- maintenance status;
-- dependency footprint;
-- artifact/checkpoint format implications.
+- **EXP-4-001** — contract/task/data readiness defined before training;
+- **Phase 4B training gate** — environment, topology, seed, training recipe and
+  thresholds frozen before execution;
+- **EXP-4-003** — `FIRST_CPU_SNN_TRAINING_VERIFIED`; exactly one CPU training
+  run; held-out balanced accuracy 1.0; class recalls 1.0/1.0; temporal reversal
+  control passed;
+- **EXP-4-004** — `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`; pure-Python runtime
+  matched snnTorch reference across 197/197 parity samples within frozen
+  tolerances;
+- **EXP-4-005** — `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`; strict
+  artifact/input/batch boundaries, full frozen-test inference, temporal breadth,
+  fallback, corruption and authority checks passed.
+
+See [PHASE_4_ACCEPTANCE.md](../PHASE_4_ACCEPTANCE.md).
+
+## Acceptance conditions
+
+All conditions defined while this ADR was Proposed are satisfied:
+
+1. Exact learned task and predeclared metrics/thresholds recorded before training — **satisfied**.
+2. Dataset/generator provenance and train/validation/test split reproducible — **satisfied**.
+3. Backend/version/licence recorded — **satisfied**.
+4. Real learned checkpoint/artifact produced from an authorized run — **satisfied**.
+5. Artifact checksum and metadata recorded — **satisfied**.
+6. Held-out performance exceeds predeclared baseline/margin — **satisfied**.
+7. Learned inference works through the existing provider boundary — **satisfied**.
+8. Deterministic fallback remains intact — **satisfied**.
+9. Hosted CI remains deterministic and does not train — **satisfied**.
+10. No tool/actuator/owner authority is granted — **satisfied**.
+11. No unapproved/private training data was used — **satisfied**.
+12. CPU evidence is separated from future GPU evidence — **satisfied**.
+13. Qwen registry capabilities remain unchanged — **satisfied**.
 
 ## Training-data boundary
 
-The first Phase 4 training dataset must use either:
+The accepted first task uses SIONA-controlled deterministic synthetic temporal
+data with frozen split fingerprints. It uses no private identity records,
+contacts, customer data, website content, user memory, secrets, unrelated
+personal/project material or Qwen-generated labels.
 
-1. a deterministic synthetic/neutral temporal generator committed under SIONA
-   control; or
-2. a separately approved public dataset with explicit licence/provenance.
-
-Private identity records, contacts, customer data, website content, user memory,
-secrets and unrelated personal/project material are excluded by default.
-
-Qwen-generated pseudo-labels are not an approved default training authority.
-
-## Hardware boundary
-
-A small CPU reference learned SNN may be accepted if it satisfies the predeclared
-Phase 4 criteria.
-
-CUDA training and GPU benchmarking remain separate hardware-gated claims until a
-CUDA-capable environment is actually available and verified. No documentation
-may convert CPU evidence into a GPU claim.
+Future learned tasks require their own dataset/provenance decisions.
 
 ## Authority boundary
 
-A learned SNN may influence:
+The accepted learned SNN may influence:
 
-- salience;
-- novelty;
 - temporal classification;
+- salience;
 - attention prioritisation;
-- bounded reflex proposals.
+- bounded cognitive signals.
 
 It may not directly authorize:
 
 - tools;
 - policy changes;
 - owner actions;
+- memory mutation;
 - external side effects;
 - physical actuators.
 
-Existing deterministic policy, capability and physical-safety requirements
-remain authoritative.
+The accepted learned path emits no reflex proposal for this task.
 
-## Alternatives
+## Safety/integrity boundary
+
+The accepted runtime includes:
+
+- SHA-verified canonical artifact bytes;
+- 256 KiB bounded artifact loading;
+- strict UTF-8 and duplicate-key rejection;
+- exact task/provider/architecture/training identity;
+- finite, shape-checked weights;
+- strict 20 × 8 binary learned-event envelope;
+- bounded non-empty event IDs;
+- maximum learned batch size of 256;
+- atomic prevalidation for claimed learned events;
+- fail-closed malformed learned inputs;
+- deterministic fallback for unsupported modalities;
+- no in-memory artifact-injection bypass.
+
+## Runtime and hardware boundary
+
+The accepted runtime is a **software SNN**, not neuromorphic silicon.
+
+Accepted claims:
+
+- CPU-trained learned SNN artifact;
+- pure-Python deterministic inference;
+- software LIF spike execution;
+- explicit provider integration and fallback.
+
+Not accepted/verified by this ADR:
+
+- CUDA/GPU SNN training or benchmarking;
+- Loihi/FPGA execution;
+- neuromorphic-silicon deployment;
+- measured energy efficiency;
+- event-by-event persistent/stateful streaming SNN inference;
+- real event-camera input.
+
+`energy_metrics=false`; compatibility `energy=0.0` is not a measured energy
+claim.
+
+## Relationship to the language model
+
+The learned SNN is independent of the Phase 3 Qwen baseline. Phase 4 did not
+change the Qwen model registry or capabilities and performed no Qwen
+LoRA/QLoRA/PEFT/fine-tuning.
+
+A SIONA-trained SNN artifact does not make the external Qwen foundation weights
+SIONA-native.
+
+## Alternatives considered
 
 | Alternative | Disposition |
 |---|---|
-| Keep deterministic neuromorphic provider only | Safe fallback, but does not advance the learned SNN layer |
-| Make the whole SIONA brain an SNN now | Rejected; contradicts the hybrid architecture and current evidence |
-| Fine-tune Qwen instead | Deferred; language-model adaptation is a separate model-training/data-governance decision |
-| Start robotics/IoT next | Deferred; physical safety and learned cognitive signals must mature first |
-| Require CUDA before any learned SNN work | Rejected; software architecture and a small CPU proof can proceed while GPU evidence stays hardware-gated |
-| Use private/user identity data for first training | Rejected by default; unnecessary and creates governance risk |
+| Keep deterministic neuromorphic provider only | Retained as default/fallback, but insufficient as the sole Phase 4 outcome |
+| Make the whole SIONA brain an SNN | Rejected; contradicts the hybrid architecture |
+| Fine-tune Qwen instead | Deferred; separate dataset/training/ownership decision |
+| Start robotics/IoT next | Deferred; physical safety and actuator authority remain separately gated |
+| Require CUDA before any learned SNN work | Rejected; reproducible CPU proof was sufficient for this bounded software milestone |
+| Use private/user identity data | Rejected for the accepted task |
 
-## Acceptance conditions before ADR status may become Accepted
+## Consequences
 
-1. Exact learned task and predeclared metrics/thresholds are recorded before the
-   acceptance training run.
-2. Dataset/generator provenance and train/validation/test split are reproducible.
-3. Backend/version/licence are recorded.
-4. A real learned checkpoint is produced from an authorized training run.
-5. Checkpoint checksum and metadata are recorded.
-6. Held-out performance exceeds the predeclared naive/random baseline by the
-   required margin.
-7. Learned inference works through the existing neuromorphic-provider boundary.
-8. Deterministic provider fallback remains intact.
-9. Hosted CI remains deterministic and does not train the model.
-10. No tool/actuator/owner authority is granted to the SNN.
-11. No unapproved/private training data is used.
-12. CPU and any future GPU evidence are labeled separately.
-13. Qwen registry capabilities remain unchanged unless separately approved.
+- SIONA now has its first genuine learned neuromorphic software component.
+- The deterministic provider remains the default/reference/fallback path.
+- Normal hosted CI remains free of the training stack.
+- The accepted learned provider remains explicit opt-in rather than global
+  default.
+- Future tasks, streaming semantics, hardware acceleration and physical
+  embodiment can evolve behind existing contracts without rewriting higher-level
+  cognitive architecture.
 
-## Consequences if accepted later
+## Explicit non-authorization
 
-- SIONA will have its first genuine learned neuromorphic component.
-- The deterministic provider remains available for CI, fallback and reference.
-- The learned checkpoint is a governed SIONA artifact, but this alone does not
-  make the foundation language model SIONA-native.
-- Later phases may expand learned neuromorphic tasks or hardware backends without
-  rewriting higher-level cognitive contracts.
+This ADR does not authorize:
 
-## Non-authorization
-
-This Proposed ADR does not authorize:
-
-- a training run;
-- dependency installation;
+- production-security certification;
+- a global/default learned provider switch;
+- repeated or new SNN training without a new governed task/training decision;
 - CUDA/GPU claims;
-- Qwen fine-tuning;
+- Qwen fine-tuning/adapters;
+- semantic/vector-memory migration;
+- STT/TTS or SIBONA embodiment;
+- robotics/IoT/vehicle/drone control;
 - physical actuation;
-- robotics/IoT integration;
-- Phase 4 completion.
+- a SIONA-native foundation language-model claim.
 
-It authorizes planning/research only when merged as part of the Phase 4 planning
-gate.
+## Phase disposition
+
+ADR 0004 acceptance completes **Phase 4** for the defined learned-neuromorphic
+software-provider scope.
+
+No subsequent phase starts automatically. The next objective requires a separate
+governed planning decision.
 
 ## References
 
+- [PHASE_4_ACCEPTANCE.md](../PHASE_4_ACCEPTANCE.md)
 - [PHASE_4_ENGINEERING_SPEC.md](../PHASE_4_ENGINEERING_SPEC.md)
+- [SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md](../SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md)
+- [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](../PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
+- [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](../SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
+- [SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md](../SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md)
+- [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](../SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
 - [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](../SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
-- [DEFERRED_CAPABILITIES.md](../DEFERRED_CAPABILITIES.md)
 - [SIONA_VISION_CHARTER.md](../SIONA_VISION_CHARTER.md)

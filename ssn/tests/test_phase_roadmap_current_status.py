@@ -1,4 +1,4 @@
-"""Current phase-roadmap consistency after Phase 3 closeout and Phase 4 planning."""
+"""Current phase-roadmap consistency after Phase 4 closeout."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ ROADMAP = ROOT / "docs" / "SIONA_PHASE_ROADMAP.md"
 STATUS = ROOT / "docs" / "PHASE_STATUS.md"
 ADR3 = ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md"
 ADR4 = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
+ACCEPT4 = ROOT / "docs" / "PHASE_4_ACCEPTANCE.md"
 
 
 class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
@@ -19,30 +20,26 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
         status = STATUS.read_text(encoding="utf-8")
         adr3 = ADR3.read_text(encoding="utf-8")
         adr4 = ADR4.read_text(encoding="utf-8")
+        acceptance4 = ACCEPT4.read_text(encoding="utf-8")
 
         self.assertIn("## Phase 3 — Local model and evaluation layer", roadmap)
         self.assertIn("**Completed and accepted.**", roadmap)
-        self.assertIn("ADR 0003 — **Accepted (Phase 3B)**", roadmap)
-        self.assertIn("Phase 3 is complete", roadmap)
+        self.assertIn("ADR 0003 is **Accepted (Phase 3B)**", roadmap)
 
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
-        self.assertIn(
-            "**Planning gate accepted; EXP-4-003/004/005 verified; ADR 0004 acceptance and Phase 4 completion pending.**",
-            roadmap,
-        )
-        self.assertIn("Completed through EXP-4-005", roadmap)
-        self.assertIn("breadth/safety/integrity gate", roadmap)
-        self.assertIn("SIONA_BUILD_PLAN.md", roadmap)
-        self.assertIn("dated planning reference", roadmap)
-
-        self.assertNotIn("Phase 3 — Local model and evaluation layer\n\n**Specified but not started.**", roadmap)
-        self.assertNotIn("Recommended future branch (do not create until Phase 3 is authorized)", roadmap)
+        self.assertIn("EXP-4-003", roadmap)
+        self.assertIn("EXP-4-004", roadmap)
+        self.assertIn("EXP-4-005", roadmap)
+        self.assertIn("ADR 0004 — **Accepted (Phase 4)**", roadmap)
+        self.assertIn("Phase 4 is complete", roadmap)
+        self.assertIn("## Next phase — not selected", roadmap)
+        self.assertIn("No next phase has started", roadmap)
 
         self.assertIn("Phase 3 | **Completed", status)
         self.assertIn("Phase 3B | **Completed and accepted", status)
-        self.assertIn("Phase 4 | **In progress", status)
-        self.assertIn("EXP-4-003/004/005 VERIFIED", status)
-        self.assertIn("ADR 0004 **Proposed**", status)
+        self.assertIn("Phase 4 | **Completed and accepted", status)
+        self.assertIn("ADR 0004 **Accepted (Phase 4)**", status)
+        self.assertIn("Next phase | **Not started", status)
 
         leading_status3 = adr3.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1
@@ -52,14 +49,19 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
         leading_status4 = adr4.replace("\r\n", "\n").split("## Status", 1)[1].split(
             "## Context", 1
         )[0]
-        self.assertRegex(leading_status4, r"(?m)^\s*Proposed\s*$")
+        self.assertIn("Accepted (Phase 4)", leading_status4)
+        self.assertNotRegex(leading_status4, r"(?m)^\s*Proposed\s*$")
 
-    def test_phase4_is_not_silently_defined_by_legacy_numbering(self):
+        self.assertIn("**Phase 4 is COMPLETE**", acceptance4)
+        self.assertIn("No subsequent phase starts automatically", acceptance4)
+
+    def test_phase_numbering_is_not_silently_inherited_from_legacy_plans(self):
         roadmap = ROADMAP.read_text(encoding="utf-8")
         lower_plain = re.sub(r"\*+", "", roadmap).lower()
-        self.assertIn("must not be treated as the current phase 4\nauthorization", lower_plain)
-        self.assertIn("not part of the accepted\nphase 4 learned-neuromorphic scope", lower_plain)
-        self.assertIn("learned neuromorphic", lower_plain)
+        self.assertIn("siona_build_plan.md", lower_plain)
+        self.assertIn("must not be treated as current authorization", lower_plain)
+        self.assertIn("no next phase has started", lower_plain)
+        self.assertIn("separate governed planning decision", lower_plain)
 
 
 if __name__ == "__main__":

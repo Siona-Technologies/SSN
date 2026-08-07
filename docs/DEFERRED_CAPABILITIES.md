@@ -7,14 +7,13 @@ and phase acceptance/specification records.
 ---
 
 ### ID: HW-SNN-001
-- **Capability:** Learned SNN training, with later CUDA acceleration
-- **Status:** Phase 4 planning candidate; deterministic neuromorphic provider exists; no trained SNN is currently claimed
-- **Reason:** Hybrid architecture requires a real learned neuromorphic provider; current development computer has no NVIDIA CUDA GPU
-- **Current implementation:** Deterministic CPU neuromorphic/reference provider only
-- **Planned next work:** Phase 4A task/dataset/backend governance, then a bounded CPU learned-SNN proof before any separately verified CUDA benchmark
+- **Capability:** Learned SNN software provider, with later CUDA acceleration
+- **Status:** **Phase 4 accepted for the bounded CPU-trained software SNN provider**
+- **Accepted implementation:** `siona-neuro-learned-lif-v1` using the verified `phase4b-lif-final-membrane-v1` artifact; pure-Python runtime; deterministic provider retained as default/fallback
+- **Accepted task:** `phase4a-temporal-salience-v1` (20 × 8 binary temporal sequence)
+- **Accepted evidence:** EXP-4-003 training, EXP-4-004 parity, EXP-4-005 breadth/safety, ADR 0004 Accepted, `PHASE_4_ACCEPTANCE.md`
+- **Still deferred:** CUDA/GPU training or benchmarking, event-by-event persistent streaming SNN inference, real event-camera input, Loihi/FPGA/neuromorphic-silicon execution, measured energy-efficiency claims
 - **Hardware-gated work:** CUDA training/benchmark remains deferred until an approved CUDA-capable environment exists
-- **Target phase:** Phase 4
-- **Acceptance evidence:** Reproducible authorized training/evaluation report + checkpoint provenance/checksum + provider integration/fallback evidence; GPU evidence recorded separately if executed
 
 ### ID: HW-LLM-001
 - **Capability:** Optional local open-weight language-model inference
@@ -31,7 +30,7 @@ and phase acceptance/specification records.
 - **Status:** Deferred
 - **Reason:** Requires SIONA-controlled training provenance, dedicated data governance, compute budget and hardware
 - **Current implementation:** N/A — not claimed
-- **Target phase:** Later; not Phase 4
+- **Target phase:** Later; no current phase selected
 - **Acceptance evidence:** Documented SIONA-controlled tokenizer/data/training/checkpoint/evaluation provenance
 
 ### ID: MODEL-ADAPT-001
@@ -39,14 +38,14 @@ and phase acceptance/specification records.
 - **Status:** Deferred; no adapter training has occurred
 - **Reason:** Requires a separate dataset-rights, training, evaluation and ownership decision
 - **Current implementation:** None
-- **Target phase:** Later; explicitly excluded from Phase 4 learned-neuromorphic scope
+- **Target phase:** Later; no current phase selected
 - **Acceptance evidence:** Approved dataset/provenance + reproducible training + adapter checksum + held-out evaluation
 
 ### ID: HW-BENCH-001
 - **Capability:** GPU benchmarking for learned neuromorphic workloads
 - **Status:** Hardware-gated / deferred
 - **Reason:** No CUDA GPU on current development computer
-- **Target phase:** Phase 4 optional hardware-gated evidence
+- **Target phase:** Later optional hardware-gated evidence; not required for accepted Phase 4 software scope
 - **Acceptance evidence:** Reproducible benchmark on identified GPU/runtime; never inferred from CPU measurements
 
 ### ID: HW-SIM-001
@@ -58,7 +57,7 @@ and phase acceptance/specification records.
 ### ID: HW-SENS-001
 - **Capability:** Event-camera hardware
 - **Status:** Deferred
-- **Reason:** No event-camera is part of the present SIONA Core baseline; encoder/contracts may be explored separately
+- **Reason:** No event-camera is part of the accepted SIONA Core learned-SNN baseline
 - **Target phase:** Later
 
 ### ID: HW-IOT-001
@@ -83,12 +82,12 @@ and phase acceptance/specification records.
 - **Capability:** Production semantic retrieval / vector-memory backend
 - **Status:** Deferred
 - **Reason:** Requires separate memory, privacy, provenance, retention and embedding-governance design
-- **Target phase:** Later; explicitly excluded from Phase 4 learned-neuromorphic scope
+- **Target phase:** Later
 
 ### ID: VOICE-001
 - **Capability:** Real STT/TTS / voice embodiment
 - **Status:** Deferred
-- **Reason:** User-facing embodiment is separate from the learned neuromorphic core milestone
+- **Reason:** User-facing embodiment is separate from the accepted learned neuromorphic core milestone
 - **Target phase:** Later
 
 ### ID: CLOUD-001
@@ -99,5 +98,5 @@ and phase acceptance/specification records.
 
 ### ID: HW-NEURO-ASIC-001
 - **Capability:** Neuromorphic hardware deployment (Loihi/FPGA)
-- **Status:** Provider abstraction prepared; silicon execution deferred
-- **Target phase:** Later after learned-provider software evidence
+- **Status:** Provider abstraction and learned software SNN evidence exist; silicon execution deferred
+- **Target phase:** Later under a separate hardware/energy evidence gate

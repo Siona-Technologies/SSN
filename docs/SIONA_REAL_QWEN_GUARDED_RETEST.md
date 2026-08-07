@@ -121,6 +121,8 @@ SSN_OFFLINE=1 python scripts/run_real_guarded_identity_retest.py --confirm-real-
 
 ## Next
 
-Phase 3B remains **in progress**. Next blocker: Gate E breadth; model-registry
+Phase 3B remains **in progress**. Next blocker: model-registry activation
+review; ADR 0003 acceptance; Phase 3B completion decision. Gate E breadth
+(EXP-3B-011) is recorded.
 activation review; ADR 0003 acceptance; Phase 3B completion decision. Model
 registry activation must not occur before those results are reviewed.

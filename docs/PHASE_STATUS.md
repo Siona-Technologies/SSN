@@ -6,7 +6,7 @@
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
 | Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); model registry activation, Gate E breadth, ADR 0003 acceptance and Phase 3B completion decision still pending** |
+| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); Gate E breadth recorded (EXP-3B-011: native text recomputed; JSON exact-schema 6/6 separately recorded; native JSON capability NOT_VERIFIED without original provider-origin proof; 8/8 safety containment; streaming unsupported on pinned baseline; registry-review recommendation conservative-allow); model registry activation, ADR 0003 acceptance and Phase 3B completion decision still pending** |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -73,9 +73,9 @@ Phase 3B remains **in progress**. The first runtime/model baseline has been
 **installed and artifact-verified locally**. A **controlled real SIONA provider
 text-path validation** (LanguageEngine → ModelGateway → LocalOpenWeightProvider
 → llama.cpp → Qwen) completed against the pinned runtime, then the runtime was
-**stopped**. Broad capability verification, registry activation, Gate E
-evaluation, capability approval, and ADR acceptance remain **pending** and are
-**not** issued.
+**stopped**. Gate E breadth evaluation is **recorded** (EXP-3B-011). Model
+registry activation, capability approval, ADR acceptance, and Phase 3B
+completion remain **pending** and are **not** issued.
 
 ### Completed (local operator evidence, 2026-08-05)
 
@@ -105,13 +105,10 @@ evaluation, capability approval, and ADR acceptance remain **pending** and are
 ### Still pending
 
 - Model registry record/activation
-- Broad real-provider security / timeout / cancellation evaluation
-- Structured JSON capability verification (single probe observed failure)
-- Streaming evaluation
-- Bounded-output verification campaign
-- Adversarial prompt evaluation
-- Gate E real-model production evaluation suite
-- Capability approval
+- Capability approval for registry capabilities (use EXP-3B-011 matrix conservatively)
+- Streaming remains **UNSUPPORTED_ON_PINNED_BASELINE** (honest Gate E R08)
+- Identity-guard model-native JSON remains unverified under EXP-3B-010 (Gate E native JSON was separately verified 6/6)
+- Bounded-output / adversarial follow-on campaigns beyond Gate E catalogue
 - ADR 0003 acceptance
 - Phase 3B completion
 
@@ -119,9 +116,9 @@ evaluation, capability approval, and ADR acceptance remain **pending** and are
 
 - Runtime currently **stopped**
 - Port 8080 currently **not listening**
-- Capabilities remain **unverified** beyond the specific observed text path
-  (structured JSON and broader behaviours remain unverified)
-- Further provider integration work (registry activation, Gate E) remains
+- Capabilities beyond EXP-3B-011 Gate E results remain conservatively
+  unverified for registry activation
+- Further provider integration work (registry activation) remains
   unauthorized without new owner approval
 - ADR 0003 remains **Proposed**
 - Model registry remains **inactive** (no production entry activated)
@@ -144,8 +141,8 @@ Phase 4 remains **not started**.
 
 ## Next
 
-Phase 3B: Gate E breadth; model-registry activation review; ADR 0003
-acceptance; Phase 3B completion decision (still optional; CI remains
-deterministic and model-free). EXP-3B-010 guarded-path retest acceptance was
-met; model-native structured JSON remains unverified. Phase 3B is **not**
-complete. Phase 4 remains **not started**.
+Phase 3B: model-registry activation review; ADR 0003 acceptance; Phase 3B
+completion decision (still optional; CI remains deterministic and model-free).
+EXP-3B-011 Gate E breadth is recorded. EXP-3B-010 guarded-path retest
+acceptance was met; identity-guard model-native JSON remains unverified.
+Phase 3B is **not** complete. Phase 4 remains **not started**.

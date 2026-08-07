@@ -135,12 +135,11 @@ These results are **necessary but not sufficient** for changing ADR status from
 ### Why ADR status remains Proposed
 
 - Model registry remains inactive
-- Gate E evaluation suite not completed
-- Structured JSON capability unverified after observed failure
-- Real-runtime timeout/cancellation campaign incomplete
-- Streaming not evaluated
-- Adversarial/security campaign incomplete
-- Broad behavioral capabilities unverified
+- Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending
+- Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure (Gate E native JSON was separately verified)
+- Streaming classified unsupported on the pinned baseline (Gate E R08)
+- Adversarial/security campaigns beyond Gate E catalogue incomplete
+- Broad behavioral capabilities beyond Gate E remain conservatively unverified for registry activation
 - Production certification not issued
 - Phase 3B not complete
 - Deterministic CI must remain free of real-model dependencies

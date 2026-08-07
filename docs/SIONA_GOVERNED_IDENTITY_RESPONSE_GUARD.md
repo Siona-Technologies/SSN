@@ -20,12 +20,15 @@ This does **not**:
 - claim EXP-3B-008 campaign acceptance now passed;
 - claim real-Qwen guarded behavior was verified;
 - claim Qwen itself was fixed or changed;
-- verify model-native structured JSON;
-- complete Gate E;
+- verify model-native structured JSON on the identity-guard path;
 - activate the model registry;
 - train adapters or create a SIONA-native model;
 - claim production readiness;
 - complete Phase 3B.
+
+Gate E breadth evaluation is recorded separately as EXP-3B-011 (see
+[SIONA_GATE_E_BREADTH_EVALUATION.md](SIONA_GATE_E_BREADTH_EVALUATION.md)); that
+experiment does not activate the model registry.
 
 Phase 3B remains **in progress**. ADR 0003 remains **Proposed**. Phase 4 remains
 **not started**.

@@ -99,13 +99,17 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "model registry activation, Gate E breadth, ADR 0003 acceptance and Phase 3B completion decision still pending",
+            "Gate E breadth recorded (EXP-3B-011",
+            text,
+        )
+        self.assertIn(
+            "model registry activation, ADR 0003 acceptance and Phase 3B completion decision still pending",
             text,
         )
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model registry activation, gate e breadth, adr 0003 acceptance and phase 3b completion decision still pending",
+            "model registry activation, adr 0003 acceptance and phase 3b completion decision still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())
@@ -305,7 +309,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("### Historical pre-install model direction", adr)
         self.assertIn("Current local evidence", adr)
         self.assertIn("Controlled real-provider text path", adr)
-        self.assertIn("Gate E evaluation suite not completed", adr)
+        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending", adr)
         self.assertNotIn(
             "### Provisional model direction (not approved / not downloaded)",
             adr,
@@ -393,10 +397,13 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Stop-Process without -Force", experiment)
         self.assertIn("provider integration", combined.lower())
         self.assertIn("EXP-3B-003", experiment)
-        self.assertIn("unverified** beyond the specific", status.lower())
+        self.assertIn(
+            "capabilities beyond exp-3b-011 gate e results remain conservatively",
+            status.lower(),
+        )
         self.assertIn("Limited local loopback smoke completed", research)
         self.assertIn(
-            "governed real-model production evaluation suite not started",
+            "Gate E breadth recorded (EXP-3B-011); registry activation not started",
             research,
         )
         self.assertIn(
@@ -456,7 +463,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
         self.assertIn("Model registry remains inactive", research)
-        self.assertIn("Gate E governed evaluation remains pending", research)
+        self.assertIn("Gate E breadth recorded (EXP-3B-011); registry activation remains pending", research)
         self.assertIn("Offline tests 308 passed / 4 skipped", experiment)
         self.assertIn("readiness working-set sample approximately 2.16 GiB", experiment)
         self.assertIn(
@@ -502,8 +509,14 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "### Conditions", 1
         )[0]
         self.assertIn("Model registry remains inactive", why)
-        self.assertIn("Gate E evaluation suite not completed", why)
-        self.assertIn("Structured JSON capability unverified after observed failure", why)
+        self.assertIn(
+            "Gate E breadth recorded (EXP-3B-011); registry activation and ADR acceptance still pending",
+            why,
+        )
+        self.assertIn(
+            "Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure",
+            why,
+        )
         self.assertIn("Production certification not issued", why)
         self.assertIn("Phase 3B not complete", why)
         self.assertNotIn("not wired to this baseline yet", why)

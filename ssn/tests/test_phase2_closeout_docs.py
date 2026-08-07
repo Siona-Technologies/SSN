@@ -538,13 +538,58 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             why,
         )
         self.assertIn(
-            "Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure",
+            "Identity-guard model-native JSON remains unverified under EXP-3B-010",
             why,
         )
-        self.assertIn("Production certification not issued", why)
-        self.assertIn("Phase 3B not complete", why)
+        self.assertIn("native JSON capability remains NOT_VERIFIED", why)
+        self.assertIn("exact parsing/schema validation", why)
+        self.assertIn("Current blocker before ADR acceptance", why)
+        self.assertIn("State C controlled registry-bound real-runtime verification", why)
+        self.assertIn("future hardening / production-certification work", why)
+        self.assertIn("Production certification is not part of this Phase 3B closeout", why)
+        self.assertIn("Phase 3B remains In Progress", why)
+        self.assertIn("Phase 4 remains Not Started", why)
+        self.assertNotIn("Gate E native JSON was separately verified", why)
+        self.assertNotIn("Gate E native JSON was separately verified", adr)
         self.assertNotIn("not wired to this baseline yet", why)
 
+    def test_exp3b011_native_json_wording_regression(self):
+        """Reject false native-JSON verification claims in current-state docs."""
+        docs = [
+            ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
+            ROOT / "docs" / "PHASE_STATUS.md",
+            ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md",
+            ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
+            ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+            ROOT / "docs" / "SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md",
+            ROOT / "docs" / "EXPERIMENT_LOG.md",
+        ]
+        combined = "\n".join(p.read_text(encoding="utf-8") for p in docs)
+        self.assertNotIn("Gate E native JSON was separately verified", combined)
+        self.assertIn("native json", combined.lower())
+        self.assertIn("NOT_VERIFIED", combined)
+        self.assertTrue(
+            "exact-schema 6/6" in combined
+            or "JSON exact-schema 6/6" in combined
+            or "exact parsing/schema validation" in combined
+        )
+        self.assertIn("structured_json=false", combined)
+        self.assertIn("streaming=false", combined)
+        self.assertIn("State C", combined)
+        self.assertIn("pending", combined.lower())
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
+            encoding="utf-8"
+        )
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Proposed", status_block)
+        self.assertNotIn("Accepted", status_block)
+        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        self.assertIn("In progress", status)
+        self.assertIn("Phase 4 remains **not started**", status)
+        self.assertIn("native JSON capability NOT_VERIFIED", status)
+        self.assertIn("JSON exact-schema 6/6", status)
     def test_identity_information_governance_docs(self):
         identity = (ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md").read_text(
             encoding="utf-8"

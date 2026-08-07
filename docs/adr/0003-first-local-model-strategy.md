@@ -135,16 +135,27 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 ### Why ADR status remains Proposed
 
-- Model registry remains inactive at runtime (state C). Registry record availability and exact binding software support are complete under EXP-3B-012. A controlled real-runtime verification through that registry-bound path (state C) remains pending.
+**Current blocker before ADR acceptance:**
+
+- State C controlled registry-bound real-runtime verification.
+
+**Then (after State C):**
+
+- ADR 0003 acceptance decision;
+- Phase 3B completion decision.
+
+**Recorded evidence and conservative limits (not additional Phase 3B closeout blockers):**
+
+- Registry record availability and exact binding software support are complete under EXP-3B-012. Model registry remains inactive at runtime (state C) until that separate authorized verification.
 - Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending
-- Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure (Gate E native JSON was separately verified)
-- Streaming classified unsupported on the pinned baseline (Gate E R08)
-- Adversarial/security campaigns beyond Gate E catalogue incomplete
-- Broad behavioral capabilities beyond Gate E remain conservatively bounded to verified chat at 4096 context (EXP-3B-012)
-- Production certification not issued
-- Phase 3B not complete
+- Identity-guard model-native JSON remains unverified under EXP-3B-010. EXP-3B-011 retained six JSON outputs that passed exact parsing/schema validation, but native JSON capability remains NOT_VERIFIED because the original JSON run did not capture the provider-origin/fallback observation required to prove native-model provenance.
+- Streaming classified unsupported on the pinned baseline (Gate E R08); registry `streaming=false`
+- Registry capabilities remain conservatively bounded: chat=true only at tested 4096 context; tools=false; structured_json=false; streaming=false; multimodal=false
+- Broader adversarial/security campaigns beyond the Gate E catalogue remain future hardening / production-certification work, not an additional required blocker for conservative Phase 3B completion
+- Production certification is not part of this Phase 3B closeout and is not issued
 - Deterministic CI must remain free of real-model dependencies
 - No change to owner-control / actuator authority semantics
+- Phase 3B remains In Progress; Phase 4 remains Not Started; ADR remains Proposed
 
 ### Conditions required before changing ADR status from Proposed
 

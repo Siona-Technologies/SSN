@@ -2,10 +2,10 @@
 
 ## Status
 
-**Current governed state:** Phase 3 is complete; Phase 4 learned-neuromorphic
-planning is proposed. The local language-model path is real and optional; the
-neuromorphic path is still deterministic/reference-only until Phase 4 produces
-and validates a learned SNN artifact.
+**Current governed state:** Phase 4 is complete and ADR 0004 is Accepted
+(Phase 4). SIONA now has both a deterministic/reference neuromorphic provider and
+an explicit learned software SNN provider for the bounded temporal-salience task.
+The deterministic provider remains the default/fallback. Phase 5 is not started.
 
 Governing charter: [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md).
 
@@ -25,7 +25,7 @@ The entire intelligence architecture should **not** be one SNN.
 
 | Layer | Role | Current status |
 |---|---|---|
-| Neuromorphic runtime | Salience, novelty, anomaly, temporal activity, attention triggers, reflex **proposals**, sensor filtering | Deterministic/reference provider implemented; learned SNN deferred to Phase 4 |
+| Neuromorphic runtime | Salience, novelty, anomaly, temporal activity, attention triggers, reflex **proposals**, sensor filtering | Deterministic/reference provider + accepted explicit learned software SNN provider for bounded temporal salience |
 | Model gateway | Deliberative language reasoning and bounded model responses/proposals | Real optional local Qwen baseline accepted in Phase 3B; conservative capabilities only |
 | Skills / embodiment | Future VLA and body adapters; proposals validated before action | Designed/mock boundaries; no real physical authority |
 | Memory / world / self | Persistent context with provenance and bounds | Existing contracts/stores; future backend expansion separately governed |
@@ -35,11 +35,11 @@ Why not one SNN:
 
 1. Language reasoning currently depends on replaceable foundation models.
 2. Safety and owner authority require deterministic policy/capability gates.
-3. Neuromorphic backends should remain swappable providers rather than being
-   hard-coded into higher layers.
+3. Neuromorphic backends remain swappable providers rather than being hard-coded
+   into higher layers.
 4. Deterministic/reference providers remain necessary for CI, fallback and
    controlled comparisons.
-5. Learned SNN evidence must be task-specific and must not be generalized into
+5. Learned SNN evidence is task-specific and must not be generalized into
    unsupported claims about the whole cognitive system.
 
 ## Accepted Phase 3 model boundary
@@ -60,23 +60,28 @@ Phase 3B accepted the first optional local language-model baseline:
 This model is external and replaceable. It does not become the neuromorphic
 provider, memory authority, policy authority, or owner-control authority.
 
-## Phase 4 learned-neuromorphic direction
+## Accepted Phase 4 learned-neuromorphic boundary
 
-Phase 4 is proposed to produce the first **real learned SNN provider** for a
-bounded temporal salience/classification task.
+Phase 4 produced and accepted the first real learned SNN provider:
 
-The learned provider must:
+- provider: `siona-neuro-learned-lif-v1`;
+- task: `phase4a-temporal-salience-v1`;
+- architecture: `phase4b-lif-final-membrane-v1`;
+- artifact SHA-256:
+  `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`;
+- CPU software SNN evidence only;
+- standard-library-only runtime implementation;
+- deterministic/reference provider preserved as default/fallback;
+- no tool authority;
+- no physical-actuation authority.
 
-- sit behind the existing neuromorphic provider boundary;
-- use governed training data/generator provenance;
-- record deterministic seeds, splits, backend/version and checkpoint checksum;
-- demonstrate held-out learned performance against a predeclared baseline;
-- remain advisory only;
-- preserve deterministic/reference fallback;
-- keep hosted CI model-training-free;
-- distinguish CPU evidence from later hardware-gated GPU evidence.
+The provider was trained once under EXP-4-003, matched the snnTorch reference
+under EXP-4-004, and passed breadth/safety hardening under EXP-4-005.
 
-See [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md) and proposed
+The accepted learned provider processes complete 20×8 temporal windows. True
+long-lived event-by-event learned state is **not** claimed by Phase 4.
+
+See [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md) and
 [ADR 0004](adr/0004-learned-neuromorphic-backend-strategy.md).
 
 ## Global cognitive workspace
@@ -90,21 +95,23 @@ It ranks attention and emits snapshots for the cognitive loop.
 
 `CognitiveEvent` + `AsyncEventBus` provide in-process asynchronous event
 publication/subscription, priority queues, backpressure, handler timeouts, dead
-letters and metrics. Distributed transports may be added later; they are not
-required for Phase 4.
+letters and metrics.
+
+This software event-bus asynchrony is distinct from true event-driven learned SNN
+state updates. The latter remains future work after Phase 4.
 
 ## Model gateway
 
 `ModelRequest` / `ModelResponse` / `ModelMessage` / `ToolCallProposal` /
 `ModelUsage` / `ModelCapabilities` preserve the model-provider boundary. The
-accepted local open-weight path remains optional and governed by the Phase 3
+accepted local open-weight path remains optional and governed by Phase 3
 registry/capability evidence.
 
 ## Memory and world model
 
 Existing JSON/JSONL and typed service boundaries remain preserved. Production
 vector/Postgres migration and semantic-memory expansion are separate future data
-architecture decisions and are not part of Phase 4 learned-neuromorphic scope.
+architecture decisions.
 
 ## Embodiment adapters
 
@@ -116,9 +123,9 @@ actuator command.
 ## Local-first and future distributed deployment
 
 Default operation remains local-first. Deterministic providers remain the hosted
-CI path. Optional learned or foundation-model providers must fail safely when
-artifacts/runtimes are unavailable. Future distributed deployment must wrap the
-same contracts rather than bypass them.
+CI path. The accepted learned provider is explicit opt-in and fails closed when
+its artifact/input contract is invalid. Future distributed deployment must wrap
+the same contracts rather than bypass them.
 
 ## Logical architecture
 
@@ -130,13 +137,13 @@ same contracts rather than bypass them.
                                │
 ┌──────────────────────────────▼────────────────────────────────┐
 │                 GLOBAL COGNITIVE WORKSPACE                    │
-│ Events · attention · goals · context · confidence              │
+│ Events · attention · goals · context · confidence             │
 └────────┬─────────────────────┬───────────────────────┬─────────┘
          │                     │                       │
 ┌────────▼────────┐   ┌────────▼─────────┐   ┌────────▼─────────┐
 │ Neuromorphic    │   │ Deliberative     │   │ Skills/Actions   │
 │ Provider        │   │ Model Gateway    │   │ Future VLA/body  │
-│ Ref → learned   │   │ Qwen optional    │   │ proposals only   │
+│ ref + learned   │   │ Qwen optional    │   │ proposals only   │
 └────────┬────────┘   └────────┬─────────┘   └────────┬─────────┘
          └─────────────────────┼───────────────────────┘
                                │
@@ -164,16 +171,19 @@ ssn/cognition/world/
 ssn/embodiment/
 ```
 
-## Current limitations carried into Phase 4 planning
+## Current limitations after Phase 4
 
-- The learned neuromorphic backend does not yet exist.
-- No trained SNN checkpoint is currently claimed by SIONA Core.
-- No CUDA/GPU SNN training or benchmark has been executed for SIONA Core.
+- The learned SNN is bounded to one synthetic temporal-salience task.
+- It is not a general-purpose learned SNN brain.
+- It consumes complete temporal windows rather than maintaining verified
+  long-lived streaming state.
+- No CUDA/GPU SNN benchmark is accepted.
+- No Loihi/FPGA/neuromorphic-silicon execution is accepted.
+- No measured hardware energy-efficiency claim is accepted.
 - No real IoT/robot/vehicle/drone actuator authority exists.
 - No physical-safety kernel is implemented for real-world actuation.
 - Qwen native structured JSON remains NOT_VERIFIED and streaming remains
-  unsupported on the pinned Phase 3 baseline; Phase 4 must not change those
-  claims incidentally.
+  unsupported on the pinned Phase 3 baseline.
 - Owner-control behavior remains governed by existing policy/capability systems.
 
 ## Physical safety principle

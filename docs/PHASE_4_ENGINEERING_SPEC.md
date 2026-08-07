@@ -1,49 +1,25 @@
 # Phase 4 Engineering Specification — Learned Neuromorphic Backend
 
-**Status:** Planning gate accepted — Phase 4A research/scaffolding authorized; implementation/training not started  
+**Status:** Completed and accepted — EXP-4-003/004/005 verified; ADR 0004 Accepted (Phase 4)  
 **Phase 3 prerequisite:** Complete and accepted  
-**Primary objective:** Replace the simulation-only neuromorphic path with the first **real learned SNN provider** for a bounded salience/temporal classification task, while preserving deterministic safety, replaceable providers, and model-free hosted CI.  
-**Governing charter:** [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
+**Primary objective:** Deliver the first **real learned SNN provider** for a bounded salience/temporal classification task while preserving deterministic safety, replaceable providers, and model-free hosted CI.  
+**Governing charter:** [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)  
+**Acceptance record:** [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md)
 
 ---
 
-## 1. Why this is the next phase
+## 1. Objective and disposition
 
-Phase 3 established the first real optional local foundation-model path. The
-other major learned-intelligence layer in the SIONA hybrid architecture remains
-neuromorphic/SNN processing: salience, novelty, temporal activity and reflex
-**proposals**.
+Phase 4 advanced the second learned layer of SIONA's hybrid architecture: a
+bounded neuromorphic/SNN provider for salience and temporal classification.
 
-The repository already records:
-
-- `HW-SNN-001` — learned SNN training / later CUDA acceleration, target Phase 4;
-- `HW-BENCH-001` — GPU benchmarking, hardware-gated Phase 4 evidence;
-- a replaceable neuromorphic provider abstraction;
-- only a deterministic/reference neuromorphic provider as the current executable
-  baseline.
-
-Phase 4 therefore advances the hybrid architecture instead of adding a user
-interface feature or prematurely fine-tuning the language model.
+The phase is now **complete** for that defined software-provider scope. It did
+not make the whole SIONA intelligence system an SNN and did not grant the
+learned provider tool or physical-actuator authority.
 
 ---
 
-## 2. Phase 4 objective
-
-Deliver and validate the first **learned neuromorphic provider** behind the
-existing SIONA neuromorphic-provider contract.
-
-The first learned task must remain intentionally narrow:
-
-> Given a bounded temporal event sequence, produce a learned salience / temporal
-> classification result and associated bounded confidence/score suitable for a
-> cognitive **proposal**, not an actuator command.
-
-The phase proves the training/evaluation/artifact/governance pipeline for learned
-SNNs. It does not attempt to make the whole SIONA intelligence system an SNN.
-
----
-
-## 3. Architectural role
+## 2. Accepted architecture
 
 ```text
 Cognitive events / bounded temporal features
@@ -51,246 +27,231 @@ Cognitive events / bounded temporal features
      Neuromorphic provider interface
                 ↓
        ┌───────────────────────┐
-       │ deterministic provider│  ← CI/reference/fallback
+       │ deterministic provider│  ← default / CI / fallback
        └───────────────────────┘
                 OR
        ┌───────────────────────┐
-       │ learned SNN provider   │  ← Phase 4 target
+       │ learned SNN provider   │  ← explicit opt-in
        └───────────────────────┘
                 ↓
-  salience / novelty / temporal proposal
+ temporal classification / salience / attention signal
                 ↓
  Global Cognitive Workspace / policy boundary
 ```
 
-The learned provider is advisory. It does not acquire tool, owner, policy, or
-physical-actuator authority.
+Accepted learned provider:
+
+- `siona-neuro-learned-lif-v1`;
+- task `phase4a-temporal-salience-v1`;
+- architecture `phase4b-lif-final-membrane-v1`;
+- exact learned input `temporal_salience_v1`, 20 × 8 binary;
+- canonical artifact SHA-256
+  `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`;
+- pure-Python runtime inference;
+- deterministic/reference provider retained as default and fallback.
+
+The learned provider is advisory. It does not acquire tool, owner, policy,
+memory-mutation or physical-actuator authority.
 
 ---
 
-## 4. Implementation stages
+## 3. Completed Phase 4 stages
 
 ### Phase 4A — Contract and dataset/training governance
 
-1. Audit the existing neuromorphic provider contract and deterministic reference.
-2. Define a versioned learned-provider metadata/artifact schema.
-3. Define the first bounded training/evaluation task.
-4. Define a deterministic synthetic/neutral temporal dataset generator or a
-   separately approved small public dataset with recorded licence/provenance.
-5. Define deterministic seeds and train/validation/test separation.
-6. Define checkpoint checksum/provenance requirements.
-7. Define evaluation metrics and minimum acceptance thresholds before training.
+Completed under EXP-4-001:
 
-No private identity, company-contact, website, user-memory, or unrelated research
-records may be used as training data by default.
+- audited the existing neuromorphic provider contract;
+- defined the bounded temporal-salience task;
+- defined deterministic synthetic data and frozen split fingerprints;
+- recorded dependency/licence research;
+- froze metrics and acceptance thresholds before training.
+
+No private identity, company-contact, website, user-memory or unrelated research
+records were used as training data.
 
 ### Phase 4B — CPU reference learned SNN
 
-Implement the smallest practical learned SNN backend that can be trained and
-validated reproducibly on the current CPU machine.
+Completed under the frozen Phase 4B training gate and EXP-4-003:
 
-Preferred initial stack for evaluation:
+- CPython 3.11 x64 isolated environment;
+- PyTorch 2.13.0+cpu;
+- snnTorch 1.0.0;
+- one controlled CPU training run;
+- architecture `phase4b-lif-final-membrane-v1`;
+- canonical learned artifact exported and checksum recorded;
+- `FIRST_CPU_SNN_TRAINING_VERIFIED`.
 
-- Python/PyTorch-compatible implementation;
-- snnTorch or Norse may be evaluated as optional learned backends;
-- no backend is accepted merely because it is listed here;
-- dependency, licence, maintenance and deterministic behavior must be reviewed
-  before adoption.
+### Phase 4C — Provider integration and parity
 
-A tiny CPU reference training run is permitted only when the training plan,
-data/provenance and thresholds are already recorded and a separate execution
-gate authorizes that run.
+Completed under EXP-4-004:
 
-### Phase 4C — Provider integration
+- strict artifact loading;
+- dependency-free pure-Python LIF inference;
+- explicit learned-provider integration;
+- deterministic fallback preserved;
+- 197/197 class and spike-count parity against the retained snnTorch reference;
+- `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`.
 
-1. Load the accepted learned checkpoint through a replaceable provider.
-2. Keep deterministic/reference provider as fallback.
-3. Expose safe capability/health metadata.
-4. Feed learned salience/temporal outputs into the existing cognitive proposal
-   path without bypassing policy or owner-control boundaries.
-5. Prove fallback when the learned artifact is missing, invalid or disabled.
+### Phase 4D — Breadth / safety / integrity
 
-### Phase 4D — Evaluation and evidence
+Completed under EXP-4-005:
 
-Record:
-
-- training configuration;
-- seed;
-- dataset provenance/version;
-- checkpoint checksum;
-- train/validation/test metrics;
-- comparison against deterministic/reference and naive/random baselines;
-- inference latency;
-- spike/event statistics where meaningful;
-- memory use where measurable;
-- failure/abstention behavior;
-- fallback behavior;
-- evidence that no tool or actuator authority is granted.
+- removed in-memory artifact injection bypass;
+- bounded artifact reads to 256 KiB;
+- strict learned-event envelope;
+- bounded batches to 256 events;
+- atomic batch prevalidation;
+- malformed learned inputs fail closed;
+- corruption/fallback/edge matrices passed;
+- full frozen test breadth 128/128;
+- `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`.
 
 ### Phase 4E — Hardware-gated benchmark
 
-GPU benchmarking is **hardware-gated**.
+Not required for this bounded software-provider acceptance.
 
-If an approved CUDA-capable environment is available later, run a separate,
-reproducible GPU training/inference benchmark. Lack of a CUDA GPU on the current
-machine must not cause Phase 4 software architecture to pretend GPU execution
-occurred.
-
-A Phase 4 CPU learned-provider acceptance may be possible without the GPU
-benchmark if the acceptance criteria below are met; CUDA execution and
-`HW-BENCH-001` remain explicitly open/hardware-gated until separately verified.
+CUDA/GPU benchmarking remains explicitly hardware-gated and **not verified** on
+the current machine. A future benchmark must be separately authorized and must
+not be inferred from CPU evidence.
 
 ---
 
-## 5. First-task requirements
+## 4. First-task definition
 
-The first learned task must be small enough to audit and reproduce. It must:
+The accepted task remains intentionally narrow:
 
-- operate on synthetic/neutral temporal event sequences or separately approved
-  public data;
-- have explicit labels and split provenance;
-- support deterministic regeneration from a versioned seed/config where
-  synthetic;
-- avoid personal/private identity information;
-- avoid website/customer/company contact data;
-- avoid using Qwen outputs as training labels by default;
-- avoid physical-control labels;
-- measure genuine learned generalization on a held-out set rather than merely
-  memorizing a fixture.
+> Given a bounded 20 × 8 binary temporal event sequence, classify temporal
+> salience and expose bounded score/spike information suitable for cognitive
+> attention, not actuator authorization.
 
-The exact task definition and thresholds must be committed **before** the first
-acceptance training run.
+The dataset is deterministic synthetic/neutral data under SIONA control with
+explicit labels, frozen train/validation/test splits and no Qwen-generated
+labels.
 
 ---
 
-## 6. Acceptance criteria
+## 5. Acceptance evidence
 
-Phase 4 cannot be marked complete unless all required criteria are met.
+All required software/evidence criteria are satisfied:
 
-### Required software/evidence criteria
+1. Real learned SNN artifact distinct from deterministic provider — **satisfied**.
+2. Reproducible training code/config/data provenance/seed — **satisfied**.
+3. Artifact checksum and metadata recorded — **satisfied**.
+4. Held-out evaluation exceeds predeclared baseline — **satisfied**.
+5. Learned inference executes through provider boundary — **satisfied**.
+6. Invalid/corrupt artifacts and malformed learned inputs fail closed; unsupported modalities fall back deterministically — **satisfied**.
+7. Hosted CI remains deterministic and does not train — **satisfied**.
+8. No learned output directly authorizes tools or actuation — **satisfied**.
+9. Owner-control, policy and capability enforcement remain authoritative — **satisfied**.
+10. No private/unapproved data entered training — **satisfied**.
+11. CPU evidence is distinguished from hardware-gated GPU claims — **satisfied**.
+12. Qwen/model-registry capabilities were not expanded — **satisfied**.
 
-1. A real learned SNN checkpoint exists and is distinguishable from the
-   deterministic neuromorphic provider.
-2. Training is reproducible from recorded code/config/data provenance and seed.
-3. The checkpoint checksum and metadata are recorded.
-4. Held-out evaluation exceeds a predeclared naive/random baseline by the
-   predeclared margin for the bounded task.
-5. Learned-provider inference executes through the existing provider boundary.
-6. Missing/corrupt/disabled learned artifacts fail closed to the deterministic
-   provider or an explicit unavailable state.
-7. Hosted CI does not perform expensive model training and remains deterministic.
-8. No learned output directly authorizes tools or physical actuation.
-9. Owner-control, policy and capability enforcement remain authoritative.
-10. No private or unapproved data enters the training dataset.
-11. Phase 4 evidence distinguishes CPU verification from any hardware-gated GPU
-    benchmark.
-12. Current Qwen/model-registry capabilities are not silently expanded.
-
-### Optional/hardware-gated criteria
-
-- CUDA training benchmark;
-- GPU latency/energy comparison;
-- Loihi/FPGA deployment;
-- real event-camera input.
-
-These remain separate capability claims until actually verified.
+See [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md) for the final disposition.
 
 ---
 
-## 7. Explicit non-objectives
+## 6. Accepted metrics and controls
 
-Phase 4 does **not** authorize or include:
+- held-out test: 128/128 correct;
+- balanced accuracy: 1.0;
+- class-0 recall: 1.0;
+- class-1 recall: 1.0;
+- reversed positive samples: 64;
+- temporal mean score drop: ≈0.99943249;
+- EXP-4-004 parity: 197/197 class/spike-count agreement;
+- valid edge controls: 9/9;
+- malformed learned inputs: fail closed;
+- corrupt artifacts: rejected;
+- unsupported modalities: deterministic fallback;
+- maximum batch: 256;
+- maximum artifact: 256 KiB bounded read.
+
+---
+
+## 7. Explicit non-objectives / non-claims
+
+Phase 4 does **not** authorize or claim:
 
 - Qwen LoRA/QLoRA/PEFT or language-model fine-tuning;
-- a SIONA-native foundation language model claim;
+- a SIONA-native foundation language model;
 - vector/Postgres production memory migration;
 - semantic-RAG deployment;
 - real STT/TTS/voice embodiment;
 - SIBONA implementation;
 - MQTT/ROS 2 physical integration;
-- robotics/humanoid control;
-- vehicle/drone control;
+- robotics/humanoid/vehicle/drone control;
 - physical actuation;
-- automatic or permanent Qwen startup;
+- automatic/permanent Qwen startup;
 - enabling Qwen tools, structured JSON, streaming or multimodal capability;
 - production-security certification;
-- cloud/multi-GPU infrastructure migration;
-- product integrations outside SIONA Core.
-
-Those require later, separately governed phases/ADRs.
+- cloud/multi-GPU migration;
+- CUDA/GPU SNN training/benchmark evidence;
+- Loihi/FPGA/neuromorphic-silicon execution;
+- measured SNN energy efficiency;
+- persistent event-by-event asynchronous/stateful SNN streaming;
+- real event-camera input.
 
 ---
 
 ## 8. Safety and authority constraints
 
-- Learned SNN outputs are **proposals/signals**, not permission decisions.
+- Learned SNN outputs are signals/proposals, not permission decisions.
 - Model output is not authorization.
 - Trace IDs are not authentication.
 - Policy/tool/capability systems remain authoritative.
-- No physical actuator may be driven by this phase.
-- No owner-control semantics may be altered as a side effect of SNN training.
-- Artifact loading must validate expected type/version/checksum before use.
+- No physical actuator is driven by the accepted provider.
+- Owner-control semantics are unchanged.
+- Artifact loading validates exact identity, checksum, shape and authority flags.
 
 ---
 
 ## 9. CI strategy
 
-Hosted CI must remain lightweight and deterministic.
+Hosted CI remains lightweight and deterministic. It may run:
 
-CI may use:
+- deterministic/reference neuromorphic tests;
+- canonical learned-artifact validation;
+- pure-Python forward-pass tests;
+- frozen parity fixtures;
+- synthetic-data determinism tests;
+- fail-closed/fallback/breadth tests.
 
-- deterministic/reference neuromorphic provider tests;
-- tiny static learned checkpoint fixtures when licence/provenance permits;
-- deterministic forward-pass tests;
-- artifact-schema/checksum validation;
-- synthetic-data generator determinism tests;
-- provider fail-closed/fallback tests.
-
-Hosted CI must not require:
-
-- CUDA;
-- external model downloads;
-- long training runs;
-- Qwen/llama.cpp;
-- private datasets;
-- external network access.
+Hosted CI does not require CUDA, external downloads, model training,
+Qwen/llama.cpp, private datasets or network access.
 
 ---
 
-## 10. Evidence naming
+## 10. Evidence sequence
 
-Recommended Phase 4 experiment sequence:
+- `EXP-4-001` — readiness/task/dataset audit;
+- `EXP-4-003` — first CPU SNN training/evaluation;
+- `EXP-4-004` — learned-provider integration/parity;
+- `EXP-4-005` — breadth/safety/integrity gate.
 
-- `EXP-4-001` — neuromorphic contract + task/dataset readiness audit
-- `EXP-4-002` — synthetic/public dataset deterministic split validation
-- `EXP-4-003` — first CPU SNN training/evaluation run
-- `EXP-4-004` — learned-provider integration/fallback verification
-- `EXP-4-005` — breadth/safety/evidence gate
-- `EXP-4-006` — optional hardware-gated GPU benchmark when available
+`EXP-4-002` was not required as a separate execution because deterministic split
+validation was incorporated into the readiness/training-gate evidence. Experiment
+numbering is not required to be contiguous.
 
-Experiment numbering records evidence; it does not imply an experiment passed.
-
----
-
-## 11. ADR requirement
-
-ADR 0004 — Learned neuromorphic backend strategy is proposed alongside this
-specification. It remains **Proposed** until the learned provider and evidence
-justify acceptance.
+`EXP-4-006` remains an optional future hardware-gated GPU benchmark and is not
+part of Phase 4 software acceptance.
 
 ---
 
-## 12. Phase 4 entry decision
+## 11. ADR disposition
 
-The accepted Phase 4 planning gate authorizes **Phase 4A only**: contract audit,
-dataset/task governance, deterministic test scaffolding, artifact-schema design,
-and official-source dependency research.
+ADR 0004 — Learned neuromorphic backend strategy is **Accepted (Phase 4)**.
 
-It does **not** authorize a real SNN training run or new dependency installation.
-Before the first real SNN training execution, Phase 4A must identify the exact
-task, data source/generator, backend/version, dependency licences, metrics,
-predeclared baseline, acceptance threshold, model topology/configuration and
-cleanup/rollback procedure.
+The acceptance is deliberately narrow: a trained software SNN provider for one
+bounded temporal task, not a claim of a complete asynchronous neuromorphic brain.
 
-This preserves the Vision Charter rule that planning, implementation, training
-and capability claims are separate governed transitions.
+---
+
+## 12. Phase disposition
+
+**Phase 4 is COMPLETE** for its defined learned-neuromorphic software-provider
+scope.
+
+No subsequent phase is started by this specification. A new objective requires a
+separate governed planning decision.

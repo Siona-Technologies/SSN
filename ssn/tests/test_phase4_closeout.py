@@ -71,11 +71,20 @@ class TestPhase4Closeout(unittest.TestCase):
 
         self.assertEqual(exp4["decision"], "LEARNED_SNN_PROVIDER_PARITY_VERIFIED")
         self.assertEqual(exp4["training_run_count"], 0)
-        self.assertEqual(exp4["parity"]["total_sample_count"], 197)
-        self.assertEqual(exp4["parity"]["class_agreement_count"], 197)
-        self.assertEqual(exp4["parity"]["spike_agreement_count"], 197)
-        self.assertLessEqual(exp4["parity"]["max_abs_logit_difference"], 1e-5)
-        self.assertLessEqual(exp4["parity"]["max_abs_probability_difference"], 1e-5)
+        self.assertEqual(exp4["parity_sample_counts"]["total"], 197)
+        self.assertEqual(exp4["predicted_class_agreement"]["count"], 197)
+        self.assertEqual(exp4["predicted_class_agreement"]["rate"], 1.0)
+        self.assertEqual(exp4["spike_count_agreement"]["count"], 197)
+        self.assertEqual(exp4["spike_count_agreement"]["rate"], 1.0)
+        self.assertTrue(exp4["spike_count_agreement"]["exposed"])
+        self.assertLessEqual(
+            exp4["max_abs_logit_difference"],
+            exp4["tolerances_predeclared"]["max_abs_logit_difference"],
+        )
+        self.assertLessEqual(
+            exp4["max_abs_probability_difference"],
+            exp4["tolerances_predeclared"]["max_abs_probability_difference"],
+        )
 
         self.assertEqual(exp5["decision"], "PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED")
         self.assertEqual(exp5["training_run_count"], 0)
@@ -88,7 +97,14 @@ class TestPhase4Closeout(unittest.TestCase):
             exp5["temporal_breadth"]["temporal_mean_score_drop"],
             exp5["temporal_breadth"]["required_min_drop"],
         )
-        self.assertTrue(all(exp5["security_fixes"].values()))
+        self.assertTrue(exp5["security_fixes"]["in_memory_artifact_injection_removed"])
+        self.assertTrue(exp5["security_fixes"]["bounded_artifact_read"])
+        self.assertTrue(exp5["security_fixes"]["strict_learned_event_envelope"])
+        self.assertTrue(exp5["security_fixes"]["batch_atomicity_prevalidation"])
+        self.assertTrue(exp5["security_fixes"]["rejected_input_no_successful_state_mutation"])
+        self.assertEqual(exp5["security_fixes"]["max_artifact_bytes"], 262144)
+        self.assertEqual(exp5["security_fixes"]["max_event_id_chars"], 128)
+        self.assertEqual(exp5["security_fixes"]["max_learned_batch_events"], 256)
         self.assertTrue(exp5["edge_controls"]["pass"])
         self.assertTrue(exp5["malformed_inputs"]["pass"])
         self.assertTrue(exp5["corrupted_artifacts"]["pass"])

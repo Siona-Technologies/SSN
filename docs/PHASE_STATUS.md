@@ -9,11 +9,11 @@
 | Phase 3B | **Completed and accepted — baseline installed/verified; `openai_chat` dialect implemented; controlled real-provider text path validated; governed prompt-context bridge and approved identity registry merged; governed response guard hardened; real-Qwen guarded retest passed; Gate E breadth recorded; conservative model registry activated at the metadata/binding layer; State C registry-bound real-runtime verification passed and runtime shut down; ADR 0003 Accepted (Phase 3B)** |
 | Phase 3B accepted evidence baseline | `1e1237e1a635dda52a0868a080a84623c74950ec` |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
-| Phase 4 | **Planning gate accepted — implementation/training not started; Phase 4A research/scaffolding authorized** |
+| Phase 4 | **Planning gate accepted — implementation/training not started; Phase 4A readiness defined by EXP-4-001; one controlled EXP-4-003 CPU training run becomes authorized only after the Phase 4B training gate merges** |
 | Phase 4 architecture decision | ADR 0004 **Proposed** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
-Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 implementation/training is not in progress.
+Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 learned-provider implementation/training has not yet executed.
 
 ## Governing documents
 
@@ -23,6 +23,8 @@ Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as *
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
 - [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
 - [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
+- [SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md](SIONA_PHASE_4A_NEUROMORPHIC_READINESS.md)
+- [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
@@ -152,41 +154,52 @@ this remains separate from native-provider JSON capability verification.
 Phase 3B is **complete**. With Phase 3A and Phase 3B both accepted, Phase 3 is
 **complete for its defined local-model/evaluation scope**.
 
-Phase 4 remains **not started** at the implementation/training level; its planning gate is accepted and Phase 4A research/scaffolding is authorized.
+Phase 4 remains **not started** at the learned-provider implementation/training level. Its planning gate is accepted, EXP-4-001 defines Phase 4A readiness, and the Phase 4B gate below may authorize one controlled CPU training run after merge.
 
-## Phase 4 planning status
+## Phase 4 status
 
 Phase 4 planning is **accepted** as **Learned Neuromorphic Backend & Evaluation**.
-The first objective is a real learned SNN provider for a bounded temporal
-salience/classification task behind the existing neuromorphic provider boundary.
+ADR 0004 remains **Proposed**.
 
-Authorized now (Phase 4A only):
+EXP-4-001 completed the model-free readiness work:
 
 - current neuromorphic contract/reference audit;
-- exact task and synthetic/public-data governance;
-- deterministic split/seed design;
-- candidate backend/version/licence research;
-- predeclared metrics/baseline/acceptance threshold design;
-- checkpoint metadata/provenance schema design;
-- deterministic model-free test scaffolding.
+- deterministic `phase4a-temporal-salience-v1` task;
+- frozen train/validation/test fingerprints;
+- official-source backend research;
+- predeclared metrics/baseline/acceptance thresholds;
+- model-free test scaffolding;
+- snnTorch 1.0.0 preferred for the next dependency gate only.
 
-Not yet authorized:
+The Phase 4B training gate freezes:
 
-- real SNN training execution;
-- installing a new SNN training dependency;
-- CUDA/GPU claims;
+- CPython 3.11 x64;
+- PyTorch 2.13.0+cpu from the official CPU index;
+- snnTorch 1.0.0 from PyPI;
+- isolated venv outside Git;
+- architecture `phase4b-lif-final-membrane-v1`;
+- training seed/configuration and a 600-second hard wall-clock cap;
+- one held-out test evaluation;
+- immutable acceptance thresholds;
+- candidate artifact and evidence policy.
+
+**Authorization effect:** only after the Phase 4B training-gate PR is merged and green, one controlled **EXP-4-003 CPU SNN training/evaluation run** is authorized. It has not executed yet.
+
+Still not authorized by this gate:
+
+- CUDA/GPU training or claims;
+- repeated/tuned training after a metric failure without a new record;
 - Qwen fine-tuning/adapters;
+- learned-provider runtime integration;
+- ADR 0004 acceptance;
 - physical actuation/robotics/IoT;
 - semantic/vector memory migration;
 - voice/SIBONA implementation.
 
-ADR 0004 remains **Proposed** until real learned-provider evidence supports an
-acceptance decision.
-
 ## Known limitations carried forward
 
-- Optional local provider requires explicitly configured endpoint **and** model ID
-- Provider is **not** claimed production-secure
+- Optional local Qwen provider requires explicitly configured endpoint **and** model ID
+- Qwen provider is **not** claimed production-secure
 - Synchronous urllib transport does **not** support mid-request cancellation
   (pre-network cancel only; mid-request cancel deferred to async transport)
 - Artefact verification is separate from behavioural capability verification
@@ -198,16 +211,15 @@ acceptance decision.
 - Broader adversarial/security hardening beyond Gate E remains future
   production-certification work
 - Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated
+- No trained SNN checkpoint is currently accepted or integrated
 
 ## Next
 
-Phase 3 is closed. Phase 4A planning/research/scaffolding is the next authorized
-work package.
-
-Before the first real SNN training run, Phase 4A must produce an execution-ready
-record with the exact task, dataset/generator, backend/version, dependencies,
-seed/split, topology/configuration, metrics, predeclared baseline and threshold,
-and cleanup/rollback procedure.
+If the Phase 4B gate merges green, the next controlled operation is **EXP-4-003**:
+prepare the laptop, create an isolated Python 3.11 training environment, verify
+direct package artifacts, execute the single frozen CPU training/evaluation run,
+and record either `FIRST_CPU_SNN_TRAINING_VERIFIED` or
+`FIRST_CPU_SNN_TRAINING_NOT_VERIFIED` without silent hyperparameter tuning.
 
 Phase 4 work must not reinterpret Phase 3B acceptance as permission to:
 

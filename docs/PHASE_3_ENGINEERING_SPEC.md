@@ -141,7 +141,7 @@ Phase 3B gates **passed** (local operator evidence, 2026-08-05):
 
 Phase 3B gates remaining **open**:
 
-- Controlled real-runtime verification through the registry-bound path (state C)
+- State C controlled registry-bound real-runtime verification — **passed** (EXP-3B-013); runtime stopped
   — not automatic or permanent model startup; separate authorized experiment
 - Native JSON / structured_json: evaluated under Gate E / EXP-3B-010;
   remains NOT_VERIFIED; disabled in registry

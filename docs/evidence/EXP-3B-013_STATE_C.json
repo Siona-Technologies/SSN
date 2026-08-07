@@ -1,0 +1,182 @@
+{
+  "experiment_id": "EXP-3B-013",
+  "timestamp_utc": "2026-08-07T10:35:54Z",
+  "started_at_utc": "2026-08-07T10:35:34Z",
+  "finished_at_utc": "2026-08-07T10:35:54Z",
+  "base_main_sha": "256a0e6b0dcb0cfa4f819bc207ace83bdf3e2dde",
+  "decision": "STATE_C_VERIFIED",
+  "decision_computed": true,
+  "operator_override_allowed": false,
+  "activation_states": {
+    "A_registry_record_available": true,
+    "B_registry_entry_bound": true,
+    "C_real_runtime_running_during_experiment": true,
+    "D_real_inference_completed": true,
+    "E_runtime_shut_down": true
+  },
+  "pre_start": {
+    "available_physical_ram_gib": 7.39,
+    "cpu_load_pct": 25,
+    "port_8080_status": "CLOSED",
+    "relevant_process_count": 0
+  },
+  "approved_baseline": {
+    "provider_id": "siona-local-open-weight-v1",
+    "model_id": "Qwen3-1.7B-Q4_K_M",
+    "runtime": "llama.cpp b9968",
+    "format": "GGUF",
+    "quantization": "Q4_K_M",
+    "artifact_checksum": "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
+    "canonical_registry_manifest": "config/model_registry.json",
+    "siona_native": false
+  },
+  "runtime": {
+    "executable_identifier": "PINNED_LLAMA_CPP_B9968/llama-server.exe",
+    "runtime_identifier": "PINNED_LLAMA_CPP_B9968",
+    "runtime_build": "llama.cpp b9968",
+    "model_identifier": "APPROVED_QWEN3_1_7B_Q4_K_M",
+    "model_artifact": "Qwen3-1.7B-Q4_K_M.gguf",
+    "location_class": "OPERATOR_LOCAL_OUTSIDE_GIT",
+    "startup_command_sanitized": "PINNED_LLAMA_CPP_B9968/llama-server.exe -m APPROVED_QWEN3_1_7B_Q4_K_M/Qwen3-1.7B-Q4_K_M.gguf --host 127.0.0.1 --port 8080 -c 4096 -n 512 -ngl 0 -t 4 --reasoning off -a Qwen3-1.7B-Q4_K_M",
+    "alias_note": "Pinned EXP-3B-005 flags reused; -a advertises approved registry model_id for exact VERIFY_MODEL_ID binding.",
+    "pid": 4688,
+    "startup_timestamp_utc": "2026-08-07T10:35:35Z",
+    "startup_result": "SUCCESS",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "ctx": 4096,
+    "threads": 4,
+    "n_gpu_layers": 0,
+    "n_predict": 512,
+    "reasoning": "off"
+  },
+  "health_check": {
+    "ok": true,
+    "http_status": 200,
+    "body_status": "ok",
+    "elapsed_s": 3.584
+  },
+  "loopback_only": true,
+  "not_bound_0_0_0_0": true,
+  "v1_models_approved_id_listed": true,
+  "provider_binding": {
+    "builder": "build_local_provider_from_env",
+    "env_process_local_only": true,
+    "SSN_LLM_PROVIDER": "local",
+    "SSN_MODEL_PROVIDER": "local",
+    "SSN_LOCAL_MODEL_ID": "Qwen3-1.7B-Q4_K_M",
+    "SSN_LOCAL_MODEL_ENDPOINT": "http://127.0.0.1:8080",
+    "SSN_LOCAL_MODEL_API_DIALECT": "openai_chat",
+    "SSN_LOCAL_MODEL_VERIFY_MODEL_ID": "1",
+    "canonical_registry_path_used": true
+  },
+  "pre_inference_binding": {
+    "model_registry_entry_bound": true,
+    "provider_id": "siona-local-open-weight-v1",
+    "model_id": "Qwen3-1.7B-Q4_K_M",
+    "artifact_verification_status": "verified",
+    "capability_verification_status": "verified",
+    "chat": true,
+    "tools": false,
+    "structured_json": false,
+    "streaming": false,
+    "multimodal": false,
+    "context_window": 4096,
+    "siona_native": false,
+    "trained_siona_native": false,
+    "model_registry_activation_status": "bound"
+  },
+  "probes": [
+    {
+      "request_id": "SC-T01",
+      "provider_selected": "siona-local-open-weight-v1",
+      "registry_entry_bound": true,
+      "real_provider_call": true,
+      "response_received": true,
+      "healthy": true,
+      "fallback_used": false,
+      "finish_reason": "stop",
+      "latency_ms": 1464.8,
+      "sanitized_response_excerpt": "This is a bounded local text inference test.",
+      "full_response_sha256": "d2eec60f0c989553edefd96860e14fd68a6849a7b45f1eaf3a2e421f9e4b89dc",
+      "final_siona_status": "REAL_LOCAL_RESPONSE",
+      "tool_calls_count": 0
+    },
+    {
+      "request_id": "SC-T02",
+      "provider_selected": "siona-local-open-weight-v1",
+      "registry_entry_bound": true,
+      "real_provider_call": true,
+      "response_received": true,
+      "healthy": true,
+      "fallback_used": false,
+      "finish_reason": "stop",
+      "latency_ms": 457.9,
+      "sanitized_response_excerpt": "4",
+      "full_response_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "final_siona_status": "REAL_LOCAL_RESPONSE",
+      "tool_calls_count": 0
+    }
+  ],
+  "inference_summary": {
+    "controlled_text_probes": 2,
+    "real_provider_calls": 2,
+    "real_model_responses": 2,
+    "deterministic_fallback_during_live_probes": 0,
+    "tool_execution_count": 0,
+    "llama_cpp_request_evidence": {
+      "server_log_grew_during_probes": true,
+      "log_bytes_before": 588,
+      "log_bytes_after": 2134
+    }
+  },
+  "post_inference_capabilities": {
+    "chat": true,
+    "tools": false,
+    "structured_json": false,
+    "streaming": false,
+    "multimodal": false,
+    "context_window": 4096,
+    "siona_native": false
+  },
+  "registry_mutation": {
+    "config_model_registry_json_mutated": false,
+    "sha256": "bebecf2c5e65d80e2fa0579566af1f89cb7a976a6550d1212d822cdaa11a4371"
+  },
+  "shutdown": {
+    "method": "terminate",
+    "success": true,
+    "exit_code": 1
+  },
+  "post_shutdown": {
+    "port_8080_status": "CLOSED",
+    "llama_cpp_status": "STOPPED",
+    "qwen_status": "STOPPED",
+    "relevant_process_count": 0,
+    "local_model_unavailable": true,
+    "deterministic_fallback_works": true,
+    "deterministic_provider": "siona-deterministic-model-v1",
+    "automatic_restart_observed": false
+  },
+  "safety": {
+    "ssn_data_changed": false,
+    "world_model_json_changed": false,
+    "website_changed": false,
+    "training_count": 0,
+    "lora_qlora_peft_count": 0,
+    "embeddings_count": 0,
+    "weight_modifications": 0,
+    "tool_execution_count": 0,
+    "model_download_count": 0,
+    "runtime_download_count": 0,
+    "persistent_autostart_created": false,
+    "machine_wide_env_persisted": false
+  },
+  "adr_0003_status": "PROPOSED",
+  "phase_3b_status": "IN_PROGRESS",
+  "phase_4_status": "NOT_STARTED",
+  "production_readiness_claimed": false,
+  "siona_native_claimed": false,
+  "remaining_blocker": "ADR 0003 ACCEPTANCE + PHASE 3B COMPLETION DECISION",
+  "raw_operator_local_evidence": "OPERATOR_LOCAL_OUTSIDE_GIT"
+}

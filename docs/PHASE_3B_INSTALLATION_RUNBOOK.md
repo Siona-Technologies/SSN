@@ -3,9 +3,10 @@
 **Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
 limited loopback execution and **controlled real SIONA provider text-path
 validation** completed; Gate E breadth recorded (EXP-3B-011); model-registry
-activation review passed with conservative binding (EXP-3B-012); runtime **stopped**
-— operator runtime activation (state C), ADR acceptance and Phase 3B completion
-**not** authorized by this document alone  
+activation review passed with conservative binding (EXP-3B-012); State C
+registry-bound real-runtime verification **passed** (EXP-3B-013) then runtime
+**stopped** — ADR acceptance and Phase 3B completion **not** authorized by this
+document alone  
 **Rule:** each destructive or state-changing step beyond the recorded baseline
 requires **explicit approval** before execution
 
@@ -22,7 +23,7 @@ Do not proceed past a stage without recorded approval.
 | A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
 | B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
 | C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); runtime stopped; Gate E recorded (EXP-3B-011); registry review passed (EXP-3B-012); ADR acceptance still pending |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); Gate E recorded (EXP-3B-011); registry review passed (EXP-3B-012); State C passed (EXP-3B-013); runtime stopped; ADR acceptance still pending |
 | E — Real-model eval | Gate D | Yes | **Gate E breadth recorded** (EXP-3B-011); conservative registry binding reviewed (EXP-3B-012) |
 | F — Rollback drill | Any prior install | Yes | Portable layout ready; post-shutdown deterministic fallback verified; full campaign pending |
 
@@ -90,19 +91,19 @@ installation.
 | Installation status (this baseline) | Completed portable extract | Local evidence |
 | Execution status | Limited loopback + controlled real-provider text path validated; **runtime currently stopped** | Local evidence |
 | Portable rollback | Available (delete runtime/model/staging dirs; Core untouched) | Design verified |
-| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005); registry runtime inactive pending state C | Local evidence |
+| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005/013); registry runtime inactive at steady state after State C | Local evidence |
 
 ### Remaining authorization gate
 
 Gate E breadth (EXP-3B-011) and model-registry activation review (EXP-3B-012)
 are recorded. Registry record availability and exact binding software support
 are complete. A controlled real-runtime verification through that registry-bound
-path (state C), ADR acceptance, Phase 3B completion, and Phase 4 work may not
+ADR acceptance, Phase 3B completion, and Phase 4 work may not
 proceed without further explicit owner authorization. STATE C DOES NOT MEAN
 AUTOMATIC OR PERMANENT MODEL STARTUP. Controlled text-path validation and
 conservative registry binding do **not** certify production use. Additional
 provider integration campaigns remain unauthorized until explicitly approved.
-`UNAPPROVED` for state C real-runtime verification, capability expansion beyond
+`UNAPPROVED` for ADR acceptance / Phase 3B completion, capability expansion beyond
 the conservative registry matrix, and ADR acceptance.
 
 ## Stages

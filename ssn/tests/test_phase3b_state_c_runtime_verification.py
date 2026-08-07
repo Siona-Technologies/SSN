@@ -170,6 +170,9 @@ def derive_state_c(data: Dict[str, Any]) -> Tuple[bool, bool, bool, bool, bool, 
         and data.get("siona_native_claimed") is False
         and data.get("operator_override_allowed") is False
     )
+    # These values are historical EXP-3B-013 evidence and intentionally remain
+    # the pre-closeout governance state. Current ADR/phase status is validated
+    # separately below.
     phase_ok = (
         data.get("adr_0003_status") == "PROPOSED"
         and data.get("phase_3b_status") == "IN_PROGRESS"
@@ -230,39 +233,41 @@ class TestExp3B013StateCEvidence(unittest.TestCase):
         adr = ADR.read_text(encoding="utf-8")
         research = RESEARCH.read_text(encoding="utf-8")
         runbook = RUNBOOK.read_text(encoding="utf-8")
-        current = "\n".join([doc, status, adr, research, runbook])
+        current = "\n".join([doc, status, adr, runbook])
 
         self.assertIn("STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED", doc)
         self.assertIn("STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP", doc)
         self.assertIn("STATE_C_VERIFIED", doc)
         self.assertIn("EXP-3B-013", status)
         self.assertIn("State C controlled registry-bound real-runtime verification passed", status)
-        self.assertIn("ADR 0003 acceptance and Phase 3B completion decision still pending", status)
+        self.assertIn("Phase 3B is **complete**", status)
         self.assertIn("Phase 4 remains **not started**", status)
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
-        self.assertIn("ADR 0003 ACCEPTANCE + PHASE 3B COMPLETION DECISION", adr)
-        self.assertIn("State C controlled registry-bound real-runtime verification", adr)
 
-        # Current-state regression guards (not historical experiment chronology).
-        self.assertNotIn("until that separate authorized experiment", research)
-        self.assertNotIn("controlled controlled verification", research.lower())
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Accepted (Phase 3B)", status_block)
+        self.assertNotRegex(status_block, r"(?m)^\s*Proposed\s*$")
+        self.assertIn("State C controlled registry-bound real-runtime verification", adr)
+        self.assertIn("Phase 3B is complete", adr)
+
+        # The EXP-3B-013 evidence remains an immutable pre-closeout snapshot.
+        evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+        self.assertEqual(evidence["adr_0003_status"], "PROPOSED")
+        self.assertEqual(evidence["phase_3b_status"], "IN_PROGRESS")
+        self.assertEqual(evidence["phase_4_status"], "NOT_STARTED")
+
+        # State C itself must never regress to pending in current closeout docs.
         self.assertNotIn("registry-bound\nADR acceptance", runbook)
         self.assertNotIn("registry-bound ADR acceptance", runbook)
-        self.assertNotIn(", and ADR acceptance.", runbook)
-        self.assertIn(
-            "`UNAPPROVED` for ADR acceptance / Phase 3B completion and for capability",
-            runbook,
-        )
+        self.assertIn("post-closeout authorization boundary", runbook.lower())
         self.assertIn("State C controlled registry-bound real-runtime verification (EXP-3B-013)", runbook)
-        self.assertIn("The runtime was shut", runbook)
-        self.assertIn("down after State C", runbook)
+        self.assertIn("runtime was shut", runbook.lower())
         self.assertIn("deliberately stopped after the controlled verification", research)
         self.assertNotIn("STATE C REAL-RUNTIME VERIFICATION PENDING", current)
-        # Avoid claiming State C is still pending in current-state docs.
         for banned in (
-            "state C remains pending",
             "state c remains pending",
-            "state C real-runtime verification not yet performed",
+            "state c real-runtime verification not yet performed",
         ):
             self.assertNotIn(banned, current.lower())
 

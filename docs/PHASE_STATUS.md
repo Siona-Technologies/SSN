@@ -4,24 +4,30 @@
 |-------|--------|
 | Phase 1 | **Completed and hardened** (`183fa70`) |
 | Phase 2 | **Completed and hardened** (accepted gate `7b92114`; merged `19b3b13`) |
-| Phase 3 | **In progress — Phase 3A completed; Phase 3B research recorded** |
+| Phase 3 | **Completed — Phase 3A accepted; Phase 3B accepted under ADR 0003 conservative local-model architecture** |
 | Phase 3A | **Completed and hosted-CI accepted** (`d6c17d0`; merged `2e6abb6`) |
-| Phase 3B | **In progress — baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped); governed prompt-context bridge merged (EXP-3B-006); first approved public identity registry merged (EXP-3B-007); controlled real-Qwen governed identity campaign executed (EXP-3B-008, acceptance not met, explicit retrieval only, runtime shut down); governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009); controlled real-Qwen guarded-path retest executed (EXP-3B-010: all 21 guarded finals passed; model-native structured JSON remains unverified; deterministic JSON fallback contained failures; runtime shut down; complete responses local-only); Gate E breadth recorded (EXP-3B-011: native text recomputed; JSON exact-schema 6/6 separately recorded; native JSON capability NOT_VERIFIED without original provider-origin proof; 8/8 safety containment; streaming unsupported on pinned baseline; registry-review recommendation conservative-allow); model-registry activation review passed with conservative capability binding (EXP-3B-012: canonical manifest `config/model_registry.json`; exact provider binding; runtime not started); State C controlled registry-bound real-runtime verification passed (EXP-3B-013: loopback llama.cpp started then shut down; exact registry bind; real LocalOpenWeightProvider responses; no tools; conservative capabilities retained); ADR 0003 acceptance and Phase 3B completion decision still pending** |
+| Phase 3B | **Completed and accepted — baseline installed/verified; `openai_chat` dialect implemented; controlled real-provider text path validated; governed prompt-context bridge and approved identity registry merged; governed response guard hardened; real-Qwen guarded retest passed; Gate E breadth recorded; conservative model registry activated at the metadata/binding layer; State C registry-bound real-runtime verification passed and runtime shut down; ADR 0003 Accepted (Phase 3B)** |
+| Phase 3B accepted evidence baseline | `1e1237e1a635dda52a0868a080a84623c74950ec` |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
+| Phase 4 | **Not started — eligible for separate planning/authorization after Phase 3 closeout** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
+
+Historical note: immediately before this closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 work is not in progress.
 
 ## Governing documents
 
 - [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
 - [PHASE_2_ACCEPTANCE.md](PHASE_2_ACCEPTANCE.md)
+- [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
+- [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
 - [PHASE_3B_HARDWARE_INVENTORY.md](PHASE_3B_HARDWARE_INVENTORY.md)
 - [PHASE_3B_MODEL_INDEPENDENCE.md](PHASE_3B_MODEL_INDEPENDENCE.md)
 - [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](PHASE_3B_MODEL_RUNTIME_RESEARCH.md)
 - [PHASE_3B_INSTALLATION_RUNBOOK.md](PHASE_3B_INSTALLATION_RUNBOOK.md)
-- [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
+- [SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md](SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md)
 
 ## Phase 3A status (completed)
 
@@ -67,23 +73,23 @@ Explicitly **not** done in Phase 3A:
 
 The optional local provider is **not** production-security certified.
 
-## Phase 3B status (in progress)
+## Phase 3B status (completed and accepted)
 
-Phase 3B remains **in progress**. The first runtime/model baseline has been
-**installed and artifact-verified locally**. A **controlled real SIONA provider
-text-path validation** (LanguageEngine → ModelGateway → LocalOpenWeightProvider
-→ llama.cpp → Qwen) completed against the pinned runtime, then the runtime was
-**stopped**. Gate E breadth evaluation is **recorded** (EXP-3B-011). Model-registry
-activation review **passed** with conservative capability binding (EXP-3B-012:
-registry record available; exact binding software supported). State C controlled
-registry-bound real-runtime verification **passed** (EXP-3B-013): pinned
-llama.cpp/Qwen started on loopback only, exact registry entry bound through
-`build_local_provider_from_env()`, real bounded text responses received, tools
-not executed, then runtime **shut down**. STATE C DOES NOT MEAN AUTOMATIC OR
-PERMANENT MODEL STARTUP. ADR acceptance and Phase 3B completion remain
-**pending** and are **not** issued.
+Phase 3B is **completed**. The first runtime/model baseline was installed and
+artifact-verified locally. A controlled real SIONA provider text-path validation
+(LanguageEngine → ModelGateway → LocalOpenWeightProvider → llama.cpp → Qwen)
+completed against the pinned runtime, then the runtime was stopped. Gate E
+breadth evaluation is recorded (EXP-3B-011). Model-registry activation review
+passed with conservative capability binding (EXP-3B-012). State C controlled
+registry-bound real-runtime verification passed (EXP-3B-013): pinned
+llama.cpp/Qwen started on loopback only, the exact registry entry was bound
+through `build_local_provider_from_env()`, real bounded text responses were
+received without tools or deterministic fallback, and the runtime was shut down.
 
-### Completed (local operator evidence, 2026-08-05)
+ADR 0003 is **Accepted (Phase 3B)**. The acceptance is deliberately conservative
+and does not promote unsupported or unverified capabilities.
+
+### Completed evidence chain
 
 - Owner baseline selection
 - Read-only pre-install checks
@@ -101,43 +107,52 @@ PERMANENT MODEL STARTUP. ADR acceptance and Phase 3B completion remain
 - Controlled real-provider validation (EXP-3B-005): exact model-ID verify;
   direct provider text probe; LanguageEngine end-to-end; tool proposals absent;
   deterministic fallback after shutdown; offline tests/eval/smoke green
-- Governed prompt-context bridge (EXP-3B-006): merged on main; opt-in assembler
-  validated against deterministic providers only
+- Governed prompt-context bridge (EXP-3B-006)
 - First approved public identity registry (EXP-3B-007): three owner-approved
-  records; explicit `GovernedContextInput` selection only; no automatic injection;
-  no model training; no embeddings; no model registry activation. See
-  [SIONA_APPROVED_IDENTITY_REGISTRY.md](SIONA_APPROVED_IDENTITY_REGISTRY.md).
+  records; explicit `GovernedContextInput` selection only; no automatic injection
+- Controlled real-Qwen identity campaign (EXP-3B-008), with observed failures
+  retained honestly and used to drive response hardening
+- Governed identity response guard (EXP-3B-009)
+- Controlled real-Qwen guarded-path retest (EXP-3B-010): all 21 final guarded
+  responses passed; native structured JSON remained unverified
+- Gate E breadth (EXP-3B-011): governed safety 8/8; required runtime checks
+  recorded; streaming unsupported on pinned baseline; native JSON not verified
+- Model-registry activation review (EXP-3B-012): canonical manifest and exact
+  provider/model binding with conservative capabilities
+- State C (EXP-3B-013): `STATE_C_VERIFIED`; A/B/C/D/E independently recomputed
+  from committed evidence; runtime stopped afterward; deterministic fallback
+  remained available
 
-### Still pending
+### Accepted capability distinctions
 
-- ADR 0003 acceptance
-- Phase 3B completion decision
-
-### Capability distinctions (current)
-
-- Bounded text/chat: conservatively verified at 4096 context (registry chat=true)
-- Native JSON / structured_json: evaluated, NOT_VERIFIED, disabled in registry
-- Streaming: evaluated, UNSUPPORTED_ON_PINNED_BASELINE, disabled in registry
-- Tools: disabled
+- Bounded text/chat: conservatively verified at 4096 context (`chat=true`)
+- Native JSON / `structured_json`: evaluated, `NOT_VERIFIED`, disabled
+- Streaming: evaluated, `UNSUPPORTED_ON_PINNED_BASELINE`, disabled
+- Tools: disabled; no model tool authority
 - Multimodal: unverified/disabled
+- `siona_native=false`: the Qwen weights remain external and replaceable
+
+The six retained Gate E JSON outputs passed exact parsing/schema validation, but
+this remains separate from native-provider JSON capability verification.
 
 ### Current runtime state
 
 - Runtime currently **stopped**
 - Port 8080 currently **not listening**
-- Capabilities beyond EXP-3B-011 Gate E results and EXP-3B-012 conservative binding remain limited to verified chat at 4096 context
-- ADR 0003 remains **Proposed**
-- Model registry: record available and binding software supported (EXP-3B-012); State C controlled registry-bound real-runtime verification **passed** (EXP-3B-013) then runtime shut down. Steady-state model registry runtime remains **inactive** (llama.cpp not left running). No automatic or permanent startup.
+- Steady-state model runtime remains inactive; State C did not create automatic
+  or permanent startup
+- Deterministic CI remains model-free
+- Model registry capabilities remain conservative and unchanged
 
-Phase 3B is **not** completed. Phase 3 overall remains **in progress**.
+Phase 3B is **complete**. With Phase 3A and Phase 3B both accepted, Phase 3 is
+**complete for its defined local-model/evaluation scope**.
+
 Phase 4 remains **not started**.
 
-## Known limitations
+## Known limitations carried forward
 
 - Optional local provider requires explicitly configured endpoint **and** model ID
 - Provider is **not** claimed production-secure
-- Provider integration beyond the recorded conservative registry binding and State C
-  verification remains operator-controlled and is not automatic startup
 - Synchronous urllib transport does **not** support mid-request cancellation
   (pre-network cancel only; mid-request cancel deferred to async transport)
 - Artefact verification is separate from behavioural capability verification
@@ -146,13 +161,17 @@ Phase 4 remains **not started**.
   remains `siona_generate` for CI mock compatibility
 - Owner-adjacent baseline failures remain technical debt
 - Preferred pre-inference free-RAM target is 6–8 GiB; measured free RAM may be lower
+- Broader adversarial/security hardening beyond Gate E remains future
+  production-certification work
 
 ## Next
 
-Phase 3B: ADR 0003 acceptance; Phase 3B completion decision (still optional; CI
-remains deterministic and model-free). EXP-3B-011 Gate E breadth is recorded.
-EXP-3B-012 registry activation review passed. EXP-3B-013 State C controlled
-registry-bound real-runtime verification passed (runtime stopped afterward).
-EXP-3B-010 guarded-path retest acceptance was met; identity-guard model-native
-JSON remains unverified. Phase 3B is **not** complete. Phase 4 remains
-**not started**.
+Phase 3 is closed. Phase 4 remains **not started** and must begin only through a
+separate governed Phase 4 planning/authorization decision.
+
+Phase 4 work must not reinterpret Phase 3B acceptance as permission to:
+
+- start Qwen automatically;
+- promote tools/structured JSON/streaming/multimodal capabilities;
+- claim the external Qwen baseline is SIONA-native;
+- begin model training or adapter training without a separate approved plan.

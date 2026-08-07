@@ -1,53 +1,53 @@
 # Phase 3B — Installation Runbook
 
-**Status:** first baseline **installed and artifact-verified locally** (2026-08-05);
-limited loopback execution and **controlled real SIONA provider text-path
-validation** completed; Gate E breadth recorded (EXP-3B-011); model-registry
-activation review passed with conservative binding (EXP-3B-012); State C
-registry-bound real-runtime verification **passed** (EXP-3B-013) then runtime
-**stopped** — ADR acceptance and Phase 3B completion **not** authorized by this
-document alone  
-**Rule:** each destructive or state-changing step beyond the recorded baseline
-requires **explicit approval** before execution
+**Status:** Phase 3B **completed and accepted** (2026-08-07). The first baseline
+was installed and artifact-verified locally; controlled real-provider validation,
+Gate E (EXP-3B-011), model-registry review (EXP-3B-012), and State C
+registry-bound real-runtime verification (EXP-3B-013) completed. ADR 0003 is
+**Accepted (Phase 3B)**. The runtime is currently **stopped**.  
+**Rule after closeout:** Phase 3B acceptance does not authorize production
+certification, automatic model startup, capability expansion, or Phase 4
+execution.
 
-This runbook defines the ordered procedure for the optional local runtime and
-single-model install. Completing documentation is not approval for provider integration,
-capability claims, or ADR acceptance.
+This runbook preserves the ordered procedure used for the optional local runtime
+and single-model install. Its completed steps are historical evidence; repeating
+or extending them remains a separate governed action.
 
 ## Approval gates
 
-Do not proceed past a stage without recorded approval.
+The Phase 3B gate sequence is closed as follows:
 
-| Gate | Prerequisite | Approval required | Local status (2026-08-05) |
-|------|--------------|-------------------|---------------------------|
+| Gate | Prerequisite | Approval required | Accepted status |
+|------|--------------|-------------------|-----------------|
 | A — Environment | Hardware inventory current | Yes | Passed (read-only checklist) |
-| B — Runtime install | Runtime research complete + Gate A | Yes | **Completed locally** |
-| C — Model download | Model research + licence/provenance recorded + Gate B | Yes | **Completed locally** |
-| D — Integration tests | Loopback health + provider tests + Gate C | Yes | **Controlled real-provider text path validated** (EXP-3B-005); Gate E recorded (EXP-3B-011); registry review passed (EXP-3B-012); State C passed (EXP-3B-013); runtime stopped; ADR acceptance still pending |
-| E — Real-model eval | Gate D | Yes | **Gate E breadth recorded** (EXP-3B-011); conservative registry binding reviewed (EXP-3B-012) |
-| F — Rollback drill | Any prior install | Yes | Portable layout ready; post-shutdown deterministic fallback verified; full campaign pending |
+| B — Runtime install | Runtime research complete + Gate A | Yes | Completed locally |
+| C — Model download | Model research + licence/provenance recorded + Gate B | Yes | Completed locally |
+| D — Integration tests | Loopback health + provider tests + Gate C | Yes | Controlled real-provider path validated; Gate E, registry review and State C recorded; ADR 0003 accepted |
+| E — Real-model eval | Gate D | Yes | Gate E breadth recorded (EXP-3B-011); conservative registry binding reviewed (EXP-3B-012); State C passed (EXP-3B-013) |
+| F — Rollback/fallback | Any prior install | Yes | Portable rollback available; shutdown and deterministic fallback verified; destructive uninstall drill deferred and not required for conservative Phase 3B acceptance |
 
-## Provisional safety defaults
+## Provisional safety defaults retained after acceptance
 
-These defaults are **provisional**, not final production certification:
+These defaults remain conservative and are **not** production certification:
 
 - Loopback only
 - No remote exposure
 - No automatic startup
 - No automatic model download
 - Tool execution disabled
-- Capability status unverified beyond basic transport/inference probe
-- Context initially bounded
-- Output tokens initially bounded
+- Native structured JSON disabled (`NOT_VERIFIED`)
+- Streaming disabled (`UNSUPPORTED_ON_PINNED_BASELINE`)
+- Multimodal disabled/unverified
+- Context bounded to tested 4096 for accepted chat capability
 - CPU-first baseline
 - No model used in CI
 
 ## Owner-approved first baseline — local installation record (2026-08-05)
 
-**Terminology:** this remains the first controlled baseline for transport,
-integration preparation, safety, provenance, rollback and baseline-performance
-validation. It is **not** SIONA's permanent reasoning model, a final production
-model, a SIONA-native model, or a capability-approved model.
+**Terminology:** this is the first accepted controlled baseline for transport,
+integration, safety, provenance, rollback and baseline-performance validation.
+It is **not** SIONA's permanent reasoning model, a final production model, a
+SIONA-native model, or a production-certified model.
 
 **Evidence class:** local operator evidence (artifact hashes calculated on the
 operator machine). Do **not** state that GitHub independently verified local
@@ -81,34 +81,42 @@ installation.
 | Maximum output setting (executed) | 512 server default; probe used ≤64 | Recorded |
 | CPU threads (executed) | 4 | Recorded |
 | GPU layers (executed) | 0 | Recorded |
-| Capability status | Bounded text/chat conservatively verified at 4096; native JSON NOT_VERIFIED (disabled); streaming UNSUPPORTED (disabled); tools/multimodal disabled | Must remain limited |
+| Capability status | Bounded text/chat conservatively verified at 4096; native JSON NOT_VERIFIED (disabled); streaming UNSUPPORTED (disabled); tools/multimodal disabled | Accepted conservative matrix |
 | PATH modification | None | Confirmed |
 | Firewall rule | None | Confirmed |
 | Windows service | None | Confirmed |
 | Scheduled auto-start | None | Confirmed |
-| Registry modification | None | Confirmed |
+| Registry modification by State C | None | Confirmed |
 | Download status (this baseline) | Completed under owner authorization | Local evidence |
 | Installation status (this baseline) | Completed portable extract | Local evidence |
-| Execution status | Limited loopback + controlled real-provider text path validated; **runtime currently stopped** | Local evidence |
+| Execution status | Controlled real-provider and State C verification passed; **runtime currently stopped** | Local evidence |
 | Portable rollback | Available (delete runtime/model/staging dirs; Core untouched) | Design verified |
-| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005/013); registry runtime inactive at steady state after State C | Local evidence |
+| Rollback / fallback | Deterministic fallback verified after shutdown (EXP-3B-005/013); runtime inactive at steady state | Local evidence |
 
-### Remaining authorization gate
+### Post-closeout authorization boundary
 
 Gate E breadth (EXP-3B-011), model-registry activation review (EXP-3B-012),
-and State C controlled registry-bound real-runtime verification (EXP-3B-013)
-are recorded. Registry record availability, exact binding software support,
-and the temporary real-runtime verification are complete. The runtime was shut
-down after State C. ADR acceptance, Phase 3B completion, and Phase 4 work may
-not proceed without further explicit owner authorization. STATE C DOES NOT MEAN
-AUTOMATIC OR PERMANENT MODEL STARTUP. Controlled text-path validation and
-conservative registry binding do **not** certify production use. Additional
-provider integration campaigns remain unauthorized until explicitly approved.
-`UNAPPROVED` for ADR acceptance / Phase 3B completion and for capability
-expansion beyond the conservative registry matrix.
+State C controlled registry-bound real-runtime verification (EXP-3B-013), ADR
+0003 acceptance, and Phase 3B completion are recorded.
+
+STATE C DOES NOT MEAN AUTOMATIC OR PERMANENT MODEL STARTUP. The runtime was shut
+down after State C and remains inactive at steady state.
+
+Separate authorization is required for:
+
+- Phase 4 planning/execution;
+- capability expansion beyond the accepted conservative registry matrix;
+- automatic or persistent model startup;
+- remote serving;
+- production certification;
+- alternate runtime/model adoption;
+- adapters/fine-tuning/training.
 
 ## Stages
 
+The following stages preserve the Phase 3B execution procedure for audit and
+future controlled reproduction. They are not instructions to repeat the run
+without a new authorization.
 
 ### 1. Verify disk and RAM
 
@@ -239,23 +247,27 @@ expansion beyond the conservative registry matrix.
 - Confirm SIONA Core continues without the optional provider.
 - Record residual files, if any.
 
-## Rollback outline (to be completed after a real install)
+## Rollback outline
 
 1. Stop runtime processes.
-2. Remove auto-start entries if any were created (should be none under defaults).
-3. Delete or quarantine model weights.
+2. Remove auto-start entries if any were created (none are approved under the accepted baseline).
+3. Delete or quarantine model weights if rollback is intentionally executed.
 4. Uninstall or remove the controlled runtime directory.
-5. Revert registry entries to mock/unverified state as appropriate.
+5. Reconcile registry status as appropriate without falsifying historical evidence.
 6. Re-run `SSN_OFFLINE=1 python scripts/run_tests.py` and production eval.
 7. Record the rollback in `EXPERIMENT_LOG.md`.
 
-## Explicit non-authorization
+## Explicit non-authorization after Phase 3B acceptance
 
-This runbook does **not**:
+This runbook does **not** authorize:
 
-- Install a runtime
-- Download weights
-- Approve a final model
-- Change owner-control semantics
-- Enable remote serving
-- Add real models to CI
+- Reinstallation/re-download merely because historical stages are documented
+- A permanent or production model designation
+- Automatic runtime startup
+- Remote serving
+- Real models in hosted CI
+- Tool authority
+- Native JSON, streaming or multimodal capability promotion
+- Model training/adapters/fine-tuning
+- Change to owner-control semantics
+- Phase 4 execution

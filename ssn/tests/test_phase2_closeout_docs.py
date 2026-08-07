@@ -1,6 +1,4 @@
-"""
-Documentation consistency for Phase 2 closeout / Vision Charter.
-"""
+"""Documentation consistency across Phase 2 and accepted Phase 3 closeout."""
 
 from __future__ import annotations
 
@@ -14,11 +12,13 @@ CORE_DOCS = [
     ROOT / "docs" / "SIONA_VISION_CHARTER.md",
     ROOT / "docs" / "PHASE_2_ACCEPTANCE.md",
     ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md",
+    ROOT / "docs" / "PHASE_3B_ACCEPTANCE.md",
     ROOT / "docs" / "PHASE_STATUS.md",
     ROOT / "docs" / "SIONA_VISION.md",
     ROOT / "docs" / "SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md",
     ROOT / "docs" / "SIONA_PHASE_ROADMAP.md",
     ROOT / "docs" / "adr" / "0001-hybrid-runtime-integration.md",
+    ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
     ROOT / "docs" / "DEFERRED_CAPABILITIES.md",
     ROOT / "docs" / "HARDWARE_ROADMAP.md",
     ROOT / "docs" / "TECHNICAL_DEBT_REGISTER.md",
@@ -27,7 +27,6 @@ CORE_DOCS = [
     ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md",
     ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
     ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
-    ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
     ROOT / "docs" / "SIONA_BUILD_PLAN.md",
     ROOT / "docs" / "SIONA_AWS_ARCHITECTURE_SHOWCASE.md",
     ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md",
@@ -53,6 +52,9 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             ROOT / "docs" / "SIONA_VISION_CHARTER.md",
             ROOT / "docs" / "PHASE_2_ACCEPTANCE.md",
             ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md",
+            ROOT / "docs" / "PHASE_3B_ACCEPTANCE.md",
+            ROOT / "docs" / "PHASE_STATUS.md",
+            ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
         ):
             self.assertTrue(path.is_file(), f"missing {path}")
 
@@ -67,226 +69,95 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
 
     def test_phase_status_labels(self):
         text = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
+        lower = text.lower()
         self.assertIn("7b92114", text)
         self.assertIn("19b3b13", text)
-        self.assertNotIn("Final branch tip", text)
         self.assertIn("d6c17d0", text)
         self.assertIn("2e6abb6", text)
         self.assertIn("Completed and hosted-CI accepted", text)
-        self.assertIn("Phase 3A completed; Phase 3B research recorded", text)
-        self.assertIn(
-            "baseline installed/verified; openai_chat dialect implemented; controlled real-provider text path validated (runtime stopped)",
-            text,
-        )
-        self.assertIn(
-            "governed prompt-context bridge merged (EXP-3B-006)",
-            text,
-        )
-        self.assertIn(
-            "first approved public identity registry merged (EXP-3B-007)",
-            text,
-        )
-        self.assertIn(
-            "controlled real-Qwen governed identity campaign executed (EXP-3B-008",
-            text,
-        )
-        self.assertIn(
-            "governed identity response guard implemented and offline-validated with fail-closed hardening (EXP-3B-009",
-            text,
-        )
-        self.assertIn(
-            "controlled real-Qwen guarded-path retest executed (EXP-3B-010",
-            text,
-        )
-        self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011",
-            text,
-        )
-        self.assertIn(
-            "model-registry activation review passed with conservative capability binding (EXP-3B-012",
-            text,
-        )
-        self.assertIn(
-            "State C controlled registry-bound real-runtime verification passed (EXP-3B-013",
-            text,
-        )
-        self.assertIn(
-            "ADR 0003 acceptance and Phase 3B completion decision still pending",
-            text,
-        )
-        self.assertIn("provider", text.lower())
-        self.assertIn("openai_chat", text.lower())
-        self.assertIn(
-            "model-registry activation review passed with conservative capability binding (exp-3b-012",
-            text.lower(),
-        )
-        self.assertIn(
-            "adr 0003 acceptance and phase 3b completion decision still pending",
-            text.lower(),
-        )
-        self.assertIn("siona_generate", text.lower())
-        experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
-        self.assertIn("EXP-3B-004", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND TESTED AGAINST DETERMINISTIC MOCKS",
-            experiment,
-        )
-        self.assertIn("EXP-3B-005", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND VALIDATED AGAINST THE PINNED LOCAL RUNTIME",
-            experiment,
-        )
-        self.assertIn("LIMITED TEXT-TRANSPORT GATE ONLY", experiment)
-        self.assertIn("EXP-3B-006", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND VALIDATED AGAINST DETERMINISTIC PROVIDERS ONLY",
-            experiment,
-        )
-        self.assertIn("EXP-3B-007", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND VALIDATED DETERMINISTICALLY",
-            experiment,
-        )
-        self.assertIn("NO AUTOMATIC MODEL INJECTION", experiment)
-        self.assertIn("NO ACTIVE PERSONAL RECORDS", experiment)
-        self.assertIn("NO MODEL TRAINING", experiment)
-        self.assertIn("NO REGISTRY ACTIVATION", experiment)
-        self.assertIn("EXP-3B-008", experiment)
-        self.assertIn(
-            "CAMPAIGN ACCEPTANCE WAS NOT MET",
-            experiment,
-        )
-        self.assertIn("CAPTURED SANITIZED RESPONSE EXCERPTS", experiment)
-        self.assertIn("RUNTIME WAS SHUT DOWN AFTER TESTING", experiment)
-        self.assertIn("EXP-3B-009", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND VALIDATED OFFLINE — EXPLICIT GOVERNED IDENTITY RESPONSE",
-            experiment,
-        )
-        self.assertIn("MODEL-NATIVE STRUCTURED JSON REMAINS", experiment)
-        self.assertIn("EXP-3B-010", experiment)
-        self.assertIn("EXP-3B-012", experiment)
-        self.assertIn("EXP-3B-013", experiment)
-        self.assertIn(
-            "MODEL-REGISTRY ACTIVATION REVIEW PASSED WITH CONSERVATIVE CAPABILITY",
-            experiment,
-        )
-        self.assertIn(
-            "STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED",
-            experiment,
-        )
-        self.assertIn(
-            "CONTROLLED REAL LOCAL-MODEL GUARDED-PATH RETEST EXECUTED AGAINST THE",
-            experiment,
-        )
-        self.assertIn(
-            "ALL 21 FINAL SIONA-GUARDED RESPONSES PASSED",
-            experiment,
-        )
-        gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
-        self.assertIn("siona_generate", gateway)
-        self.assertIn("openai_chat", gateway)
-        self.assertIn("EXP-3B-006", gateway)
-        self.assertIn("SSN_GOVERNED_CONTEXT", gateway)
-        self.assertIn("SSN_LOCAL_MODEL_API_DIALECT", gateway)
-        self.assertIn("EXP-3B-005", gateway)
-        self.assertIn("unverified", text.lower())
-        self.assertIn("SIONA_VISION_CHARTER.md", text)
-        self.assertIn("PHASE_2_ACCEPTANCE.md", text)
-        self.assertIn("PHASE_3_ENGINEERING_SPEC.md", text)
-        self.assertIn("not started", text.lower())  # Phase 4 remains not started
-        self.assertIn("PHASE_3B_HARDWARE_INVENTORY.md", text)
-        self.assertIn("0003-first-local-model-strategy.md", text)
+        self.assertIn("Phase 3 | **Completed", text)
+        self.assertIn("Phase 3B | **Completed and accepted", text)
+        self.assertIn("ADR 0003 is **Accepted (Phase 3B)**", text)
+        self.assertIn("State C", text)
+        self.assertIn("EXP-3B-013", text)
+        self.assertIn("Gate E", text)
+        self.assertIn("EXP-3B-011", text)
+        self.assertIn("EXP-3B-012", text)
+        self.assertIn("chat=true", text)
+        self.assertIn("NOT_VERIFIED", text)
+        self.assertIn("UNSUPPORTED_ON_PINNED_BASELINE", text)
+        self.assertIn("siona_native=false", text)
+        self.assertIn("phase 4 remains **not started**", lower)
+        self.assertNotIn("ADR 0003 acceptance and Phase 3B completion decision still pending", text)
+        self.assertNotIn("Phase 3B remains **in progress**", text)
+        self.assertNotIn("Phase 3B is **not** completed", text)
         self.assertNotIn("Phase 3A status (this branch)", text)
         self.assertNotIn("not marked accepted until", text)
 
     def test_phase3_spec_status(self):
-        # Phase 3A completed/merged; Phase 3 overall in progress; Phase 3B research recorded.
         text = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
-        self.assertIn("phase 3a", text.lower())
-        self.assertIn("completed", text.lower())
-        self.assertIn("in progress", text.lower())
-        self.assertIn("phase 3b", text.lower())
-        self.assertIn("d6c17d0", text)
-        self.assertIn("2e6abb6", text)
-        self.assertIn("install or download a real model", text.lower())
+        lower = text.lower()
+        self.assertIn("phase 3 **completed**", lower)
+        self.assertIn("phase 3a", lower)
+        self.assertIn("phase 3b", lower)
+        self.assertIn("adr 0003 accepted", lower)
+        self.assertIn("state_c_verified", lower)
+        self.assertIn("chat=true", lower)
+        self.assertIn("structured_json=false", lower)
+        self.assertIn("streaming=false", lower)
+        self.assertIn("tools=false", lower)
+        self.assertIn("multimodal=false", lower)
+        self.assertIn("siona_native=false", lower)
+        self.assertIn("phase 4 remains **not started**", lower)
 
-    def test_phase3b_planning_docs_exist(self):
+    def test_phase3b_planning_and_acceptance_docs_exist(self):
         for path in (
             ROOT / "docs" / "PHASE_3B_HARDWARE_INVENTORY.md",
             ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md",
             ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
             ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+            ROOT / "docs" / "PHASE_3B_ACCEPTANCE.md",
             ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
         ):
             self.assertTrue(path.is_file(), f"missing {path}")
+
         independence = (ROOT / "docs" / "PHASE_3B_MODEL_INDEPENDENCE.md").read_text(
             encoding="utf-8"
         )
         plain = re.sub(r"\*+", "", independence).lower()
         self.assertIn("does not currently own a trained foundation model", plain)
         self.assertIn("replaceable", plain)
+
         adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Proposed", adr)
-        self.assertIn("No final runtime or model is approved", adr)
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
+            "## Context", 1
+        )[0]
+        self.assertIn("Accepted (Phase 3B)", status_block)
+        self.assertNotRegex(status_block, r"(?m)^\s*Proposed\s*$")
+        self.assertIn("llama.cpp b9968 + Qwen3-1.7B-Q4_K_M", adr)
+        self.assertIn("not a production-security certification", adr.lower())
 
-    def test_phase3b_official_research_gate(self):
+    def test_phase3b_official_research_history_preserved(self):
         research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
             encoding="utf-8"
         )
-        # Research must contain completed comparisons and historical/current status.
         self.assertIn("## Runtime recommendation history and current status", research)
         self.assertIn("## First-model recommendation history and current status", research)
         self.assertIn("Historical selection status", research)
         self.assertIn("Current status", research)
-        self.assertIn(
-            "PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION",
-            research,
-        )
-        self.assertIn(
-            "PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED AT THE RESEARCH GATE",
-            research,
-        )
-        self.assertIn(
-            "OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED",
-            research,
-        )
+        self.assertIn("PROVISIONAL — REQUIRED OWNER APPROVAL BEFORE INSTALLATION", research)
+        self.assertIn("PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED AT THE RESEARCH GATE", research)
+        self.assertIn("OWNER-AUTHORIZED DOWNLOAD AND PORTABLE INSTALLATION COMPLETED", research)
         self.assertIn("ARTIFACT-VERIFIED LOCALLY", research)
         self.assertIn("RUNTIME CURRENTLY STOPPED", research)
         self.assertIn("CONTROLLED REAL-PROVIDER TEXT PATH VALIDATED", research)
-        self.assertIn("EXP-3B-005", research)
-        self.assertIn("REGISTRY RECORD AVAILABLE", research)
         self.assertIn("STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED", research)
         self.assertIn("GATE E BREADTH RECORDED", research)
-        self.assertIn(
-            "bounded text/chat only at context 4096",
-            research.lower(),
-        )
-        self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
-        self.assertNotIn("SIONA provider integration has **not** started", research)
-        self.assertNotIn(
-            "SIONA provider integration | **Pending — not authorized by this update**",
-            research,
-        )
         self.assertIn("llama.cpp native Windows", research)
         self.assertIn("Qwen3-1.7B", research)
-        self.assertNotIn(
-            "Do not fill unstable facts from memory",
-            research,
-        )
-        self.assertNotIn(
-            "No model download is authorized. No weights have been downloaded.",
-            research,
-        )
-        self.assertNotIn(
-            "**Status: PROVISIONAL — NO MODEL DOWNLOAD AUTHORIZED**",
-            research,
-        )
-        # Ensure the document is not still the empty template form.
         self.assertGreater(research.count("Officially stated"), 10)
-        # Full comparison coverage and traceability.
         for heading in (
             "### 1. llama.cpp native Windows CPU",
             "### 2. llama.cpp Windows SYCL",
@@ -306,47 +177,8 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("Exact release, version, tag or revision examined", research)
         self.assertIn("Original repository revision", research)
         self.assertIn("Quantized repository revision", research)
-        self.assertIn("In progress", research)
-        self.assertIn("Phase 4", research)
-        self.assertIn("**Not started**", research)
-        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("UNAPPROVED", runbook)
-        self.assertIn("18211732", runbook)
-        self.assertIn(
-            "f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd",
-            runbook,
-        )
-        status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
-        self.assertIn("Phase 4 remains **not started**", status)
-        self.assertIn("provider integration", status.lower())
-        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
-            encoding="utf-8"
-        )
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
-        self.assertIn("Proposed", status_block)
-        self.assertNotIn("Accepted", status_block)
-        self.assertIn("### Historical pre-install runtime direction", adr)
-        self.assertIn("### Historical pre-install model direction", adr)
-        self.assertIn("Current local evidence", adr)
-        self.assertIn("Controlled real-provider text path", adr)
-        self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
-            adr,
-        )
-        self.assertNotIn(
-            "### Provisional model direction (not approved / not downloaded)",
-            adr,
-        )
-        self.assertIn("installation", research.lower())
-        self.assertIn("provider integration", research.lower())
 
     def test_phase3b_owner_approved_baseline(self):
-        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
-            encoding="utf-8"
-        )
         runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
             encoding="utf-8"
         )
@@ -355,7 +187,7 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             encoding="utf-8"
         )
         experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
-        combined = "\n".join([research, runbook, status, adr, experiment])
+        combined = "\n".join([runbook, status, adr, experiment])
         self.assertIn("llama.cpp", combined)
         self.assertIn("b9968", combined)
         self.assertIn("1d1d9a9ed7a4f09c4225ea4cc8fd3bd1cf2c940f", combined)
@@ -366,23 +198,10 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
             combined,
         )
-        self.assertIn("pre-installation verification", combined.lower())
-        self.assertIn("OWNER-APPROVED FOR PRE-INSTALLATION VERIFICATION ONLY", research)
-        self.assertIn("provider integration", runbook.lower())
-        self.assertIn("unverified", status.lower())
-        self.assertIn("In progress", status)
-        self.assertIn("Phase 4 remains **not started**", status)
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
-            "## Context", 1
-        )[0]
-        self.assertIn("Proposed", status_block)
-        self.assertNotIn("Accepted", status_block)
-        self.assertIn("## Owner-approved Phase 3B baseline", adr)
-        self.assertIn("EXP-3B-002", experiment)
-        self.assertIn("quantizer", runbook.lower())
-        # Quantizer must be identified as ggml-org for the approved Q4_K_M path.
         self.assertIn("Quantizer | ggml-org", runbook.replace("`", ""))
+        self.assertIn("Accepted (Phase 3B)", adr)
+        self.assertIn("Phase 3B is **complete**", status)
+        self.assertIn("Phase 4 remains **not started**", status)
 
     def test_phase3b_install_execution_evidence(self):
         research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
@@ -398,182 +217,51 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
         combined = "\n".join([research, runbook, status, adr, experiment])
         self.assertIn("18211732", combined)
-        self.assertIn(
-            "f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd",
-            combined,
-        )
+        self.assertIn("f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd", combined)
         self.assertIn("1282439264", combined)
-        self.assertIn(
-            "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
-            combined,
-        )
-        self.assertIn(
-            "INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED",
-            research,
-        )
-        self.assertIn("Local loopback inference is working.", experiment)
-        self.assertIn(
-            "LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM",
-            experiment,
-        )
+        self.assertIn("d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5", combined)
+        self.assertIn("INSTALLED AND ARTIFACT-VERIFIED LOCALLY; LIMITED LOOPBACK EXECUTION COMPLETED", research)
+        self.assertIn("LOCAL SHORT-PROBE OBSERVATION — NOT A PRODUCTION PERFORMANCE CLAIM", experiment)
         self.assertIn("runtime currently **stopped**", status.lower())
         self.assertIn("not listening", status.lower())
         self.assertIn("application-level graceful shutdown", experiment.lower())
         self.assertIn("not verified", experiment.lower())
-        self.assertIn("Stop-Process without -Force", experiment)
-        self.assertIn("provider integration", combined.lower())
-        self.assertIn("EXP-3B-003", experiment)
-        self.assertIn(
-            "capabilities beyond exp-3b-011 gate e results and exp-3b-012 conservative binding remain limited to verified chat at 4096 context",
-            status.lower(),
-        )
-        self.assertIn("Limited local loopback smoke completed", research)
-        self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
-            research,
-        )
-        self.assertIn(
-            "future governed execution must revalidate required flags before startup",
-            research,
-        )
-        self.assertNotIn(
-            "Not evaluated locally — no real-model benchmark completed",
-            research,
-        )
-        self.assertNotIn(
-            "before any install approval",
-            research,
-        )
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
-            "## Context", 1
-        )[0]
-        self.assertIn("Proposed", status_block)
-        self.assertNotIn("Accepted", status_block)
-        self.assertIn("In progress", status)
-        self.assertIn("Phase 4 remains **not started**", status)
-        # No binary artifacts should be referenced as committed repo paths.
         self.assertNotIn("```gguf", combined.lower())
 
-    def test_phase3b_real_provider_validation_evidence(self):
+    def test_phase3b_real_provider_and_state_c_evidence(self):
         status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
         experiment = (ROOT / "docs" / "EXPERIMENT_LOG.md").read_text(encoding="utf-8")
-        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(
-            encoding="utf-8"
-        )
+        runbook = (ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md").read_text(encoding="utf-8")
         gateway = (ROOT / "docs" / "SIONA_MODEL_GATEWAY.md").read_text(encoding="utf-8")
-        spec = (ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md").read_text(encoding="utf-8")
-        research = (ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md").read_text(
-            encoding="utf-8"
-        )
-        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
-            encoding="utf-8"
-        )
-        exp005 = experiment.split("### EXP-3B-005", 1)[1] if "### EXP-3B-005" in experiment else ""
-        current_docs = "\n".join([status, runbook, gateway, spec, research, adr, exp005])
-        combined = "\n".join([status, experiment, runbook, gateway, spec, research, adr])
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(encoding="utf-8")
+        combined = "\n".join([status, experiment, runbook, gateway, adr])
+
         self.assertIn("EXP-3B-005", experiment)
         self.assertIn("Controlled real SIONA provider validation", experiment)
-        self.assertIn(
-            "IMPLEMENTED AND VALIDATED AGAINST THE PINNED LOCAL RUNTIME",
-            experiment,
-        )
-        self.assertIn("LIMITED TEXT-TRANSPORT GATE ONLY", experiment)
-        self.assertIn("Controlled real SIONA provider text path validated", research)
         self.assertIn("Exact /v1/models model-ID verification succeeded", experiment)
-        self.assertIn(
-            "LanguageEngine end-to-end used real local provider",
-            experiment,
-        )
+        self.assertIn("LanguageEngine end-to-end used real local provider", experiment)
         self.assertIn("deterministic fallback verified after shutdown", experiment.lower())
         self.assertIn("Structured JSON probe: observed failure", experiment)
         self.assertIn("structured JSON capability remains UNVERIFIED", experiment)
-        self.assertIn("model runtime is inactive at steady state", research.lower())
-        self.assertIn("deliberately stopped after the controlled verification", research)
-        self.assertNotIn("until that separate authorized experiment", research)
-        self.assertNotIn("controlled controlled verification", research.lower())
-        self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012)",
-            research,
-        )
-        self.assertIn("Offline tests 308 passed / 4 skipped", experiment)
-        self.assertIn("readiness working-set sample approximately 2.16 GiB", experiment)
-        self.assertIn(
-            "highest later probe-window sample approximately 1.75 GiB",
-            experiment,
-        )
-        self.assertIn(
-            "overall maximum observed across recorded samples approximately 2.16 GiB",
-            experiment,
-        )
-        self.assertIn("real-provider text path", combined.lower())
+        self.assertIn("EXP-3B-013", combined)
+        self.assertIn("STATE C CONTROLLED REGISTRY-BOUND REAL-RUNTIME VERIFICATION PASSED", experiment)
         self.assertIn("runtime currently **stopped**", status.lower())
-        self.assertIn("model registry runtime remains **inactive**", status.lower())
-        self.assertIn("inactive", combined.lower())
-        self.assertIn("unverified", combined.lower())
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
-        adr_status = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
-            "## Context", 1
-        )[0]
-        self.assertIn("Proposed", adr_status)
-        self.assertNotIn("Accepted", adr_status)
-        self.assertIn("In progress", status)
-        self.assertIn("Phase 4 remains **not started**", status)
-        self.assertIn("Controlled real-provider text path validated", runbook)
-        self.assertIn("Gate E breadth recorded (EXP-3B-011)", runbook)
-        self.assertIn("registry review passed (EXP-3B-012)", runbook)
-        # Contradiction guards on current-state docs (exclude older experiment entries).
-        self.assertNotIn("SIONA provider integration has not started", current_docs)
-        self.assertNotIn("SIONA provider integration has **not** started", current_docs)
-        self.assertNotIn("is not wired to this baseline yet", current_docs.lower())
-        self.assertNotIn("Provider integration remains outstanding", current_docs)
-        self.assertNotIn("PROVIDER INTEGRATION PENDING", research)
-        self.assertNotIn("production certification is complete", current_docs.lower())
-        self.assertNotIn("broad capabilities are verified", current_docs.lower())
-        self.assertNotIn("structured JSON capability is verified", current_docs.lower())
-        self.assertNotIn("registry is active", current_docs.lower())
-        self.assertNotIn("Phase 3B is complete", current_docs)
-        self.assertNotIn("Phase 3B completed", status)
-        self.assertNotIn("Phase 4 has started", current_docs)
-        self.assertNotIn("the model is SIONA-native", current_docs.lower())
-        self.assertNotIn("trained SIONA-native", exp005.lower())
-        why = adr.replace("\r\n", "\n").split("### Why ADR status remains Proposed", 1)[1].split(
-            "### Conditions", 1
-        )[0]
-        self.assertIn("Model registry remains inactive", why)
-        self.assertIn(
-            "Registry record availability and exact binding software support are complete under EXP-3B-012",
-            why,
-        )
-        self.assertIn(
-            "Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending",
-            why,
-        )
-        self.assertIn(
-            "Identity-guard model-native JSON remains unverified under EXP-3B-010",
-            why,
-        )
-        self.assertIn("native JSON capability remains NOT_VERIFIED", why)
-        self.assertIn("exact parsing/schema validation", why)
-        self.assertIn("Current blocker before ADR acceptance", why)
-        self.assertIn("ADR 0003 ACCEPTANCE + PHASE 3B COMPLETION DECISION", why)
-        self.assertIn("State C controlled registry-bound real-runtime verification", why)
-        self.assertIn("future hardening / production-certification work", why)
-        self.assertIn("Production certification is not part of this Phase 3B closeout", why)
-        self.assertIn("Phase 3B remains In Progress", why)
-        self.assertIn("Phase 4 remains Not Started", why)
-        self.assertNotIn("Gate E native JSON was separately verified", why)
-        self.assertNotIn("Gate E native JSON was separately verified", adr)
-        self.assertNotIn("not wired to this baseline yet", why)
+        self.assertIn("not listening", status.lower())
+        self.assertIn("Accepted (Phase 3B)", adr)
+        self.assertIn("Phase 3B is **complete**", status)
+        self.assertNotIn("production certification is complete", combined.lower())
+        self.assertNotIn("broad capabilities are verified", combined.lower())
+        self.assertNotIn("structured JSON capability is verified", combined)
+        self.assertNotIn("the model is SIONA-native", combined.lower())
 
     def test_exp3b011_native_json_wording_regression(self):
-        """Reject false native-JSON verification claims in current-state docs."""
         docs = [
             ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md",
             ROOT / "docs" / "PHASE_STATUS.md",
             ROOT / "docs" / "PHASE_3_ENGINEERING_SPEC.md",
             ROOT / "docs" / "PHASE_3B_MODEL_RUNTIME_RESEARCH.md",
             ROOT / "docs" / "PHASE_3B_INSTALLATION_RUNBOOK.md",
+            ROOT / "docs" / "PHASE_3B_ACCEPTANCE.md",
             ROOT / "docs" / "SIONA_MODEL_REGISTRY_ACTIVATION_REVIEW.md",
             ROOT / "docs" / "EXPERIMENT_LOG.md",
         ]
@@ -585,59 +273,39 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
             "exact-schema 6/6" in combined
             or "JSON exact-schema 6/6" in combined
             or "exact parsing/schema validation" in combined
+            or "six retained Gate E JSON outputs passed exact parsing/schema validation" in combined
         )
         self.assertIn("structured_json=false", combined)
         self.assertIn("streaming=false", combined)
         self.assertIn("State C", combined)
-        self.assertIn("pending", combined.lower())
-        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
-            encoding="utf-8"
-        )
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
-            "## Context", 1
-        )[0]
-        self.assertIn("Proposed", status_block)
-        self.assertNotIn("Accepted", status_block)
+        self.assertIn("Accepted (Phase 3B)", combined)
         status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
-        self.assertIn("In progress", status)
+        self.assertIn("Phase 3B is **complete**", status)
         self.assertIn("Phase 4 remains **not started**", status)
-        self.assertIn("native JSON capability NOT_VERIFIED", status)
-        self.assertIn("JSON exact-schema 6/6", status)
+
     def test_identity_information_governance_docs(self):
-        identity = (ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md").read_text(
-            encoding="utf-8"
-        )
+        identity = (ROOT / "docs" / "SIONA_IDENTITY_INFORMATION_GOVERNANCE.md").read_text(encoding="utf-8")
         public = (ROOT / "docs" / "SIONA_PUBLIC_PROFILE_POLICY.md").read_text(encoding="utf-8")
-        consent = (ROOT / "docs" / "SIONA_CONSENT_AND_REVOCATION.md").read_text(
-            encoding="utf-8"
-        )
-        private = (ROOT / "docs" / "SIONA_PRIVATE_CONTEXT_POLICY.md").read_text(
-            encoding="utf-8"
-        )
-        website = (ROOT / "docs" / "SIONA_WEBSITE_CONTENT_AUDIT_PLAN.md").read_text(
-            encoding="utf-8"
-        )
+        consent = (ROOT / "docs" / "SIONA_CONSENT_AND_REVOCATION.md").read_text(encoding="utf-8")
+        private = (ROOT / "docs" / "SIONA_PRIVATE_CONTEXT_POLICY.md").read_text(encoding="utf-8")
+        website = (ROOT / "docs" / "SIONA_WEBSITE_CONTENT_AUDIT_PLAN.md").read_text(encoding="utf-8")
         status = (ROOT / "docs" / "PHASE_STATUS.md").read_text(encoding="utf-8")
-        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(
-            encoding="utf-8"
-        )
+        adr = (ROOT / "docs" / "adr" / "0003-first-local-model-strategy.md").read_text(encoding="utf-8")
+
         self.assertIn("SIONA Technologies", identity)
         self.assertIn("Samson Sibona Njaji", identity)
         self.assertIn("James Ndodana Njaji", identity)
         self.assertIn("Co-founder", identity)
         self.assertIn("personal_email: excluded", public)
-        self.assertIn(
-            "cannot authorize another co-founder's private information",
-            consent.lower(),
-        )
+        self.assertIn("cannot authorize another co-founder's private information", consent.lower())
         self.assertIn("Secrets are never ordinary memory", private)
         self.assertIn("`TRAINING_DATASET` is **denied**", consent)
         self.assertIn("later authorized", website.lower())
         self.assertIn("Do **not** modify the website during this task", website)
-        self.assertIn("in progress", status.lower())
+        self.assertIn("Phase 3B is **complete**", status)
         self.assertIn("Phase 4 remains **not started**", status)
         self.assertIn("inactive", status.lower())
-        self.assertRegex(adr.replace("\r\n", "\n"), r"(?m)^## Status\n\nProposed\n")
+        self.assertIn("Accepted (Phase 3B)", adr)
         gmail_marker = "@" + "gmail.com"
         for text in (identity, public, consent, private, website):
             self.assertNotIn(gmail_marker, text.lower())

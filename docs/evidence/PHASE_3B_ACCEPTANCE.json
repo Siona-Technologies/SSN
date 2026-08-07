@@ -1,0 +1,71 @@
+{
+  "record_type": "PHASE_ACCEPTANCE",
+  "phase": "3B",
+  "acceptance_date": "2026-08-07",
+  "accepted_evidence_baseline_sha": "1e1237e1a635dda52a0868a080a84623c74950ec",
+  "decision": "PHASE_3B_ACCEPTED",
+  "adr_0003_status": "ACCEPTED",
+  "phase_3_status": "COMPLETE",
+  "phase_3b_status": "COMPLETE",
+  "phase_4_status": "NOT_STARTED",
+  "required_evidence": {
+    "EXP-3B-005": "REAL_PROVIDER_TEXT_PATH_VALIDATED",
+    "EXP-3B-006": "GOVERNED_CONTEXT_BRIDGE_VALIDATED",
+    "EXP-3B-007": "APPROVED_IDENTITY_REGISTRY_ESTABLISHED",
+    "EXP-3B-008": "REAL_QWEN_IDENTITY_CAMPAIGN_RECORDED",
+    "EXP-3B-009": "GOVERNED_RESPONSE_GUARD_VALIDATED",
+    "EXP-3B-010": "GUARDED_REAL_QWEN_RETEST_PASSED",
+    "EXP-3B-011": "GATE_E_RECORDED",
+    "EXP-3B-012": "MODEL_REGISTRY_REVIEW_PASSED",
+    "EXP-3B-013": "STATE_C_VERIFIED"
+  },
+  "accepted_baseline": {
+    "provider_id": "siona-local-open-weight-v1",
+    "model_id": "Qwen3-1.7B-Q4_K_M",
+    "runtime": "llama.cpp b9968",
+    "artifact_checksum": "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5",
+    "capabilities": {
+      "chat": true,
+      "tools": false,
+      "structured_json": false,
+      "streaming": false,
+      "multimodal": false,
+      "context_window": 4096
+    },
+    "siona_native": false
+  },
+  "capability_limits": {
+    "native_json": "NOT_VERIFIED",
+    "gate_e_retained_json_schema": "6/6_EXACT_SCHEMA_RECORDED_SEPARATELY",
+    "streaming": "UNSUPPORTED_ON_PINNED_BASELINE",
+    "tools": "DISABLED",
+    "multimodal": "UNVERIFIED_DISABLED"
+  },
+  "steady_state": {
+    "runtime_expected_stopped": true,
+    "port_8080_expected_closed": true,
+    "automatic_startup_authorized": false,
+    "hosted_ci_model_free": true
+  },
+  "non_claims": {
+    "production_certification": false,
+    "siona_native_model": false,
+    "tool_authority": false,
+    "native_structured_json": false,
+    "streaming_support": false,
+    "multimodal_support": false,
+    "automatic_runtime_startup": false,
+    "phase_4_started": false
+  },
+  "closeout_runtime_activity": {
+    "real_model_calls": 0,
+    "runtime_starts": 0,
+    "gguf_reads": 0,
+    "tool_executions": 0,
+    "training_runs": 0,
+    "adapter_training_runs": 0,
+    "embedding_runs": 0,
+    "weight_modifications": 0
+  },
+  "phase_4_entry_rule": "SEPARATE_GOVERNED_PLANNING_AND_AUTHORIZATION_REQUIRED"
+}

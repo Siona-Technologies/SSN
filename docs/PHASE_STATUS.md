@@ -9,17 +9,20 @@
 | Phase 3B | **Completed and accepted — baseline installed/verified; `openai_chat` dialect implemented; controlled real-provider text path validated; governed prompt-context bridge and approved identity registry merged; governed response guard hardened; real-Qwen guarded retest passed; Gate E breadth recorded; conservative model registry activated at the metadata/binding layer; State C registry-bound real-runtime verification passed and runtime shut down; ADR 0003 Accepted (Phase 3B)** |
 | Phase 3B accepted evidence baseline | `1e1237e1a635dda52a0868a080a84623c74950ec` |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
-| Phase 4 | **In progress — EXP-4-003/004/005 VERIFIED (training, learned provider parity, breadth/safety); ADR 0004 acceptance and Phase 4 completion still pending** |
-| Phase 4 architecture decision | ADR 0004 **Proposed** |
+| Phase 4 | **Completed and accepted — first governed learned software SNN trained, integrated, parity-verified and breadth/safety-verified; ADR 0004 Accepted (Phase 4)** |
+| Phase 4 accepted evidence baseline | `05de2b04279a72ece4834a984461a505de1188b3` |
+| Phase 4 architecture decision | ADR 0004 **Accepted (Phase 4)** |
+| Phase 5 | **Not started — requires a separate governed planning decision** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
-Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 remains incomplete; EXP-4-005 verified learned-provider breadth/safety, but ADR 0004 acceptance and Phase 4 completion remain pending.
+Historical note: immediately before Phase 4 closeout, Phase 4 was **In progress** and ADR 0004 was **Proposed**. EXP-4-005 removed the final breadth/safety blocker. The accepted current state is Phase 4 complete and ADR 0004 Accepted (Phase 4). Phase 5 remains **not started**.
 
 ## Governing documents
 
 - [SIONA_VISION_CHARTER.md](SIONA_VISION_CHARTER.md)
 - [PHASE_2_ACCEPTANCE.md](PHASE_2_ACCEPTANCE.md)
 - [PHASE_3B_ACCEPTANCE.md](PHASE_3B_ACCEPTANCE.md)
+- [PHASE_4_ACCEPTANCE.md](PHASE_4_ACCEPTANCE.md)
 - [PHASE_3_ENGINEERING_SPEC.md](PHASE_3_ENGINEERING_SPEC.md)
 - [PHASE_4_ENGINEERING_SPEC.md](PHASE_4_ENGINEERING_SPEC.md)
 - [PHASE_4_PLANNING_ACCEPTANCE.md](PHASE_4_PLANNING_ACCEPTANCE.md)
@@ -30,14 +33,8 @@ Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as *
 - [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
-- [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
 - [adr/0003-first-local-model-strategy.md](adr/0003-first-local-model-strategy.md)
 - [adr/0004-learned-neuromorphic-backend-strategy.md](adr/0004-learned-neuromorphic-backend-strategy.md)
-- [PHASE_3B_HARDWARE_INVENTORY.md](PHASE_3B_HARDWARE_INVENTORY.md)
-- [PHASE_3B_MODEL_INDEPENDENCE.md](PHASE_3B_MODEL_INDEPENDENCE.md)
-- [PHASE_3B_MODEL_RUNTIME_RESEARCH.md](PHASE_3B_MODEL_RUNTIME_RESEARCH.md)
-- [PHASE_3B_INSTALLATION_RUNBOOK.md](PHASE_3B_INSTALLATION_RUNBOOK.md)
-- [SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md](SIONA_STATE_C_REGISTRY_BOUND_RUNTIME_VERIFICATION.md)
 
 ## Phase 3A status (completed)
 
@@ -46,183 +43,136 @@ Phase 3A is **completed, hardened, hosted-CI accepted and merged**.
 - Accepted feature SHA: `d6c17d0d723ef309cca1f8edf3fb467b12d04d2a`
 - Merge commit: `2e6abb6d70f4204bb4f9e479e081b0a9fc116580`
 - PR: [#2](https://github.com/Siona-Technologies/SSN/pull/2)
+- Hosted CI: Python 3.11/3.12 green; production evaluation 7/7; HTTP smoke passed.
 
-Hosted CI (PR #2):
+Delivered in Phase 3A:
 
-- Python 3.11: 277 passed, 4 skipped
-- Python 3.12: 277 passed, 4 skipped
-- Production evaluation: 7/7 on both
-- HTTP smoke: passed on both
-
-Local evidence:
-
-- Provider evaluation: 25/25 (deterministic/mock only)
-
-Delivered in Phase 3A (including final security/isolation gate):
-
-- Centralized `SSN_RUNTIME_DATA_DIR` with **per-test** isolation in the governed runner
-- Ownership-safe cleanup (external env values are not cleared)
-- Optional `LocalOpenWeightProvider` behind the existing `ModelProvider` contract
-- HTTP redirects rejected by default; embedded credentials/fragments rejected
-- Canonical provider-boundary sanitization for full `ModelRequest` payloads
-- Conservative unverified capability reporting (no invented tools/JSON/context window)
-- Strict model registry schema with transactional loading (mock fixtures only)
-- Declarative provider evaluation cases with hard child-process timeouts
-- Loopback-only mock local model HTTP server for transport tests
-
-Explicitly **not** done in Phase 3A:
-
-- No real local model installed
-- No model weights downloaded
-- No real-model benchmark conducted
-- Phase 3A uses deterministic/mock validation only
-- Actual runtime/model selection deferred to **Phase 3B**
-- SIBONA remains unimplemented
-- SNN training remains deferred
-- Physical embodiments remain deferred
-
-The optional local provider is **not** production-security certified.
+- centralized runtime-data isolation;
+- optional `LocalOpenWeightProvider` behind `ModelProvider`;
+- provider-boundary sanitization and local transport hardening;
+- conservative capability reporting;
+- model registry/evaluation scaffolding;
+- loopback-only mock model tests.
 
 ## Phase 3B status (completed and accepted)
 
 Phase 3B is **completed**. The first runtime/model baseline was installed and
-artifact-verified locally. A controlled real SIONA provider text-path validation
-(LanguageEngine → ModelGateway → LocalOpenWeightProvider → llama.cpp → Qwen)
-completed against the pinned runtime, then the runtime was stopped. Gate E
-breadth evaluation is recorded (EXP-3B-011). Model-registry activation review
-passed with conservative capability binding (EXP-3B-012). State C controlled
-registry-bound real-runtime verification passed (EXP-3B-013): pinned
-llama.cpp/Qwen started on loopback only, the exact registry entry was bound
-through `build_local_provider_from_env()`, real bounded text responses were
-received without tools or deterministic fallback, and the runtime was shut down.
+artifact-verified locally. Controlled real-provider validation, governed context,
+approved identity registry, response hardening, Gate E, model-registry binding,
+and State C all completed.
 
-ADR 0003 is **Accepted (Phase 3B)**. The acceptance is deliberately conservative
-and does not promote unsupported or unverified capabilities.
+ADR 0003 is **Accepted (Phase 3B)**.
 
-### Completed evidence chain
+Accepted capability distinctions remain:
 
-- Owner baseline selection
-- Read-only pre-install checks
-- Runtime download and portable extraction (`llama.cpp` b9968)
-- Runtime archive local SHA256 verification (**MATCH**, 18211732 bytes,
-  `f98e6690faad6a8718451d420a63cbfde6c87028beae4e7f35a36a762730cefd`)
-- Model download (`Qwen3-1.7B-Q4_K_M.gguf`)
-- Model SHA256 verification (**MATCH**, 1282439264 bytes,
-  `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`)
-- Licence-copy preservation (MIT beside runtime; Apache-2.0 beside model)
-- CPU-only loopback startup (`127.0.0.1:8080`, ctx 4096, threads 4, ngl 0)
-- Basic health/model/chat probes (HTTP 200)
-- Controlled normal non-force shutdown
-- Rollback-friendly portable layout (outside Git)
-- Controlled real-provider validation (EXP-3B-005): exact model-ID verify;
-  direct provider text probe; LanguageEngine end-to-end; tool proposals absent;
-  deterministic fallback after shutdown; offline tests/eval/smoke green
-- Governed prompt-context bridge (EXP-3B-006)
-- First approved public identity registry (EXP-3B-007): three owner-approved
-  records; explicit `GovernedContextInput` selection only; no automatic injection
-- Controlled real-Qwen identity campaign (EXP-3B-008), with observed failures
-  retained honestly and used to drive response hardening
-- Governed identity response guard (EXP-3B-009)
-- Controlled real-Qwen guarded-path retest (EXP-3B-010): all 21 final guarded
-  responses passed; native structured JSON remained unverified
-- Gate E breadth (EXP-3B-011): governed safety 8/8; required runtime checks
-  recorded; streaming unsupported on pinned baseline; native JSON not verified
-- Model-registry activation review (EXP-3B-012): canonical manifest and exact
-  provider/model binding with conservative capabilities
-- State C (EXP-3B-013): `STATE_C_VERIFIED`; A/B/C/D/E independently recomputed
-  from committed evidence; runtime stopped afterward; deterministic fallback
-  remained available
+- `chat=true` at tested context 4096;
+- `tools=false`;
+- `structured_json=false` and native JSON remains `NOT_VERIFIED`;
+- `streaming=false`, `UNSUPPORTED_ON_PINNED_BASELINE`;
+- `multimodal=false`;
+- `siona_native=false`.
 
-### Accepted capability distinctions
+The Qwen runtime remains optional and steady-state stopped; Phase 4 did not
+change its registry or capabilities.
 
-- Bounded text/chat: conservatively verified at 4096 context (`chat=true`)
-- Native JSON / `structured_json`: evaluated, `NOT_VERIFIED`, disabled
-- Streaming: evaluated, `UNSUPPORTED_ON_PINNED_BASELINE`, disabled
-- Tools: disabled; no model tool authority
-- Multimodal: unverified/disabled
-- `siona_native=false`: the Qwen weights remain external and replaceable
+## Phase 4 status (completed and accepted)
 
-The six retained Gate E JSON outputs passed exact parsing/schema validation, but
-this remains separate from native-provider JSON capability verification.
+Phase 4 is **complete** for the defined **Learned Neuromorphic Backend &
+Evaluation** scope.
 
-### Current runtime state
+### EXP-4-001 — readiness
 
-- Runtime currently **stopped**
-- Port 8080 currently **not listening**
-- Steady-state model runtime remains inactive; State C did not create automatic
-  or permanent startup
-- Deterministic CI remains model-free
-- Model registry capabilities remain conservative and unchanged
+- current provider contract audited;
+- deterministic `phase4a-temporal-salience-v1` task defined;
+- deterministic train/validation/test fingerprints frozen;
+- official-source backend research recorded;
+- private/user/company/website data excluded;
+- acceptance metrics locked before training.
 
-Phase 3B is **complete**. With Phase 3A and Phase 3B both accepted, Phase 3 is
-**complete for its defined local-model/evaluation scope**.
+### EXP-4-003 — first learned SNN training
 
-Phase 4 remains **not started** at the Phase 4 completion / ADR 0004 acceptance level. EXP-4-003 recorded `FIRST_CPU_SNN_TRAINING_VERIFIED`. EXP-4-004 recorded `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`. EXP-4-005 recorded `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`. ADR 0004 remains Proposed; Phase 4 completion remains pending.
+Decision: `FIRST_CPU_SNN_TRAINING_VERIFIED`.
 
-## Phase 4 status
+- exactly one controlled CPU training run;
+- CPython 3.11.9 x64;
+- PyTorch 2.13.0+cpu;
+- snnTorch 1.0.0;
+- CUDA false;
+- 128/128 held-out test samples correct;
+- balanced accuracy 1.0;
+- class recalls 1.0/1.0;
+- temporal time-reversal score drop about 0.99943;
+- learned artifact SHA-256:
+  `dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc`.
 
-Phase 4 planning is **accepted** as **Learned Neuromorphic Backend & Evaluation**.
-ADR 0004 remains **Proposed**.
+### EXP-4-004 — learned provider integration/parity
 
-Phase 4A readiness (EXP-4-001) completed the model-free readiness work:
+Decision: `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`.
 
-- current neuromorphic contract/reference audit;
-- deterministic `phase4a-temporal-salience-v1` task;
-- frozen train/validation/test fingerprints;
-- official-source backend research;
-- predeclared metrics/baseline/acceptance thresholds;
-- model-free test scaffolding;
-- snnTorch 1.0.0 preferred for the next dependency gate only.
+- explicit provider `siona-neuro-learned-lif-v1` integrated;
+- deterministic provider remains default/fallback;
+- pure-Python learned runtime, no torch/snnTorch/numpy requirement;
+- 197/197 parity cases agreed in predicted class;
+- no retraining;
+- Qwen/model registry unchanged;
+- tool and physical authority remained false.
 
-The Phase 4B training gate freezes:
+### EXP-4-005 — breadth/safety/integrity
 
-- CPython 3.11 x64;
-- PyTorch 2.13.0+cpu from the official CPU index;
-- snnTorch 1.0.0 from PyPI;
-- isolated venv outside Git;
-- architecture `phase4b-lif-final-membrane-v1`;
-- training seed/configuration and a 600-second hard wall-clock cap;
-- one held-out test evaluation;
-- immutable acceptance thresholds;
-- candidate artifact and evidence policy.
+Decision: `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`.
 
-**Authorization effect:** the Phase 4B training gate merged green and authorized one controlled **EXP-4-003 CPU SNN training/evaluation run**. That run executed once and decided `FIRST_CPU_SNN_TRAINING_VERIFIED`. See [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md) and `docs/evidence/EXP-4-003_FIRST_CPU_SNN_TRAINING.json`.
+- arbitrary in-memory artifact injection removed;
+- 256 KiB bounded artifact read;
+- strict learned-event envelope;
+- max learned batch 256;
+- malformed learned batches reject atomically;
+- 128/128 frozen held-out samples remain correct;
+- 64 reversed positives retain strong temporal sensitivity;
+- valid edge, malformed-input, fallback and corrupted-artifact matrices pass;
+- network/subprocess/Qwen/training calls 0;
+- tool execution 0;
+- learned reflex proposals 0;
+- physical authority false;
+- energy metrics claim false.
 
-Still not authorized by the training gate alone:
+### Accepted Phase 4 boundaries
 
-- CUDA/GPU training or claims;
-- repeated/tuned training after a metric failure without a new record;
-- Qwen fine-tuning/adapters;
-- making the learned provider the global/default neuromorphic backend;
-- ADR 0004 acceptance / Phase 4 completion;
-- physical actuation/robotics/IoT;
-- semantic/vector memory migration;
-- voice/SIBONA implementation.
+The learned SNN may produce bounded temporal salience/classification signals and
+attention triggers. It may not authorize tools, policy, memory mutations,
+external actions or physical actuation.
+
+The accepted evidence is CPU software-SNN evidence only. No CUDA/GPU, Loihi,
+FPGA, measured energy-efficiency or neuromorphic-silicon claim is made.
+
+Normal learned-provider runtime and hosted CI remain training-stack-free.
+
+ADR 0004 is **Accepted (Phase 4)**.
 
 ## Known limitations carried forward
 
-- Optional local Qwen provider requires explicitly configured endpoint **and** model ID
-- Qwen provider is **not** claimed production-secure
-- Synchronous urllib transport does **not** support mid-request cancellation
-  (pre-network cancel only; mid-request cancel deferred to async transport)
-- Artefact verification is separate from behavioural capability verification
-- Default Front Door path remains the legacy dummy provider unless opted in
-- `openai_chat` dialect is opt-in via `SSN_LOCAL_MODEL_API_DIALECT`; default
-  remains `siona_generate` for CI mock compatibility
-- Owner-adjacent baseline failures remain technical debt
-- Preferred pre-inference free-RAM target is 6–8 GiB; measured free RAM may be lower
-- Broader adversarial/security hardening beyond Gate E remains future
-  production-certification work
-- Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated
-- A verified EXP-4-003 candidate JSON exists under `artifacts/neuromorphic/`; EXP-4-004/005 verified learned-provider parity and breadth/safety; ADR 0004 acceptance remains pending
+- Qwen remains external, replaceable and not production-security certified.
+- Native Qwen JSON remains unverified and streaming unsupported on the pinned baseline.
+- Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated.
+- The learned SNN handles the bounded 20×8 temporal-salience task; it is not a
+  general-purpose SNN brain.
+- The current learned provider consumes complete temporal windows; true
+  event-by-event asynchronous stateful learned execution is future work.
+- No physical-safety kernel exists for real-world actuation.
+- No SIONA language-model adapter or SIONA-native foundation model has been trained.
 
 ## Next
 
-The next controlled Phase 4 blocker is **ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION**. Do not accept ADR 0004 or mark Phase 4 complete until that closeout is separately authorized after EXP-4-005 is merged and post-merge evidence is clean.
+Phase 4 is closed. Phase 5 remains **not started**.
 
-Phase 4 work must not reinterpret Phase 3B acceptance as permission to:
+The next action is a **separate Phase 5 planning decision**. It must select one
+bounded objective and must not automatically inherit old phase numbering or
+unsequenced deferred capabilities.
 
-- start Qwen automatically;
-- promote tools/structured JSON/streaming/multimodal capabilities;
-- claim the external Qwen baseline is SIONA-native;
-- begin Qwen/model adapter training without a separate approved plan.
+Candidates that remain separate until Phase 5 planning include:
+
+- streaming/event-by-event learned SNN execution;
+- memory/vector backend expansion;
+- language-model adaptation;
+- voice/SIBONA embodiment;
+- robotics/IoT/physical embodiment;
+- GPU/neuromorphic-hardware benchmarking.

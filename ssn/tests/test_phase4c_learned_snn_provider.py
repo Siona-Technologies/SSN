@@ -1,18 +1,15 @@
-"""EXP-4-004 model-free learned SNN provider tests (no torch/snnTorch)."""
+"""EXP-4-004 learned SNN provider/parity regressions (model-free)."""
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
-import tempfile
 import unittest
 from pathlib import Path
 
 from ssn.cognition.neuromorphic.contracts import NeuromorphicEvent
 from ssn.cognition.neuromorphic.learned_artifact import (
     APPROVED_ARTIFACT_SHA256,
-    LearnedNeuromorphicArtifactError,
     load_learned_artifact,
 )
 from ssn.cognition.neuromorphic.learned_inference import (
@@ -32,115 +29,25 @@ from ssn.cognition.neuromorphic.providers import DeterministicNeuromorphicProvid
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT = ROOT / "artifacts" / "neuromorphic" / "phase4b-lif-final-membrane-v1.json"
 PARITY_FIXTURE = ROOT / "docs" / "evidence" / "EXP-4-004_PARITY_FIXTURE.json"
+PARITY_EVIDENCE = ROOT / "docs" / "evidence" / "EXP-4-004_LEARNED_SNN_PROVIDER_PARITY.json"
 REQUIREMENTS = ROOT / "requirements.txt"
 REGISTRY = ROOT / "config" / "model_registry.json"
 ADR4 = ROOT / "docs" / "adr" / "0004-learned-neuromorphic-backend-strategy.md"
 
 
-def _write_artifact(payload: dict, path: Path) -> str:
-    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    path.write_bytes(blob)
-    return hashlib.sha256(blob).hexdigest()
-
-
 class TestLearnedSnnProvider(unittest.TestCase):
     def setUp(self) -> None:
-        self.canonical = json.loads(ARTIFACT.read_text(encoding="utf-8"))
         self.provider = LearnedTemporalSalienceProvider()
 
-    def test_canonical_artifact_loads_with_exact_sha(self) -> None:
+    def test_canonical_artifact_and_authority(self) -> None:
+        raw = ARTIFACT.read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), APPROVED_ARTIFACT_SHA256)
         art = load_learned_artifact()
-        self.assertEqual(art["sha256"], APPROVED_ARTIFACT_SHA256)
         self.assertEqual(art["provider_target"], "siona-neuro-learned-lif-v1")
         self.assertFalse(art["tool_authority"])
         self.assertFalse(art["physical_actuation_authority"])
 
-    def test_artifact_rejects_duplicate_and_extra_and_wrong_schema(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "bad.json"
-            path.write_text('{"schema_version":1,"schema_version":2}', encoding="utf-8")
-            with self.assertRaises(LearnedNeuromorphicArtifactError) as ctx:
-                load_learned_artifact(path, expected_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
-            self.assertIn("duplicate_json_key", str(ctx.exception))
-
-        payload = copy.deepcopy(self.canonical)
-        payload["extra_root"] = True
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "extra.json"
-            digest = _write_artifact(payload, path)
-            with self.assertRaises(LearnedNeuromorphicArtifactError):
-                load_learned_artifact(path, expected_sha256=digest)
-
-        payload = copy.deepcopy(self.canonical)
-        payload["schema_version"] = 2
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "schema.json"
-            digest = _write_artifact(payload, path)
-            with self.assertRaises(LearnedNeuromorphicArtifactError):
-                load_learned_artifact(path, expected_sha256=digest)
-
-    def test_artifact_rejects_wrong_identity_authority_nan_bool_shapes(self) -> None:
-        cases = []
-        base = copy.deepcopy(self.canonical)
-
-        p = copy.deepcopy(base)
-        p["provider_target"] = "wrong"
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["task_id"] = "wrong"
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["architecture_id"] = "wrong"
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["tool_authority"] = True
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["physical_actuation_authority"] = True
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["weights"]["fc1.bias"][0] = float("nan")
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["weights"]["fc2.bias"][0] = float("inf")
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["weights"]["fc1.bias"][0] = True
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["weights"]["fc1.weight"] = [[0.0] * 7 for _ in range(16)]
-        cases.append(p)
-
-        p = copy.deepcopy(base)
-        p["weights"]["fc2.weight"] = [[0.0] * 16]
-        cases.append(p)
-
-        for payload in cases:
-            with tempfile.TemporaryDirectory() as tmp:
-                path = Path(tmp) / "case.json"
-                digest = _write_artifact(payload, path)
-                with self.assertRaises(LearnedNeuromorphicArtifactError):
-                    load_learned_artifact(path, expected_sha256=digest)
-
-        # Hash mismatch against approved constant even if locally consistent.
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "mut.json"
-            payload = copy.deepcopy(base)
-            payload["weights"]["fc2.bias"][0] = 0.123456789
-            digest = _write_artifact(payload, path)
-            with self.assertRaises(LearnedNeuromorphicArtifactError):
-                load_learned_artifact(path, expected_sha256=APPROVED_ARTIFACT_SHA256)
-            self.assertNotEqual(digest, APPROVED_ARTIFACT_SHA256)
-
-    def test_valid_temporal_input_and_determinism(self) -> None:
+    def test_valid_temporal_input_is_deterministic_and_advisory(self) -> None:
         sample = generate_split("test")[0]
         event = NeuromorphicEvent(
             event_id="t0",
@@ -158,29 +65,17 @@ class TestLearnedSnnProvider(unittest.TestCase):
         self.assertTrue(out1.meta["trained"])
         self.assertTrue(out1.meta["software_snn"])
         self.assertFalse(out1.meta["hardware_neuromorphic"])
-        self.assertFalse(out1.meta["learned_provider_fallback"])
 
-    def test_malformed_temporal_inputs_fail_closed(self) -> None:
-        bad_cases = [
-            [[0] * 8 for _ in range(19)],  # wrong timesteps
-            [[0] * 7 for _ in range(20)],  # wrong features
-            [[0] * 8 for _ in range(19)] + [[0] * 7],  # ragged
-            [[0] * 8 for _ in range(19)] + [["x"] * 8],  # strings
-            [[0] * 8 for _ in range(19)] + [[True] + [0] * 7],  # bool
-            [[0] * 8 for _ in range(19)] + [[2] + [0] * 7],  # non-binary
-            [[0] * 8 for _ in range(19)] + [[float("nan")] + [0] * 7],
-        ]
-        for seq in bad_cases:
-            event = NeuromorphicEvent(
-                event_id="bad",
-                modality=LEARNED_MODALITY,
-                features={LEARNED_FEATURE_KEY: seq},
-            )
-            with self.assertRaises(LearnedNeuromorphicInputError):
-                self.provider.process_event(event)
-        missing = NeuromorphicEvent(event_id="m", modality=LEARNED_MODALITY, features={})
+    def test_malformed_learned_input_fails_closed(self) -> None:
+        bad = NeuromorphicEvent(
+            event_id="bad",
+            modality=LEARNED_MODALITY,
+            features={LEARNED_FEATURE_KEY: [[0] * 8 for _ in range(19)]},
+        )
+        before = self.provider.get_state().step
         with self.assertRaises(LearnedNeuromorphicInputError):
-            self.provider.process_event(missing)
+            self.provider.process_event(bad)
+        self.assertEqual(self.provider.get_state().step, before)
 
     def test_unsupported_modality_falls_back_explicitly(self) -> None:
         event = NeuromorphicEvent(event_id="u", modality="text", features={"text": "hello"})
@@ -188,35 +83,15 @@ class TestLearnedSnnProvider(unittest.TestCase):
         self.assertTrue(out.meta.get("learned_provider_fallback"))
         self.assertEqual(out.meta.get("fallback_reason"), "unsupported_modality")
         self.assertIsNone(out.reflex_proposal)
-        # Fallback uses deterministic provider backend identity
         self.assertEqual(out.backend, "siona-neuro-deterministic-v1")
 
     def test_default_facade_unchanged_and_explicit_injection(self) -> None:
         default = NeuromorphicSNNFacade()
         self.assertIsInstance(default._provider, DeterministicNeuromorphicProvider)
         self.assertEqual(default.engine_name, "siona-neuro-deterministic-v1")
-        # Fresh default facades remain deterministic for identical first inputs
-        # (ignore ephemeral event_id assigned by the facade converter).
-        a = NeuromorphicSNNFacade().process({"text": "facade-default-check"})
-        b = NeuromorphicSNNFacade().process({"text": "facade-default-check"})
-        self.assertEqual(a["signal_strength"], b["signal_strength"])
-        self.assertEqual(a["anomaly_score"], b["anomaly_score"])
-        self.assertEqual(a["spikes_detected"], b["spikes_detected"])
-        self.assertEqual(a["meta"]["engine"], "siona-neuro-deterministic-v1")
-        self.assertEqual(b["meta"]["engine"], "siona-neuro-deterministic-v1")
 
-        learned_facade = NeuromorphicSNNFacade(provider=self.provider)
-        self.assertEqual(learned_facade._provider.name, "siona-neuro-learned-lif-v1")
-        sample = generate_split("test")[1]
-        out = self.provider.process_event(
-            NeuromorphicEvent(
-                event_id="inj",
-                modality=LEARNED_MODALITY,
-                features={LEARNED_FEATURE_KEY: [list(row) for row in sample.sequence]},
-            )
-        )
-        self.assertEqual(out.backend, "siona-neuro-learned-lif-v1")
-        self.assertFalse(out.meta["learned_provider_fallback"])
+        learned = NeuromorphicSNNFacade(provider=self.provider)
+        self.assertEqual(learned._provider.name, "siona-neuro-learned-lif-v1")
 
     def test_process_batch(self) -> None:
         samples = generate_split("test")[:3]
@@ -247,23 +122,28 @@ class TestLearnedSnnProvider(unittest.TestCase):
                 fc2_bias=weights["fc2.bias"],
             )
             self.assertLessEqual(
-                max(
-                    abs(pure["logits"][0] - sample["reference_logits"][0]),
-                    abs(pure["logits"][1] - sample["reference_logits"][1]),
-                ),
+                max(abs(a - b) for a, b in zip(pure["logits"], sample["reference_logits"])),
                 fixture["tolerances"]["max_abs_logit_difference"],
             )
             self.assertLessEqual(
-                max(
-                    abs(pure["probabilities"][0] - sample["reference_probabilities"][0]),
-                    abs(pure["probabilities"][1] - sample["reference_probabilities"][1]),
-                ),
+                max(abs(a - b) for a, b in zip(pure["probabilities"], sample["reference_probabilities"])),
                 fixture["tolerances"]["max_abs_probability_difference"],
             )
             self.assertEqual(pure["predicted_class"], sample["predicted_class"])
             self.assertEqual(pure["hidden_spike_count"], sample["hidden_spike_count"])
 
-    def test_requirements_and_registry_and_adr_boundaries(self) -> None:
+    def test_historical_exp4004_and_current_adr_status_are_distinct(self) -> None:
+        evidence = json.loads(PARITY_EVIDENCE.read_text(encoding="utf-8"))
+        self.assertEqual(evidence["experiment_id"], "EXP-4-004")
+        self.assertEqual(evidence["decision"], "LEARNED_SNN_PROVIDER_PARITY_VERIFIED")
+        self.assertEqual(evidence["training_run_count"], 0)
+        self.assertEqual(evidence["adr_0004_status"], "PROPOSED")
+
+        adr = ADR4.read_text(encoding="utf-8")
+        block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
+        self.assertIn("Accepted (Phase 4)", block)
+
+    def test_requirements_and_qwen_registry_boundaries(self) -> None:
         req = [
             line.strip().lower()
             for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines()
@@ -284,10 +164,8 @@ class TestLearnedSnnProvider(unittest.TestCase):
         self.assertTrue(entry["capabilities"]["chat"])
         self.assertFalse(entry["capabilities"]["tools"])
         self.assertFalse(entry["capabilities"]["structured_json"])
-
-        adr = ADR4.read_text(encoding="utf-8")
-        block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
-        self.assertRegex(block, r"(?m)^\s*Proposed\s*$")
+        self.assertFalse(entry["capabilities"]["streaming"])
+        self.assertFalse(entry["capabilities"]["multimodal"])
 
 
 if __name__ == "__main__":

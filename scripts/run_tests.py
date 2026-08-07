@@ -72,6 +72,14 @@ CI_TEST_MODULES = [
     "ssn.tests.test_real_guarded_identity_retest",
     "ssn.tests.test_gate_e_breadth_evaluation",
     "ssn.tests.test_phase3b_model_registry_activation",
+    # Phase 4 learned neuromorphic (model-free; no torch/snnTorch)
+    "ssn.tests.test_phase_roadmap_current_status",
+    "ssn.tests.test_phase4_planning_docs",
+    "ssn.tests.test_phase4a_readiness",
+    "ssn.tests.test_phase4a_temporal_salience_dataset",
+    "ssn.tests.test_phase4b_training_gate",
+    "ssn.tests.test_phase4b_exp4_003_evidence",
+    "ssn.tests.test_phase4c_learned_snn_provider",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

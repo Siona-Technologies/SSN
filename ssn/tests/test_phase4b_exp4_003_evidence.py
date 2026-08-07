@@ -129,7 +129,7 @@ class TestPhase4BExp4003Evidence(unittest.TestCase):
         )[0]
         self.assertRegex(status_block, r"(?m)^\s*Proposed\s*$")
         self.assertIn("FIRST_CPU_SNN_TRAINING_VERIFIED", status)
-        self.assertIn("learned-provider integration", status.lower())
+        self.assertIn("learned provider", status.lower())
         self.assertIn("ADR 0004 **Proposed**", status)
         self.assertIn("Phase 4 remains **not started**", status)
         self.assertIn("FIRST_CPU_SNN_TRAINING_VERIFIED", narrative)

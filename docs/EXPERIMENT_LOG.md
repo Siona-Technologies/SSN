@@ -783,3 +783,34 @@ Artifact references: docs/SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md,
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase4c_learned_snn_provider
 ```
 
+### EXP-4-005 — Phase 4 learned SNN breadth / safety gate
+
+```text
+Experiment ID: EXP-4-005
+Date: 2026-08-07
+Git commit: (feat/phase4d-learned-snn-breadth-safety-gate tip)
+Runtime mode: model-free breadth/safety/integrity (no training; no Qwen)
+Dataset: phase4a-temporal-salience-v1 frozen test + reversed positives + edges
+Model/provider: siona-neuro-learned-lif-v1 (pure Python only)
+Neuromorphic backend: phase4b-lif-final-membrane-v1
+Hardware: Intel i7-1165G7, Iris Xe, CPU-only
+Configuration:
+  artifact SHA-256 dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc
+  bounded artifact read 256 KiB; max batch 256; strict event envelope
+  no in-memory artifact injection; no torch/snntorch runtime deps
+Metrics:
+  frozen test 128/128; balanced accuracy 1.0; recalls 1.0/1.0
+  reversed positives 64; temporal mean drop ≈0.99943
+  edge controls 9; fallback modalities 7; corrupted artifacts rejected
+Result: PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED
+Evidence:
+  docs/SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md
+  docs/evidence/EXP-4-005_PHASE_4_BREADTH_SAFETY.json
+Outstanding: ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION
+Limitations: ADR 0004 remains Proposed; Phase 4 incomplete; learned provider
+             remains explicit opt-in; not neuromorphic silicon
+Artifact references: docs/SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md,
+                      docs/evidence/EXP-4-005_PHASE_4_BREADTH_SAFETY.json
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase4d_learned_snn_breadth_safety
+```
+

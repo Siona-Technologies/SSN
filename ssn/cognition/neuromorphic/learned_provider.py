@@ -2,12 +2,15 @@
 
 Loads the EXP-4-003 canonical candidate and runs pure-Python LIF inference.
 Explicit activation only — never the default NeuromorphicSNNFacade provider.
+
+Weights are executable only after byte-level SHA-256 verification of an artifact
+file. Arbitrary in-memory weight mappings are not accepted.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ssn.cognition.neuromorphic.contracts import (
     AnomalyOutput,
@@ -24,7 +27,6 @@ from ssn.cognition.neuromorphic.learned_artifact import (
     PROVIDER_TARGET,
     TASK_ID,
     TRAINING_EXPERIMENT,
-    LearnedNeuromorphicArtifactError,
     load_learned_artifact,
 )
 from ssn.cognition.neuromorphic.learned_inference import (
@@ -36,10 +38,42 @@ from ssn.cognition.neuromorphic.providers import DeterministicNeuromorphicProvid
 
 LEARNED_MODALITY = "temporal_salience_v1"
 LEARNED_FEATURE_KEY = "temporal_sequence"
+LEARNED_FEATURE_KEYS = frozenset({LEARNED_FEATURE_KEY})
+MAX_EVENT_ID_CHARS = 128
+MAX_LEARNED_BATCH_EVENTS = 256
+MAX_FALLBACK_REASON_CHARS = 64
 
 
 class LearnedNeuromorphicInputError(ValueError):
     """Malformed event that claims the learned temporal-salience modality."""
+
+
+def _validate_event_id(event_id: object) -> str:
+    if not isinstance(event_id, str) or isinstance(event_id, bool):
+        raise LearnedNeuromorphicInputError("event_id_invalid")
+    if not event_id or len(event_id) > MAX_EVENT_ID_CHARS:
+        raise LearnedNeuromorphicInputError("event_id_invalid")
+    return event_id
+
+
+def _validate_learned_event(event: object) -> Tuple[NeuromorphicEvent, Tuple[Tuple[float, ...], ...]]:
+    if not isinstance(event, NeuromorphicEvent):
+        raise LearnedNeuromorphicInputError("event_not_neuromorphic_event")
+    _validate_event_id(event.event_id)
+    if not isinstance(event.modality, str) or isinstance(event.modality, bool):
+        raise LearnedNeuromorphicInputError("modality_invalid")
+    if event.modality != LEARNED_MODALITY:
+        raise LearnedNeuromorphicInputError("modality_not_learned")
+    features = event.features
+    if not isinstance(features, dict) or isinstance(features, bool):
+        raise LearnedNeuromorphicInputError("features_not_dict")
+    if set(features.keys()) != LEARNED_FEATURE_KEYS:
+        raise LearnedNeuromorphicInputError("features_key_set_invalid")
+    try:
+        sequence = parse_temporal_sequence(features[LEARNED_FEATURE_KEY])
+    except LearnedNeuromorphicInferenceError as exc:
+        raise LearnedNeuromorphicInputError(str(exc)) from exc
+    return event, sequence
 
 
 class LearnedTemporalSalienceProvider:
@@ -51,26 +85,19 @@ class LearnedTemporalSalienceProvider:
         self,
         *,
         artifact_path: Path | str | None = None,
-        artifact: Dict[str, Any] | None = None,
         fallback: Optional[Any] = None,
         expected_sha256: str = APPROVED_ARTIFACT_SHA256,
     ) -> None:
-        if artifact is not None and artifact_path is not None:
-            raise LearnedNeuromorphicArtifactError("artifact_source_ambiguous")
-        if artifact is None:
-            self._artifact = load_learned_artifact(
-                artifact_path,
-                expected_sha256=expected_sha256,
-            )
-        else:
-            # Already-validated mapping from load_learned_artifact / tests.
-            if artifact.get("sha256") != expected_sha256:
-                raise LearnedNeuromorphicArtifactError("artifact_sha256_mismatch")
-            self._artifact = artifact
+        # Weights come only from verified artifact file bytes — no in-memory inject.
+        self._artifact = load_learned_artifact(
+            artifact_path,
+            expected_sha256=expected_sha256,
+        )
         self._fallback = fallback if fallback is not None else DeterministicNeuromorphicProvider()
         self._event_count = 0
         self._learned_count = 0
         self._fallback_count = 0
+        self._rejected_input_count = 0
         self._state = NeuromorphicState(backend=self.name)
 
         weights = self._artifact["weights"]
@@ -107,6 +134,8 @@ class LearnedTemporalSalienceProvider:
                 "artifact_sha256": self.artifact_sha256,
                 "tool_authority": False,
                 "physical_actuation_authority": False,
+                "energy_note": "energy field is compatibility zero; not a measured energy claim",
+                "max_batch_events": MAX_LEARNED_BATCH_EVENTS,
             },
         )
 
@@ -117,6 +146,7 @@ class LearnedTemporalSalienceProvider:
             "events": self._event_count,
             "learned_events": self._learned_count,
             "fallback_events": self._fallback_count,
+            "rejected_inputs": self._rejected_input_count,
             "simulated": True,
             "trained": True,
             "learned": True,
@@ -129,6 +159,8 @@ class LearnedTemporalSalienceProvider:
             "artifact_sha256": self.artifact_sha256,
             "tool_authority": False,
             "physical_actuation_authority": False,
+            "energy_metrics": False,
+            "energy_note": "energy field is compatibility zero; not a measured energy claim",
         }
 
     def reset(self) -> None:
@@ -136,6 +168,7 @@ class LearnedTemporalSalienceProvider:
         self._event_count = 0
         self._learned_count = 0
         self._fallback_count = 0
+        self._rejected_input_count = 0
         if hasattr(self._fallback, "reset"):
             self._fallback.reset()
 
@@ -163,18 +196,21 @@ class LearnedTemporalSalienceProvider:
             "artifact_sha256": self.artifact_sha256,
             "tool_authority": False,
             "physical_actuation_authority": False,
+            "energy_metrics": False,
         }
         meta.update(extra)
         return meta
 
     def _fallback_output(self, event: NeuromorphicEvent, reason: str) -> NeuromorphicOutput:
+        bounded_reason = reason[:MAX_FALLBACK_REASON_CHARS]
+        self._event_count += 1
         self._fallback_count += 1
         out = self._fallback.process_event(event)
         meta = dict(out.meta)
         meta.update(
             {
                 "learned_provider_fallback": True,
-                "fallback_reason": reason,
+                "fallback_reason": bounded_reason,
                 "learned_provider": self.name,
                 "tool_authority": False,
                 "physical_actuation_authority": False,
@@ -196,7 +232,11 @@ class LearnedTemporalSalienceProvider:
             meta=meta,
         )
 
-    def _learned_output(self, event: NeuromorphicEvent, sequence: Sequence[Sequence[float]]) -> NeuromorphicOutput:
+    def _learned_output(
+        self,
+        event: NeuromorphicEvent,
+        sequence: Sequence[Sequence[float]],
+    ) -> NeuromorphicOutput:
         result = forward_lif_final_membrane(
             sequence,
             fc1_weight=self._fc1_weight,
@@ -210,6 +250,7 @@ class LearnedTemporalSalienceProvider:
         probs = result["probabilities"]  # type: ignore[assignment]
         predicted = int(result["predicted_class"])  # type: ignore[arg-type]
         spikes = int(result["hidden_spike_count"])  # type: ignore[arg-type]
+        self._event_count += 1
         self._learned_count += 1
         self._state.step += 1
         self._state.last_salience = positive
@@ -248,24 +289,61 @@ class LearnedTemporalSalienceProvider:
                     "class_1": float(result["logits"][1]),  # type: ignore[index]
                 },
                 learned_provider_fallback=False,
+                energy_note="compatibility_zero_not_measured",
             ),
         )
 
-    def process_event(self, event: NeuromorphicEvent) -> NeuromorphicOutput:
-        self._event_count += 1
+    def process_event(self, event: object) -> NeuromorphicOutput:
+        if not isinstance(event, NeuromorphicEvent):
+            self._rejected_input_count += 1
+            raise LearnedNeuromorphicInputError("event_not_neuromorphic_event")
+        if not isinstance(event.modality, str) or isinstance(event.modality, bool):
+            self._rejected_input_count += 1
+            raise LearnedNeuromorphicInputError("modality_invalid")
         if event.modality != LEARNED_MODALITY:
             return self._fallback_output(event, "unsupported_modality")
-        features = event.features or {}
-        if LEARNED_FEATURE_KEY not in features:
-            raise LearnedNeuromorphicInputError("missing_temporal_sequence")
         try:
-            sequence = parse_temporal_sequence(features[LEARNED_FEATURE_KEY])
-        except LearnedNeuromorphicInferenceError as exc:
-            raise LearnedNeuromorphicInputError(str(exc)) from exc
-        return self._learned_output(event, sequence)
+            validated, sequence = _validate_learned_event(event)
+        except LearnedNeuromorphicInputError:
+            self._rejected_input_count += 1
+            raise
+        return self._learned_output(validated, sequence)
 
-    def process_batch(self, events: Sequence[NeuromorphicEvent]) -> List[NeuromorphicOutput]:
-        return [self.process_event(event) for event in events]
+    def process_batch(self, events: object) -> List[NeuromorphicOutput]:
+        if not isinstance(events, (list, tuple)):
+            self._rejected_input_count += 1
+            raise LearnedNeuromorphicInputError("batch_container_invalid")
+        if len(events) > MAX_LEARNED_BATCH_EVENTS:
+            self._rejected_input_count += 1
+            raise LearnedNeuromorphicInputError("batch_too_large")
+
+        # Atomic prevalidation for claimed learned events before any mutation.
+        prepared: List[Tuple[str, Any]] = []
+        for event in events:
+            if not isinstance(event, NeuromorphicEvent):
+                self._rejected_input_count += 1
+                raise LearnedNeuromorphicInputError("event_not_neuromorphic_event")
+            if not isinstance(event.modality, str) or isinstance(event.modality, bool):
+                self._rejected_input_count += 1
+                raise LearnedNeuromorphicInputError("modality_invalid")
+            if event.modality == LEARNED_MODALITY:
+                try:
+                    validated, sequence = _validate_learned_event(event)
+                except LearnedNeuromorphicInputError:
+                    self._rejected_input_count += 1
+                    raise
+                prepared.append(("learned", (validated, sequence)))
+            else:
+                prepared.append(("fallback", event))
+
+        outputs: List[NeuromorphicOutput] = []
+        for kind, payload in prepared:
+            if kind == "learned":
+                validated, sequence = payload
+                outputs.append(self._learned_output(validated, sequence))
+            else:
+                outputs.append(self._fallback_output(payload, "unsupported_modality"))
+        return outputs
 
 
 def build_learned_temporal_salience_provider(

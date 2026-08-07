@@ -1,0 +1,75 @@
+{
+  "experiment_id": "EXP-4-005",
+  "date": "2026-08-07",
+  "decision": "PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED",
+  "base_main_sha": "4689963ebb13d62132d00f7db20a94ba9f149dee",
+  "candidate_artifact_path": "artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json",
+  "candidate_artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+  "provider_id": "siona-neuro-learned-lif-v1",
+  "training_run_count": 0,
+  "security_fixes": {
+    "in_memory_artifact_injection_removed": true,
+    "bounded_artifact_read": true,
+    "max_artifact_bytes": 262144,
+    "strict_learned_event_envelope": true,
+    "max_event_id_chars": 128,
+    "max_learned_batch_events": 256,
+    "batch_atomicity_prevalidation": true,
+    "rejected_input_no_successful_state_mutation": true
+  },
+  "frozen_test_breadth": {
+    "sample_count": 128,
+    "correct_count": 128,
+    "balanced_accuracy": 1.0,
+    "class_0_recall": 1.0,
+    "class_1_recall": 1.0
+  },
+  "temporal_breadth": {
+    "reversed_positive_count": 64,
+    "original_positive_mean": 0.999432659606552,
+    "reversed_positive_mean": 1.670010930173649e-07,
+    "temporal_mean_score_drop": 0.999432492605459,
+    "required_min_drop": 0.9
+  },
+  "edge_controls": {
+    "valid_count": 9,
+    "pass": true
+  },
+  "malformed_inputs": {
+    "count": 8,
+    "pass": true
+  },
+  "corrupted_artifacts": {
+    "count": 20,
+    "pass": true
+  },
+  "fallback_modalities": {
+    "count": 7,
+    "modalities": ["text", "audio", "vision", "lidar", "radar", "imu", "unknown"],
+    "pass": true
+  },
+  "dependency_isolation": {
+    "runtime_torch": false,
+    "runtime_snntorch": false,
+    "runtime_numpy": false,
+    "runtime_norse": false,
+    "network_calls": 0,
+    "subprocess_calls": 0
+  },
+  "authority": {
+    "tool_execution_count": 0,
+    "reflex_proposals_generated": 0,
+    "physical_actuation_authority": false,
+    "energy_metrics": false,
+    "energy_note": "compatibility_zero_not_measured"
+  },
+  "qwen_run_count": 0,
+  "requirements_txt_changed": false,
+  "model_registry_changed": false,
+  "ssn_data_changed": false,
+  "website_changed": false,
+  "adr_0004_status": "PROPOSED",
+  "phase_4_status": "IN_PROGRESS_BREADTH_SAFETY_VERIFIED_ADR_ACCEPTANCE_PENDING",
+  "next_blocker": "ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION",
+  "absolute_operator_paths_committed": false
+}

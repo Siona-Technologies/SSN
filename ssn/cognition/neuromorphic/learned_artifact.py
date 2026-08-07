@@ -189,11 +189,11 @@ def validate_artifact_mapping(payload: Mapping[str, Any], *, sha256_hex: str) ->
         raise LearnedNeuromorphicArtifactError("weights_not_object")
     if set(weights_raw.keys()) != set(WEIGHT_SHAPES.keys()):
         raise LearnedNeuromorphicArtifactError("weights_keys_mismatch")
-    weights: Dict[str, Tuple[Tuple[float, ...], ...]] = {}
+    weights: Dict[str, Any] = {}
     for name, shape in WEIGHT_SHAPES.items():
         parsed = _validate_matrix(name, weights_raw[name], shape)
         if len(shape) == 1:
-            weights[name] = parsed[0]  # type: ignore[assignment]
+            weights[name] = parsed[0]
         else:
             weights[name] = parsed
 
@@ -228,15 +228,31 @@ def validate_artifact_mapping(payload: Mapping[str, Any], *, sha256_hex: str) ->
     }
 
 
+def _read_artifact_bytes_bounded(artifact_path: Path) -> bytes:
+    """Read artifact bytes with a hard upper bound (MAX_ARTIFACT_BYTES)."""
+    try:
+        st = artifact_path.stat()
+    except OSError as exc:
+        raise LearnedNeuromorphicArtifactError("artifact_unreadable") from exc
+    if not artifact_path.is_file():
+        raise LearnedNeuromorphicArtifactError("artifact_not_file")
+    if st.st_size > MAX_ARTIFACT_BYTES:
+        raise LearnedNeuromorphicArtifactError("artifact_too_large")
+    # Protect against growth between stat and read: read at most MAX+1.
+    with artifact_path.open("rb") as handle:
+        raw = handle.read(MAX_ARTIFACT_BYTES + 1)
+    if len(raw) > MAX_ARTIFACT_BYTES:
+        raise LearnedNeuromorphicArtifactError("artifact_too_large")
+    return raw
+
+
 def load_learned_artifact(
     path: Path | str | None = None,
     *,
     expected_sha256: str = APPROVED_ARTIFACT_SHA256,
 ) -> Dict[str, Any]:
     artifact_path = Path(path) if path is not None else _default_artifact_path()
-    raw = artifact_path.read_bytes()
-    if len(raw) > MAX_ARTIFACT_BYTES:
-        raise LearnedNeuromorphicArtifactError("artifact_too_large")
+    raw = _read_artifact_bytes_bounded(artifact_path)
     digest = hashlib.sha256(raw).hexdigest()
     if digest != expected_sha256:
         raise LearnedNeuromorphicArtifactError("artifact_sha256_mismatch")
@@ -256,7 +272,6 @@ def load_learned_artifact(
 
 
 def _default_artifact_path() -> Path:
-    # Repository root: ssn/cognition/neuromorphic/../../..
     root = Path(__file__).resolve().parents[3]
     return root / APPROVED_ARTIFACT_RELATIVE_PATH
 

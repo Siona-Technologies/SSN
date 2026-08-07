@@ -9,11 +9,11 @@
 | Phase 3B | **Completed and accepted — baseline installed/verified; `openai_chat` dialect implemented; controlled real-provider text path validated; governed prompt-context bridge and approved identity registry merged; governed response guard hardened; real-Qwen guarded retest passed; Gate E breadth recorded; conservative model registry activated at the metadata/binding layer; State C registry-bound real-runtime verification passed and runtime shut down; ADR 0003 Accepted (Phase 3B)** |
 | Phase 3B accepted evidence baseline | `1e1237e1a635dda52a0868a080a84623c74950ec` |
 | Phase 3A PR | [#2](https://github.com/Siona-Technologies/SSN/pull/2) |
-| Phase 4 | **In progress — EXP-4-003 training VERIFIED; EXP-4-004 learned provider integrated + parity VERIFIED; breadth/safety evidence gate and Phase 4 completion still pending** |
+| Phase 4 | **In progress — EXP-4-003/004/005 VERIFIED (training, learned provider parity, breadth/safety); ADR 0004 acceptance and Phase 4 completion still pending** |
 | Phase 4 architecture decision | ADR 0004 **Proposed** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
-Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 remains incomplete; EXP-4-004 integrated a learned software SNN provider with parity verification, but ADR 0004 acceptance and Phase 4 completion remain pending.
+Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as **In progress**. That historical wording is superseded by the accepted status above. Phase 4 remains incomplete; EXP-4-005 verified learned-provider breadth/safety, but ADR 0004 acceptance and Phase 4 completion remain pending.
 
 ## Governing documents
 
@@ -27,6 +27,7 @@ Historical note: immediately before Phase 3 closeout, Phase 3B was recorded as *
 - [PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md](PHASE_4B_FIRST_CPU_SNN_TRAINING_GATE.md)
 - [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
 - [SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md](SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md)
+- [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
@@ -156,7 +157,7 @@ this remains separate from native-provider JSON capability verification.
 Phase 3B is **complete**. With Phase 3A and Phase 3B both accepted, Phase 3 is
 **complete for its defined local-model/evaluation scope**.
 
-Phase 4 remains **not started** at the Phase 4 completion / ADR 0004 acceptance level. EXP-4-003 recorded `FIRST_CPU_SNN_TRAINING_VERIFIED`. EXP-4-004 recorded `LEARNED_SNN_PROVIDER_PARITY_VERIFIED` for an explicit learned software SNN provider with deterministic fallback. ADR 0004 remains Proposed; Phase 4 breadth/safety evidence and completion remain pending.
+Phase 4 remains **not started** at the Phase 4 completion / ADR 0004 acceptance level. EXP-4-003 recorded `FIRST_CPU_SNN_TRAINING_VERIFIED`. EXP-4-004 recorded `LEARNED_SNN_PROVIDER_PARITY_VERIFIED`. EXP-4-005 recorded `PHASE4_LEARNED_SNN_BREADTH_SAFETY_VERIFIED`. ADR 0004 remains Proposed; Phase 4 completion remains pending.
 
 ## Phase 4 status
 
@@ -213,11 +214,11 @@ Still not authorized by the training gate alone:
 - Broader adversarial/security hardening beyond Gate E remains future
   production-certification work
 - Current machine has no CUDA GPU; GPU SNN evidence remains hardware-gated
-- A verified EXP-4-003 candidate JSON exists under `artifacts/neuromorphic/`; EXP-4-004 integrated an explicit learned provider with parity verification; Phase 4 breadth/safety evidence remains pending
+- A verified EXP-4-003 candidate JSON exists under `artifacts/neuromorphic/`; EXP-4-004/005 verified learned-provider parity and breadth/safety; ADR 0004 acceptance remains pending
 
 ## Next
 
-The next controlled Phase 4 blocker is **EXP-4-005 PHASE 4 BREADTH / SAFETY / EVIDENCE GATE**. Do not accept ADR 0004 or mark Phase 4 complete until that work is separately authorized and evidenced.
+The next controlled Phase 4 blocker is **ADR 0004 ACCEPTANCE + PHASE 4 COMPLETION DECISION**. Do not accept ADR 0004 or mark Phase 4 complete until that closeout is separately authorized after EXP-4-005 is merged and post-merge evidence is clean.
 
 Phase 4 work must not reinterpret Phase 3B acceptance as permission to:
 

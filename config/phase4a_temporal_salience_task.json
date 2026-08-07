@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "task_id": "phase4a-temporal-salience-v1",
+  "status": "READINESS_DEFINED_TRAINING_NOT_AUTHORIZED",
+  "task_type": "binary_temporal_salience_classification",
+  "description": "Classify whether a fixed-budget binary event sequence contains a concentrated late temporal burst or distributed background activity.",
+  "input": {
+    "timesteps": 20,
+    "channels": 8,
+    "events_per_sample": 16,
+    "encoding": "binary_event_matrix",
+    "shape": [20, 8]
+  },
+  "classes": {
+    "0": "distributed_background",
+    "1": "late_synchronous_burst"
+  },
+  "generation": {
+    "root_seed": 42007,
+    "train_samples": 256,
+    "validation_samples": 64,
+    "test_samples": 128,
+    "balanced_classes": true,
+    "positive_late_window_timesteps": [16, 17, 18, 19],
+    "positive_late_events": 12,
+    "positive_early_events": 4,
+    "negative_max_late_events": 4,
+    "private_or_user_data": false,
+    "qwen_generated_labels": false
+  },
+  "predeclared_baselines": {
+    "balanced_random_accuracy": 0.5,
+    "majority_balanced_accuracy": 0.5,
+    "total_event_count_is_non_discriminative_by_design": true
+  },
+  "acceptance_thresholds_for_future_authorized_training": {
+    "test_balanced_accuracy_min": 0.9,
+    "per_class_recall_min": 0.85,
+    "margin_over_balanced_random_min": 0.2,
+    "live_test_set_threshold_tuning_allowed": false,
+    "time_reversal_sensitivity_required": true,
+    "time_reversal_positive_score_drop_min": 0.1
+  },
+  "candidate_model_topology": {
+    "input_features": 8,
+    "hidden_spiking_units": 16,
+    "output_classes": 2,
+    "timesteps": 20,
+    "family": "small_lif_recurrent_or_feedforward_snn",
+    "final_backend_specific_topology_pending": true
+  },
+  "candidate_backend": {
+    "preferred_for_dependency_gate": "snntorch",
+    "preferred_version_researched": "1.0.0",
+    "alternative": "norse",
+    "alternative_version_researched": "1.1.0",
+    "dependency_installation_authorized": false
+  },
+  "training": {
+    "authorized": false,
+    "first_execution_gate": "SEPARATE_PHASE_4B_TRAINING_AUTHORIZATION_REQUIRED"
+  }
+}

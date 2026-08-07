@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "gate_id": "phase4b-first-cpu-snn-training-gate-v1",
+  "status": "PROPOSED_AUTHORIZATION_EFFECTIVE_ONLY_AFTER_GATE_MERGE",
+  "execution_experiment_id": "EXP-4-003",
+  "task_id": "phase4a-temporal-salience-v1",
+  "execution": {
+    "one_controlled_training_run_authorized_after_merge": true,
+    "repeat_runs_require_new_record_or_failure-recovery justification": true,
+    "cpu_only": true,
+    "cuda_allowed": false,
+    "network_allowed_only_for_dependency_download": true,
+    "hosted_ci_training_allowed": false
+  },
+  "environment": {
+    "required_python": "3.11.x 64-bit",
+    "if_python_3_11_unavailable": "STOP_DO_NOT_INSTALL_PYTHON_AUTOMATICALLY",
+    "isolated_venv_outside_git": true,
+    "torch": {
+      "version": "2.13.0+cpu",
+      "source_index": "https://download.pytorch.org/whl/cpu",
+      "expected_windows_wheel": "torch-2.13.0+cpu-cp311-cp311-win_amd64.whl",
+      "sha256_must_be_recorded_before_install": true
+    },
+    "snntorch": {
+      "version": "1.0.0",
+      "source_index": "https://pypi.org/simple",
+      "expected_wheel": "snntorch-1.0.0-py2.py3-none-any.whl",
+      "license": "MIT",
+      "sha256_must_be_recorded_before_install": true
+    },
+    "project_requirements_file_must_remain_unchanged": true,
+    "pip_freeze_must_be_recorded": true
+  },
+  "resource_preflight": {
+    "minimum_available_ram_gib": 4.0,
+    "minimum_free_disk_gib_for_venv_staging_artifacts": 2.0,
+    "torch_threads": 4,
+    "qwen_must_be_stopped": true,
+    "llama_cpp_must_be_stopped": true,
+    "port_8080_must_be_closed": true
+  },
+  "model": {
+    "architecture_id": "phase4b-lif-final-membrane-v1",
+    "input_features": 8,
+    "hidden_units": 16,
+    "output_classes": 2,
+    "timesteps": 20,
+    "hidden_neuron": "snntorch.Leaky",
+    "beta": 0.9,
+    "threshold": 1.0,
+    "reset_mechanism": "subtract",
+    "surrogate": "fast_sigmoid",
+    "surrogate_slope": 25.0,
+    "readout": "linear_from_final_hidden_membrane",
+    "learn_beta": false,
+    "learn_threshold": false
+  },
+  "training": {
+    "seed": 42007,
+    "batch_size": 32,
+    "max_epochs": 80,
+    "minimum_epochs_before_early_stop": 10,
+    "early_stopping_patience": 12,
+    "early_stopping_metric": "validation_loss",
+    "early_stopping_min_delta": 0.00001,
+    "optimizer": "Adam",
+    "learning_rate": 0.01,
+    "weight_decay": 0.0001,
+    "loss": "CrossEntropyLoss",
+    "gradient_clip_norm": 1.0,
+    "max_wall_clock_seconds": 600,
+    "test_evaluations_allowed": 1,
+    "test_tuning_allowed": false,
+    "torch_deterministic_algorithms": true
+  },
+  "acceptance": {
+    "test_balanced_accuracy_min": 0.9,
+    "per_class_recall_min": 0.85,
+    "margin_over_balanced_random_min": 0.2,
+    "balanced_random_baseline": 0.5,
+    "time_reversal_positive_score_drop_min": 0.1,
+    "tool_authority": false,
+    "physical_actuation_authority": false
+  },
+  "artifacts": {
+    "failed_run_artifacts_commit_allowed": false,
+    "local_raw_checkpoint_format": "torch_state_dict_pt",
+    "canonical_candidate_export_format": "json_float_weights_and_topology",
+    "canonical_candidate_export_commit_only_if_acceptance_passes": true,
+    "sha256_required": true,
+    "absolute_operator_paths_forbidden_in_committed_evidence": true
+  },
+  "post_run": {
+    "remove_or_leave_isolated_venv": "LEAVE_FOR_REPRODUCTION_UNTIL_PHASE4_PROVIDER_INTEGRATION_DECISION",
+    "project_requirements_unchanged": true,
+    "qwen_stopped": true,
+    "llama_cpp_stopped": true,
+    "port_8080_closed": true
+  }
+}

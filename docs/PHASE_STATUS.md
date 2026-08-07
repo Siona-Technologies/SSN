@@ -74,8 +74,9 @@ Phase 3B remains **in progress**. The first runtime/model baseline has been
 text-path validation** (LanguageEngine → ModelGateway → LocalOpenWeightProvider
 → llama.cpp → Qwen) completed against the pinned runtime, then the runtime was
 **stopped**. Gate E breadth evaluation is **recorded** (EXP-3B-011). Model
-registry activation, capability approval, ADR acceptance, and Phase 3B
-completion remain **pending** and are **not** issued.
+registry activation, capability approval, adr acceptance, and phase 3b
+completion remain **pending** and are **not** issued. Further provider integration
+work beyond the recorded conservative registry binding remains operator-controlled.
 
 ### Completed (local operator evidence, 2026-08-05)
 

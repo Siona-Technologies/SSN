@@ -113,7 +113,11 @@ class TestPhase2CloseoutDocs(unittest.TestCase):
         self.assertIn("provider", text.lower())
         self.assertIn("openai_chat", text.lower())
         self.assertIn(
-            "model-registry activation review passed (exp-3b-012); adr 0003 acceptance and phase 3b completion decision still pending",
+            "model-registry activation review passed with conservative capability binding (exp-3b-012",
+            text.lower(),
+        )
+        self.assertIn(
+            "adr 0003 acceptance and phase 3b completion decision still pending",
             text.lower(),
         )
         self.assertIn("siona_generate", text.lower())

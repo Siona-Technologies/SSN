@@ -134,7 +134,7 @@ These results are **necessary but not sufficient** for changing ADR status from
 
 ### Why ADR status remains Proposed
 
-- Model registry record and binding software supported (EXP-3B-012); model registry remains inactive at runtime (state C)
+- Model registry remains inactive at runtime (state C); EXP-3B-012 record and binding software supported
 - Gate E breadth recorded (EXP-3B-011); model-registry activation review passed (EXP-3B-012); ADR acceptance still pending
 - Identity-guard structured JSON remains unverified after EXP-3B-010 observed failure (Gate E native JSON was separately verified)
 - Streaming classified unsupported on the pinned baseline (Gate E R08)

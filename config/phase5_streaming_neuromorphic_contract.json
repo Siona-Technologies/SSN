@@ -43,6 +43,7 @@
     "hidden_membrane_units": 16,
     "fields": [
       "stream_id",
+      "generation",
       "next_step_index",
       "membrane",
       "cumulative_spike_count",
@@ -50,6 +51,7 @@
       "last_activity_monotonic",
       "revision"
     ],
+    "generation_required_to_prevent_stale_prepare_after_restart": true,
     "revision_required_for_prepare_commit_consistency": true,
     "raw_input_history_retained": false,
     "logits_retained_before_completion": false,

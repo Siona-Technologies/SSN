@@ -81,6 +81,7 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase4b_exp4_003_evidence",
     "ssn.tests.test_phase4c_learned_snn_provider",
     "ssn.tests.test_phase4d_learned_snn_breadth_safety",
+    "ssn.tests.test_phase4_closeout",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",
@@ -95,8 +96,6 @@ def main() -> int:
     from ssn.runtime.paths import cleanup_ensured_isolation
     from ssn.runtime.test_isolation import IsolatedTextTestRunner
 
-    # Do not allocate a suite-wide runtime dir — per-test isolation owns paths.
-    # Ownership-safe cleanup remains registered for smoke helpers that may set it.
     atexit.register(cleanup_ensured_isolation)
 
     loader = unittest.TestLoader()

@@ -20,12 +20,13 @@ REGISTRY = ROOT / "config" / "model_registry.json"
 
 
 class TestPhase4PlanningDocs(unittest.TestCase):
-    def test_planning_record_remains_historical_while_current_state_is_accepted(self):
+    def test_planning_record_remains_historical_while_phase4_is_accepted(self):
         spec = SPEC.read_text(encoding="utf-8")
         planning = PLANNING.read_text(encoding="utf-8")
         acceptance = ACCEPTANCE.read_text(encoding="utf-8")
         status = STATUS.read_text(encoding="utf-8")
         roadmap = ROADMAP.read_text(encoding="utf-8")
+        acceptance_record = json.loads(ACCEPTANCE_JSON.read_text(encoding="utf-8"))
 
         self.assertIn("**Status:** Accepted planning gate", planning)
         self.assertIn("A real SNN training run is **not yet authorized**", planning)
@@ -38,14 +39,13 @@ class TestPhase4PlanningDocs(unittest.TestCase):
         self.assertIn("Phase 4 | **Completed and accepted", status)
         self.assertIn("ADR 0004 **Accepted (Phase 4)**", status)
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
-        self.assertIn("**Completed and accepted.**", roadmap)
-        self.assertIn("No next phase has started", roadmap)
+        self.assertFalse(acceptance_record["next_phase_started"])
+        self.assertTrue(acceptance_record["next_planning_gate_required"])
+        self.assertIn("Historical Phase 4 closeout note", roadmap)
 
     def test_adr0004_is_accepted_only_after_evidence_chain(self):
         adr = ADR.read_text(encoding="utf-8")
-        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split(
-            "## Context", 1
-        )[0]
+        status_block = adr.replace("\r\n", "\n").split("## Status", 1)[1].split("## Context", 1)[0]
         self.assertIn("Accepted (Phase 4)", status_block)
         self.assertNotRegex(status_block, r"(?m)^\s*Proposed\s*$")
         for exp in ("EXP-4-001", "EXP-4-003", "EXP-4-004", "EXP-4-005"):
@@ -102,7 +102,8 @@ class TestPhase4PlanningDocs(unittest.TestCase):
         deferred = DEFERRED.read_text(encoding="utf-8")
         self.assertIn("### ID: HW-SNN-001", deferred)
         self.assertIn("Phase 4 accepted for the bounded CPU-trained software SNN provider", deferred)
-        self.assertIn("CUDA/GPU training or benchmarking", deferred)
+        self.assertIn("### ID: SNN-STREAM-001", deferred)
+        self.assertIn("Selected for governed Phase 5", deferred)
         self.assertIn("### ID: HW-LLM-001", deferred)
         self.assertIn("Phase 3B accepted for the pinned conservative baseline", deferred)
         self.assertIn("### ID: MODEL-ADAPT-001", deferred)

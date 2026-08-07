@@ -1,0 +1,134 @@
+{
+  "experiment_id": "EXP-4-001",
+  "date": "2026-08-07",
+  "base_main_sha": "409d0d0b5144e4d6236269b09952a84dcbd58d69",
+  "mode": "READ_ONLY_AUDIT_PLUS_MODEL_FREE_SCAFFOLDING",
+  "decision": "PHASE_4A_READINESS_DEFINED_TRAINING_NOT_AUTHORIZED",
+  "training_executed": false,
+  "dependency_installation_executed": false,
+  "qwen_runtime_started": false,
+  "real_model_calls": 0,
+  "tool_executions": 0,
+  "provider_contract": {
+    "path": "ssn/cognition/neuromorphic/contracts.py",
+    "sufficient_without_higher_level_redesign": true,
+    "required_methods": [
+      "capabilities",
+      "health",
+      "reset",
+      "get_state",
+      "process_event",
+      "process_batch"
+    ],
+    "learned_outputs_remain_proposals": true
+  },
+  "reference_provider": {
+    "path": "ssn/cognition/neuromorphic/providers.py",
+    "provider": "siona-neuro-deterministic-v1",
+    "deterministic": true,
+    "simulated": true,
+    "trained": false,
+    "retained_for_ci_and_fallback": true
+  },
+  "legacy_provider": {
+    "path": "ssn/cognition/neuromorphic/legacy_adapter.py",
+    "provider": "siona-legacy-snn-adapter-v1",
+    "simulated": true,
+    "deterministic": false,
+    "trained": false,
+    "acceptable_as_learned_baseline": false
+  },
+  "current_requirements": {
+    "path": "requirements.txt",
+    "python_dotenv": "1.2.1",
+    "pyyaml": "6.0.3",
+    "torch_present": false,
+    "snntorch_present": false,
+    "norse_present": false
+  },
+  "backend_research": {
+    "source_access_date": "2026-08-07",
+    "preferred_candidate": {
+      "package": "snntorch",
+      "version": "1.0.0",
+      "release_date": "2026-06-29",
+      "license": "MIT",
+      "requires_python": ">=3.9",
+      "explicit_python_classifiers_observed": ["3.9", "3.10", "3.11"],
+      "pytorch_prerequisite": true,
+      "cpu_training_described_by_project": true,
+      "dependency_installation_authorized": false,
+      "python_3_12_compatibility_claimed": false,
+      "selection_reason": "recent release, permissive license, smaller default dependency surface, CPU-first project guidance"
+    },
+    "alternative": {
+      "package": "norse",
+      "version": "1.1.0",
+      "release_date": "2024-03-18",
+      "license": "LGPLv3",
+      "requires_python": ">=3.8",
+      "explicit_python_classifiers_observed": ["3.8", "3.9", "3.10", "3.11"],
+      "requires_dist_observed": ["numpy", "torch>=2.0.0", "torchvision>=0.15.0", "nir", "nirtorch"],
+      "dependency_installation_authorized": false
+    },
+    "conservative_local_interpreter_candidate": "Python 3.11",
+    "exact_pytorch_version_selected": false
+  },
+  "task": {
+    "task_id": "phase4a-temporal-salience-v1",
+    "config": "config/phase4a_temporal_salience_task.json",
+    "generator": "ssn/cognition/neuromorphic/phase4a_dataset.py",
+    "classification": "binary_temporal_salience",
+    "timesteps": 20,
+    "channels": 8,
+    "events_per_sample": 16,
+    "train_samples": 256,
+    "validation_samples": 64,
+    "test_samples": 128,
+    "root_seed": 42007,
+    "private_or_user_data": false,
+    "qwen_generated_labels": false,
+    "split_fingerprints": {
+      "train": "e124d6b5858399956f7b52f1fc6e342e9d2833704b44710315d57844c43805bd",
+      "validation": "cfd32c4b9b2684dc10f21e9b28d169807c42ae54e7968d5080a676d602929285",
+      "test": "34d93878277a0b6afae880c02a3b2d878fbc142a1cfee77b51985eebbf7f4116"
+    }
+  },
+  "predeclared_future_training_thresholds": {
+    "test_balanced_accuracy_min": 0.9,
+    "per_class_recall_min": 0.85,
+    "margin_over_balanced_random_min": 0.2,
+    "balanced_random_baseline": 0.5,
+    "majority_balanced_accuracy": 0.5,
+    "test_set_threshold_tuning_allowed": false,
+    "time_reversal_sensitivity_required": true,
+    "time_reversal_positive_score_drop_min": 0.1
+  },
+  "candidate_topology": {
+    "input_features": 8,
+    "hidden_spiking_units": 16,
+    "output_classes": 2,
+    "timesteps": 20,
+    "exact_backend_specific_topology_selected": false
+  },
+  "missing_before_training": [
+    "EXACT_PYTHON_INTERPRETER",
+    "EXACT_CPU_PYTORCH_VERSION_AND_BUILD",
+    "DEPENDENCY_ARTIFACT_PROVENANCE",
+    "EXACT_SNN_TOPOLOGY_AND_READOUT",
+    "LOSS_OPTIMIZER_LEARNING_RATE",
+    "EPOCH_TIME_LIMIT_AND_EARLY_STOPPING",
+    "CHECKPOINT_MANIFEST_AND_OUTPUT_POLICY",
+    "RESOURCE_PREFLIGHT",
+    "CONTROLLED_TRAINING_EVIDENCE_SCRIPT"
+  ],
+  "authority": {
+    "tool_authority": false,
+    "physical_actuation_authority": false,
+    "owner_policy_authority_changed": false,
+    "qwen_capabilities_changed": false
+  },
+  "adr_0004_status": "PROPOSED",
+  "phase_4a_status": "READINESS_DEFINED",
+  "next_gate": "SEPARATE_DEPENDENCY_AND_FIRST_CPU_SNN_TRAINING_AUTHORIZATION"
+}

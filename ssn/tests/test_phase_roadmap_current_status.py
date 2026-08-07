@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -41,10 +42,10 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
 
     def test_phase4_is_not_silently_defined_by_legacy_numbering(self):
         roadmap = ROADMAP.read_text(encoding="utf-8")
-        lower = roadmap.lower()
-        self.assertIn("must not be treated as the current\nphase 4 authorization", lower)
-        self.assertIn("unsequenced until phase 4 planning", lower)
-        self.assertIn("separate governed planning", lower)
+        lower_plain = re.sub(r"\*+", "", roadmap).lower()
+        self.assertIn("must not be treated as the current\nphase 4 authorization", lower_plain)
+        self.assertIn("unsequenced until phase 4 planning", lower_plain)
+        self.assertIn("separate governed planning", lower_plain)
 
 
 if __name__ == "__main__":

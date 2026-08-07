@@ -1,0 +1,50 @@
+{
+  "record_type": "PHASE_PLANNING_ACCEPTANCE",
+  "phase": "4",
+  "decision_date": "2026-08-07",
+  "planning_base_sha": "e93ec65297e1b29415f20cd28a4b591f4135fcb0",
+  "decision": "PHASE_4_PLANNING_ACCEPTED",
+  "objective": "LEARNED_NEUROMORPHIC_BACKEND_AND_EVALUATION",
+  "phase_3_status": "COMPLETE",
+  "phase_4_planning_status": "ACCEPTED",
+  "phase_4_implementation_status": "NOT_STARTED",
+  "adr_0004_status": "PROPOSED",
+  "authorized_scope": [
+    "PHASE_4A_NEUROMORPHIC_CONTRACT_AUDIT",
+    "PHASE_4A_TASK_DEFINITION",
+    "PHASE_4A_DATASET_AND_SPLIT_GOVERNANCE",
+    "PHASE_4A_BACKEND_VERSION_LICENCE_RESEARCH",
+    "PHASE_4A_METRICS_AND_ACCEPTANCE_THRESHOLD_DESIGN",
+    "PHASE_4A_CHECKPOINT_METADATA_SCHEMA_DESIGN",
+    "PHASE_4A_MODEL_FREE_TEST_SCAFFOLDING"
+  ],
+  "not_yet_authorized": [
+    "REAL_SNN_TRAINING_EXECUTION",
+    "NEW_SNN_TRAINING_DEPENDENCY_INSTALLATION",
+    "CUDA_OR_GPU_CAPABILITY_CLAIM",
+    "QWEN_LORA_QLORA_PEFT_OR_FINE_TUNING",
+    "QWEN_CAPABILITY_EXPANSION",
+    "PRIVATE_IDENTITY_OR_USER_MEMORY_TRAINING_DATA",
+    "SEMANTIC_VECTOR_MEMORY_MIGRATION",
+    "REAL_STT_TTS",
+    "SIBONA_IMPLEMENTATION",
+    "MQTT_ROS2_PHYSICAL_INTEGRATION",
+    "ROBOTICS_OR_PHYSICAL_ACTUATION",
+    "PRODUCTION_CERTIFICATION"
+  ],
+  "current_machine": {
+    "cuda_gpu_available": false,
+    "gpu_training_claimed": false
+  },
+  "phase_3_qwen_capabilities_unchanged": {
+    "chat": true,
+    "tools": false,
+    "structured_json": false,
+    "streaming": false,
+    "multimodal": false,
+    "context_window": 4096,
+    "siona_native": false
+  },
+  "next_execution_gate": "EXP-4-001_PHASE_4A_READINESS_AUDIT",
+  "training_gate_required_before_first_real_snn_run": true
+}

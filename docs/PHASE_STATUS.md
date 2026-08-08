@@ -12,7 +12,7 @@
 | Phase 4 | **Completed and accepted — EXP-4-003 training VERIFIED; EXP-4-004 learned-provider parity VERIFIED; EXP-4-005 breadth/safety VERIFIED; ADR 0004 Accepted (Phase 4)** |
 | Phase 4 accepted evidence baseline | `05de2b04279a72ece4834a984461a505de1188b3` |
 | Phase 4 architecture decision | ADR 0004 **Accepted (Phase 4)** |
-| Phase 5 | **Planning accepted — Stateful Streaming Neuromorphic Runtime; implementation not started; Phase 5A contract/state/parity work authorized** |
+| Phase 5 | **Planning accepted — In progress after EXP-5-001 streaming readiness VERIFIED; stateful provider implementation not started** |
 | Phase 5 architecture decision | ADR 0005 **Proposed** |
 | Current machine | Intel i7-1165G7, Iris Xe, no CUDA GPU |
 
@@ -40,6 +40,7 @@ acceptance snapshot or experiment records.
 - [SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md](SIONA_PHASE_4B_FIRST_CPU_SNN_TRAINING.md)
 - [SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md](SIONA_PHASE_4C_LEARNED_PROVIDER_INTEGRATION.md)
 - [SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md](SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md)
+- [SIONA_PHASE_5A_STREAMING_READINESS.md](SIONA_PHASE_5A_STREAMING_READINESS.md)
 - [SIONA_MODEL_GATEWAY.md](SIONA_MODEL_GATEWAY.md)
 - [SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md](SIONA_NEUROMORPHIC_ARCHITECTURE_V1.md)
 - [adr/0002-local-open-weight-transport.md](adr/0002-local-open-weight-transport.md)
@@ -155,21 +156,24 @@ Phase 4 does not claim or authorize:
 The learned artifact is a SIONA-trained software SNN artifact; it does not make
 external Qwen foundation weights SIONA-native.
 
-## Phase 5 status (planning accepted; implementation not started)
+## Phase 5 status (planning accepted; EXP-5-001 verified; implementation not started)
 
 Phase 5 is selected as **Stateful Streaming Neuromorphic Runtime**.
 
-The first goal is to reuse the exact accepted Phase 4 artifact while changing
-the software execution contract from one complete 20 × 8 window per call to
-bounded stateful processing of one 8-channel timestep at a time.
+EXP-5-001 has verified the model-free streaming contract, lifecycle, bounds,
+atomicity, isolation and future Phase 4 parity thresholds. The reserved provider
+identity `siona-neuro-streaming-lif-v1` is not activated and is not accepted.
 
-Phase 5A is authorized for:
+The first remaining implementation goal is to reuse the exact accepted Phase 4
+artifact while changing the software execution contract from one complete
+20 × 8 window per call to bounded stateful processing of one 8-channel timestep
+at a time.
 
-- exact streaming event/state/lifecycle schema;
-- active-stream and TTL/ordering bounds;
+Phase 5A remaining work after this readiness gate:
+
 - pure-Python stateful provider implementation using unchanged Phase 4 weights;
 - parity tests against the accepted fixed-window provider;
-- deterministic multi-stream isolation/reset/failure tests.
+- deterministic multi-stream isolation/reset/failure tests on learned outputs.
 
 The existing `AsyncEventBus` already provides bounded queues, priority-aware
 backpressure, TTL, handler timeouts and graceful shutdown. Async bus wiring is a
@@ -191,8 +195,8 @@ No SNN retraining is authorized for the initial streaming milestone.
 
 ## Next
 
-The next authorized engineering work is **EXP-5-001 — streaming neuromorphic
-contract/state-machine readiness**, followed by model-free implementation/parity.
+The next authorized engineering work is **EXP-5-002 — PURE-PYTHON STATEFUL
+PROVIDER IMPLEMENTATION + FULL PHASE 4 PARITY**.
 
 Phase 5 planning is not permission to retrain the SNN, alter Qwen, make a learned
 provider globally default, or grant tool/physical authority.

@@ -65,26 +65,27 @@ actuation.
 
 ## Phase 5 — Stateful streaming neuromorphic runtime
 
-**Planning accepted; implementation not started.**
+**Planning accepted; EXP-5-001 streaming readiness verified; stateful provider implementation not started.**
 
 The current governed Phase 5 objective is to reuse the unchanged accepted Phase
 4 learned artifact while evolving the software execution contract from one
 complete 20 × 8 window per call to bounded stateful processing of individual
 8-channel temporal steps.
 
-Planning records:
+Planning and readiness records:
 
 - [PHASE_5_ENGINEERING_SPEC.md](PHASE_5_ENGINEERING_SPEC.md)
 - [PHASE_5_PLANNING_ACCEPTANCE.md](PHASE_5_PLANNING_ACCEPTANCE.md)
+- [SIONA_PHASE_5A_STREAMING_READINESS.md](SIONA_PHASE_5A_STREAMING_READINESS.md)
 - proposed [ADR 0005](adr/0005-stateful-streaming-neuromorphic-strategy.md)
 
 ### Phase 5A authorized now
 
-- exact streaming event/state/lifecycle contract;
-- frozen active-stream/order/TTL/state bounds;
-- pure-Python streaming provider using the unchanged Phase 4 artifact;
-- full 128-sample streaming/window parity scaffolding;
-- deterministic interleaved-stream isolation/reset/failure tests.
+- exact streaming event/state/lifecycle contract (EXP-5-001 VERIFIED);
+- frozen active-stream/order/TTL/state bounds (EXP-5-001 VERIFIED);
+- pure-Python streaming provider using the unchanged Phase 4 artifact (EXP-5-002);
+- full 128-sample streaming/window parity scaffolding (EXP-5-002);
+- deterministic interleaved-stream isolation/reset/failure tests (EXP-5-002).
 
 ### Later Phase 5 stages
 

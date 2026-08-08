@@ -37,7 +37,10 @@ class TestPhaseRoadmapCurrentStatus(unittest.TestCase):
         self.assertIn("## Phase 4 — Learned neuromorphic backend", roadmap)
         self.assertIn("ADR 0004 — **Accepted (Phase 4)**", roadmap)
         self.assertIn("## Phase 5 — Stateful streaming neuromorphic runtime", roadmap)
-        self.assertIn("**Planning accepted; implementation not started.**", roadmap)
+        self.assertIn(
+            "**Planning accepted; EXP-5-001 streaming readiness verified; stateful provider implementation not started.**",
+            roadmap,
+        )
         self.assertIn("Phase 5A authorized now", roadmap)
 
         self.assertIn("Phase 3 | **Completed", status)

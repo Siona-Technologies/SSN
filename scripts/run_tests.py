@@ -83,8 +83,9 @@ CI_TEST_MODULES = [
     "ssn.tests.test_phase4c_learned_snn_provider",
     "ssn.tests.test_phase4d_learned_snn_breadth_safety",
     "ssn.tests.test_phase4_closeout",
-    # Governed Phase 5 — stateful streaming neuromorphic planning
+    # Governed Phase 5 — stateful streaming neuromorphic planning + EXP-5-001 readiness
     "ssn.tests.test_phase5_streaming_neuromorphic_planning",
+    "ssn.tests.test_phase5a_streaming_readiness",
     # Skipped / placeholder modules (import-safe)
     "ssn.tests.test_internet_research_basic",
     "ssn.tests.test_orchestrator_internet_research",

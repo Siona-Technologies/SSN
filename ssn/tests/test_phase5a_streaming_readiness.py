@@ -103,9 +103,16 @@ class TestPhase5AStreamingReadiness(unittest.TestCase):
         self.assertEqual(dims["sequence_index_min"], 0)
         self.assertEqual(dims["sequence_index_max"], 19)
         bounds = contract["bounds"]
+        self.assertEqual(bounds["max_resident_learned_streams"], 256)
         self.assertEqual(bounds["max_active_learned_streams"], 256)
+        self.assertEqual(bounds["max_resident_learned_streams"], bounds["max_active_learned_streams"])
+        self.assertEqual(bounds["resident_states_counted_toward_capacity"], ["ACTIVE", "COMPLETED"])
         self.assertEqual(bounds["max_stream_id_chars"], 128)
         self.assertEqual(bounds["max_stored_temporal_raw_payload_history"], 0)
+        atomicity = contract["mutation_atomicity"]
+        self.assertTrue(atomicity["opportunistic_expiry_cleanup_commits_only_with_accepted_operation"])
+        self.assertTrue(atomicity["rejected_operation_rolls_back_event_triggered_expiry_cleanup"])
+        self.assertTrue(atomicity["envelope_validation_precedes_event_triggered_mutation"])
         ttl = contract["idle_ttl"]
         self.assertEqual(ttl["value"], 30000)
         self.assertEqual(ttl["unit"], "milliseconds")
@@ -114,6 +121,9 @@ class TestPhase5AStreamingReadiness(unittest.TestCase):
         self.assertTrue(contract["capacity_policy"]["silent_eviction_of_active_streams_forbidden"])
         self.assertTrue(contract["capacity_policy"]["lru_eviction_of_active_streams_forbidden"])
         self.assertEqual(evidence["decision"], "PHASE5_STREAMING_READINESS_VERIFIED")
+        self.assertEqual(evidence["bounds"]["max_resident_learned_streams"], 256)
+        self.assertTrue(evidence["mutation_atomicity"]["opportunistic_expiry_cleanup_commits_only_with_accepted_operation"])
+        self.assertTrue(evidence["mutation_atomicity"]["rejected_operation_rolls_back_event_triggered_expiry_cleanup"])
         self.assertEqual(evidence["provider_id_reserved"], RESERVED_PROVIDER_ID)
         self.assertEqual(evidence["idle_ttl"]["value"], 30000)
         self.assertEqual(evidence["idle_ttl"]["unit"], "milliseconds")
@@ -210,6 +220,113 @@ class TestPhase5AStreamingReadiness(unittest.TestCase):
             tracker.ingest_step(_step("stale", 1))
         tracker.ingest_step(_step("stale", 0))
         self.assertEqual(tracker.state_of("stale"), "ACTIVE")
+
+    def test_malformed_event_cannot_trigger_expiry_mutation(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        tracker.ingest_step(_step("A", 0))
+        clock["now"] = 30.001
+        before = tracker.snapshot()
+        success_before = tracker.success_count
+        failures_before = tracker.failure_count
+        with self.assertRaises(StreamingLifecycleError):
+            tracker.ingest_step(_step("B", 0, channels=["1"] * 8))
+        self.assertEqual(tracker.snapshot(), before)
+        self.assertEqual(tracker.state_of("A"), "ACTIVE")
+        self.assertEqual(tracker.success_count, success_before)
+        self.assertEqual(tracker.failure_count, failures_before + 1)
+        expired = tracker.expire_idle()
+        self.assertEqual(expired, ["A"])
+        self.assertEqual(tracker.state_of("A"), "NONEXISTENT")
+
+    def test_ordering_rejection_cannot_trigger_unrelated_expiry_mutation(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        tracker.ingest_step(_step("A", 0))
+        clock["now"] = 20.0
+        tracker.ingest_step(_step("B", 0))
+        clock["now"] = 25.0
+        tracker.ingest_step(_step("B", 1))
+        clock["now"] = 50.001
+        before = tracker.snapshot()
+        success_before = tracker.success_count
+        for bad in (
+            _step("B", 1),
+            _step("B", 3),
+            _step("B", 0),
+        ):
+            with self.assertRaises(StreamingLifecycleError):
+                tracker.ingest_step(bad)
+            self.assertEqual(tracker.snapshot(), before)
+            self.assertEqual(tracker.success_count, success_before)
+            self.assertEqual(tracker.state_of("A"), "ACTIVE")
+            self.assertEqual(tracker.state_of("B"), "ACTIVE")
+        self.assertEqual(tracker.snapshot()["B"].next_expected_sequence_index, 2)
+
+    def test_valid_event_may_commit_expiry_cleanup(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        tracker.ingest_step(_step("A", 0))
+        clock["now"] = 25.0
+        tracker.ingest_step(_step("B", 0))
+        clock["now"] = 50.001
+        tracker.ingest_step(_step("B", 1))
+        self.assertEqual(tracker.state_of("A"), "NONEXISTENT")
+        self.assertEqual(tracker.state_of("B"), "ACTIVE")
+        self.assertEqual(tracker.snapshot()["B"].next_expected_sequence_index, 2)
+
+    def test_capacity_plus_expiry_acceptance(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        for index in range(256):
+            tracker.ingest_step(_step(f"stream-{index:03d}", 0))
+        self.assertEqual(tracker.resident_count, 256)
+        clock["now"] = 30.001
+        tracker.ingest_step(_step("overflow", 0))
+        self.assertEqual(tracker.state_of("overflow"), "ACTIVE")
+        self.assertLessEqual(tracker.resident_count, 256)
+        self.assertGreaterEqual(tracker.resident_count, 1)
+
+    def test_capacity_rejection_is_atomic(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        for index in range(256):
+            tracker.ingest_step(_step(f"stream-{index:03d}", 0))
+        before = tracker.snapshot()
+        success_before = tracker.success_count
+        with self.assertRaises(StreamingLifecycleError) as exhausted:
+            tracker.ingest_step(_step("overflow", 0))
+        self.assertIn("CAPACITY", str(exhausted.exception))
+        self.assertEqual(tracker.snapshot(), before)
+        self.assertEqual(tracker.success_count, success_before)
+        self.assertEqual(tracker.resident_count, 256)
+        self.assertEqual(tracker.state_of("overflow"), "NONEXISTENT")
+
+    def test_reset_rejection_cannot_cause_expiry_side_effects(self):
+        clock = {"now": 0.0}
+        tracker = StreamingLifecycleTracker(now=lambda: clock["now"])
+        tracker.ingest_step(_step("A", 0))
+        clock["now"] = 25.0
+        tracker.ingest_step(_step("B", 0))
+        clock["now"] = 50.001
+        before = tracker.snapshot()
+        success_before = tracker.success_count
+        malformed = NeuromorphicEvent(
+            event_id="bad-reset",
+            modality=STREAMING_MODALITY,
+            features={"stream_id": "missing", "lifecycle_op": "not_a_reset"},
+        )
+        with self.assertRaises(StreamingLifecycleError):
+            tracker.reset_stream(malformed)
+        self.assertEqual(tracker.snapshot(), before)
+        self.assertEqual(tracker.success_count, success_before)
+        self.assertEqual(tracker.state_of("A"), "ACTIVE")
+        with self.assertRaises(StreamingLifecycleError):
+            tracker.reset_stream(_reset("missing"))
+        self.assertEqual(tracker.snapshot(), before)
+        self.assertEqual(tracker.success_count, success_before)
+        self.assertEqual(tracker.state_of("A"), "ACTIVE")
+        self.assertEqual(tracker.state_of("B"), "ACTIVE")
 
     def test_capacity_fail_closed_without_silent_active_eviction(self):
         clock = {"now": 0.0}

@@ -78,19 +78,28 @@ step 0.
 
 ## Atomic mutation
 
-A claimed streaming event is fully validated before any learned-stream mutation.
-Rejected input must not change membrane state, spike/reset state, cumulative
-spike count, next expected index, completion flag, success counters, successful
-activity timestamps, learned output, or lifecycle state.
+Strict envelope validation occurs before any event-triggered stream-state
+mutation. Malformed envelopes must not trigger TTL cleanup or other learned-state
+changes.
 
-Failure/diagnostic counters may increment so the failed event cannot appear
-successfully processed.
+Before opportunistic expiry, lifecycle mutation, capacity mutation, reset, or
+successful-activity mutation, the tracker snapshots the resident stream map,
+lifecycle/index/completion state, successful-activity timestamps, and success
+counters.
+
+- `opportunistic_expiry_cleanup_commits_only_with_accepted_operation`
+- `rejected_operation_rolls_back_event_triggered_expiry_cleanup`
+
+A rejected event leaves learned stream state observationally unchanged, including
+unrelated idle streams that were eligible for opportunistic expiry. Failure or
+diagnostic counters may increment. An explicit `expire_idle()` call is independent
+maintenance and may remove expired streams without an ingest/reset event.
 
 ## Bounds
 
 | Bound | Value | Rationale |
 |-------|-------|-----------|
-| Maximum resident learned streams | 256 | Matches Phase 4 `MAX_LEARNED_BATCH_EVENTS` |
+| Maximum resident learned streams | 256 | ACTIVE + COMPLETED until reset/expiry; alias `max_active_learned_streams` |
 | Maximum stream ID length | 128 characters | Matches Phase 4 `MAX_EVENT_ID_CHARS` |
 | Channels per step | exactly 8 | Phase 4 window width |
 | Steps per stream | exactly 20 | Phase 4 window length |
@@ -98,16 +107,23 @@ successfully processed.
 | Stored raw temporal payload history | 0 | Retain only future LIF computational state |
 | Idle TTL | 30000 milliseconds | Longer than `AsyncEventBus` handler timeout (2 s); forbids indefinite residency |
 
-Resident count includes ACTIVE and COMPLETED records until expiry or reset.
+Capacity counts resident states **ACTIVE + COMPLETED**. Completed streams consume
+capacity until reset or expiry, so active streams can never exceed 256. No raw
+temporal input history is retained.
 
 ## Capacity
 
-When the resident-stream limit is reached:
+For a new valid stream:
 
-1. deterministically expire idle streams first;
-2. if still full, **FAIL CLOSED**;
-3. do not silently evict an active learned stream;
-4. do not use LRU eviction of active streams.
+1. validate the event envelope;
+2. begin a transaction snapshot;
+3. deterministically expire idle residents;
+4. if capacity now exists, accept step 0 and commit;
+5. if still full, **FAIL CLOSED** and roll back event-triggered expiry/state
+   mutation.
+
+Do not silently evict an active learned stream. Do not use LRU eviction of active
+streams. A rejected capacity event must not change learned stream state.
 
 ## Multi-stream isolation
 

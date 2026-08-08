@@ -39,10 +39,16 @@
   },
   "mutation_atomicity": {
     "validate_fully_before_any_learned_stream_mutation": true,
+    "envelope_validation_precedes_event_triggered_mutation": true,
+    "opportunistic_expiry_cleanup_commits_only_with_accepted_operation": true,
+    "rejected_operation_rolls_back_event_triggered_expiry_cleanup": true,
+    "explicit_expire_idle_is_independent_maintenance": true,
     "rejected_input_must_not_mutate_successful_state": true
   },
   "bounds": {
+    "max_resident_learned_streams": 256,
     "max_active_learned_streams": 256,
+    "resident_states_counted_toward_capacity": ["ACTIVE", "COMPLETED"],
     "max_stream_id_chars": 128,
     "max_stored_temporal_raw_payload_history": 0
   },
@@ -54,7 +60,9 @@
     "on_limit_reached": "FAIL_CLOSED",
     "silent_eviction_of_active_streams_forbidden": true,
     "lru_eviction_of_active_streams_forbidden": true,
-    "deterministic_idle_expiry_cleanup_before_capacity_rejection": true
+    "deterministic_idle_expiry_cleanup_before_capacity_rejection": true,
+    "counts_resident_active_and_completed": true,
+    "rejected_capacity_rolls_back_event_triggered_expiry": true
   },
   "multi_stream_isolation_required": true,
   "future_phase4_parity": {

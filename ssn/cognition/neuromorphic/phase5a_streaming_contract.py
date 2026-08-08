@@ -65,12 +65,23 @@ def _require_frozen_fields(payload: Mapping[str, Any]) -> None:
     bounds = payload.get("bounds")
     if not isinstance(bounds, dict):
         raise StreamingContractError("bounds_missing")
+    if bounds.get("max_resident_learned_streams") != 256:
+        raise StreamingContractError("resident_stream_bound_invalid")
     if bounds.get("max_active_learned_streams") != 256:
         raise StreamingContractError("active_stream_bound_invalid")
+    if bounds.get("max_resident_learned_streams") != bounds.get("max_active_learned_streams"):
+        raise StreamingContractError("resident_active_bound_mismatch")
     if bounds.get("max_stream_id_chars") != 128:
         raise StreamingContractError("stream_id_bound_invalid")
     if bounds.get("max_stored_temporal_raw_payload_history") != 0:
         raise StreamingContractError("raw_history_retention_invalid")
+    atomicity = payload.get("mutation_atomicity")
+    if not isinstance(atomicity, dict):
+        raise StreamingContractError("mutation_atomicity_missing")
+    if atomicity.get("opportunistic_expiry_cleanup_commits_only_with_accepted_operation") is not True:
+        raise StreamingContractError("atomicity_expiry_commit_invalid")
+    if atomicity.get("rejected_operation_rolls_back_event_triggered_expiry_cleanup") is not True:
+        raise StreamingContractError("atomicity_expiry_rollback_invalid")
     ttl = payload.get("idle_ttl")
     if not isinstance(ttl, dict):
         raise StreamingContractError("idle_ttl_missing")
@@ -197,32 +208,51 @@ class StreamingLifecycleTracker:
         return dict(self._streams)
 
     def expire_idle(self) -> List[str]:
-        ttl_s = float(self._contract["idle_ttl"]["value"]) / 1000.0
-        now = float(self._now())
-        expired = [
-            stream_id
-            for stream_id, record in self._streams.items()
-            if (now - record.last_success_mono) > ttl_s
-        ]
+        """Independent deterministic maintenance. Not rolled back by later events."""
+        expired = self._idle_stream_ids()
         for stream_id in expired:
             del self._streams[stream_id]
         return expired
 
+    def _idle_stream_ids(self) -> List[str]:
+        ttl_s = float(self._contract["idle_ttl"]["value"]) / 1000.0
+        now = float(self._now())
+        return [
+            stream_id
+            for stream_id, record in self._streams.items()
+            if (now - record.last_success_mono) > ttl_s
+        ]
+
+    def _max_resident_streams(self) -> int:
+        return int(self._contract["bounds"]["max_resident_learned_streams"])
+
+    def _restore_learned_state(
+        self,
+        streams: Mapping[str, StreamLifecycleSnapshot],
+        success_count: int,
+    ) -> None:
+        self._streams = dict(streams)
+        self.success_count = success_count
+
     def ingest_step(self, event: NeuromorphicEvent) -> StreamLifecycleSnapshot:
-        self.expire_idle()
-        before = self.snapshot()
-        success_before = self.success_count
         try:
             stream_id, index, _channels, _event_id = validate_streaming_step_event(
                 event,
                 contract=self._contract,
             )
+        except StreamingLifecycleError:
+            self.failure_count += 1
+            raise
+
+        before = self.snapshot()
+        success_before = self.success_count
+        try:
+            self.expire_idle()
             record = self._streams.get(stream_id)
             if record is None:
                 if index != 0:
                     raise StreamingLifecycleError("NONEXISTENT_PLUS_STEP_NOT_ZERO")
-                max_streams = int(self._contract["bounds"]["max_active_learned_streams"])
-                if len(self._streams) >= max_streams:
+                if len(self._streams) >= self._max_resident_streams():
                     raise StreamingLifecycleError("CAPACITY_EXHAUSTION_WITHOUT_EXPIRY_SLOT")
                 updated = StreamLifecycleSnapshot(
                     stream_id=stream_id,
@@ -254,24 +284,27 @@ class StreamingLifecycleTracker:
             return updated
         except StreamingLifecycleError:
             self.failure_count += 1
-            self._streams = before
-            self.success_count = success_before
+            self._restore_learned_state(before, success_before)
             raise
 
     def reset_stream(self, event: NeuromorphicEvent) -> None:
-        self.expire_idle()
+        try:
+            stream_id = validate_stream_reset_event(event, contract=self._contract)
+        except StreamingLifecycleError:
+            self.failure_count += 1
+            raise
+
         before = self.snapshot()
         success_before = self.success_count
         try:
-            stream_id = validate_stream_reset_event(event, contract=self._contract)
+            self.expire_idle()
             if stream_id not in self._streams:
                 raise StreamingLifecycleError("stream_reset_nonexistent")
             del self._streams[stream_id]
             self.success_count += 1
         except StreamingLifecycleError:
             self.failure_count += 1
-            self._streams = before
-            self.success_count = success_before
+            self._restore_learned_state(before, success_before)
             raise
 
     def reset_provider(self) -> None:

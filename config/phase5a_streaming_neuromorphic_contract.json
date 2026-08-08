@@ -142,6 +142,11 @@
   },
   "mutation_atomicity": {
     "validate_fully_before_any_learned_stream_mutation": true,
+    "envelope_validation_precedes_event_triggered_mutation": true,
+    "opportunistic_expiry_cleanup_commits_only_with_accepted_operation": true,
+    "rejected_operation_rolls_back_event_triggered_expiry_cleanup": true,
+    "explicit_expire_idle_is_independent_maintenance": true,
+    "rejected_event_learned_stream_state_observationally_unchanged": true,
     "rejected_input_must_not_mutate": [
       "membrane_state",
       "spike_or_reset_state",
@@ -151,14 +156,21 @@
       "success_counters",
       "successful_activity_timestamps",
       "learned_output",
-      "stream_lifecycle_state"
+      "stream_lifecycle_state",
+      "resident_stream_map",
+      "event_triggered_idle_expiry_cleanup"
     ],
     "rejected_input_may_increment_failure_or_diagnostic_counters_only": true,
     "failed_event_must_not_appear_successfully_processed": true
   },
   "bounds": {
+    "max_resident_learned_streams": 256,
     "max_active_learned_streams": 256,
+    "max_active_learned_streams_is_alias_of_resident_bound": true,
+    "resident_states_counted_toward_capacity": ["ACTIVE", "COMPLETED"],
     "resident_stream_count_includes_active_and_completed_until_expiry_or_reset": true,
+    "active_streams_cannot_exceed_resident_bound": true,
+    "completed_streams_consume_capacity_until_reset_or_expiry": true,
     "max_stream_id_chars": 128,
     "max_event_id_chars": 128,
     "channels_per_step": 8,
@@ -182,9 +194,11 @@
   },
   "capacity_policy": {
     "on_limit_reached": "FAIL_CLOSED",
+    "counts_resident_active_and_completed": true,
     "silent_eviction_of_active_streams_forbidden": true,
     "lru_eviction_of_active_streams_forbidden": true,
     "deterministic_idle_expiry_cleanup_before_capacity_rejection": true,
+    "rejected_capacity_rolls_back_event_triggered_expiry": true,
     "after_expiry_cleanup_if_still_full": "REJECT_NEW_STREAM"
   },
   "multi_stream_isolation": {

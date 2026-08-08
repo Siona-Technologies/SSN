@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "gate_id": "phase5a-streaming-neuromorphic-readiness-v1",
+  "experiment_id": "EXP-5-001",
+  "status": "READINESS_CONTRACT_FROZEN_IMPLEMENTATION_NOT_ACCEPTED",
+  "provider": {
+    "reserved_id": "siona-neuro-streaming-lif-v1",
+    "activation": "EXPLICIT_ONLY_AFTER_EXP_5_002_ACCEPTANCE",
+    "global_default": false,
+    "implementation_accepted": false,
+    "replaces_phase4_window_provider": false,
+    "phase4_reference_provider_id": "siona-neuro-learned-lif-v1"
+  },
+  "phase4_reference": {
+    "artifact_path": "artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json",
+    "artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+    "task_id": "phase4a-temporal-salience-v1",
+    "architecture_id": "phase4b-lif-final-membrane-v1",
+    "window_shape": [20, 8],
+    "artifact_mutation_authorized": false,
+    "retraining_authorized": false
+  },
+  "streaming_step_event": {
+    "modality": "temporal_salience_stream_v1",
+    "event_must_be_neuromorphic_event": true,
+    "event_id": {
+      "type": "str",
+      "required": true,
+      "min_chars": 1,
+      "max_chars": 128
+    },
+    "feature_keys_exact": ["channels", "sequence_index", "stream_id"],
+    "stream_id": {
+      "type": "str",
+      "required": true,
+      "min_chars": 1,
+      "max_chars": 128
+    },
+    "sequence_index": {
+      "type": "int",
+      "bool_rejected": true,
+      "min": 0,
+      "max": 19
+    },
+    "channels": {
+      "type": "list",
+      "length": 8,
+      "value_domain": [0, 1],
+      "numeric_only": true,
+      "bool_rejected": true,
+      "nan_rejected": true,
+      "infinity_rejected": true,
+      "string_coercion_forbidden": true
+    }
+  },
+  "stream_reset_event": {
+    "modality": "temporal_salience_stream_v1",
+    "feature_keys_exact": ["lifecycle_op", "stream_id"],
+    "lifecycle_op": "stream_reset"
+  },
+  "temporal_dimensions": {
+    "timesteps": 20,
+    "channels_per_step": 8,
+    "sequence_index_min": 0,
+    "sequence_index_max": 19
+  },
+  "lifecycle": {
+    "states": ["NONEXISTENT", "ACTIVE", "COMPLETED"],
+    "initial_state": "NONEXISTENT",
+    "legal_transitions": [
+      {
+        "from": "NONEXISTENT",
+        "event": "valid_step_0",
+        "to": "ACTIVE",
+        "creates_stream": true
+      },
+      {
+        "from": "ACTIVE",
+        "event": "valid_next_step_1_to_18",
+        "to": "ACTIVE"
+      },
+      {
+        "from": "ACTIVE",
+        "event": "valid_final_step_19",
+        "to": "COMPLETED"
+      },
+      {
+        "from": "ACTIVE",
+        "event": "explicit_stream_reset",
+        "to": "NONEXISTENT",
+        "removes_stream": true
+      },
+      {
+        "from": "COMPLETED",
+        "event": "explicit_stream_reset",
+        "to": "NONEXISTENT",
+        "removes_stream": true
+      },
+      {
+        "from": "ACTIVE",
+        "event": "idle_ttl_expiry",
+        "to": "NONEXISTENT",
+        "removes_stream": true,
+        "affects_other_streams": false
+      },
+      {
+        "from": "COMPLETED",
+        "event": "idle_ttl_expiry",
+        "to": "NONEXISTENT",
+        "removes_stream": true,
+        "affects_other_streams": false
+      },
+      {
+        "from": "ANY_RESIDENT",
+        "event": "provider_wide_reset",
+        "to": "NONEXISTENT",
+        "removes_all_streams": true
+      }
+    ],
+    "illegal_or_rejected": [
+      "NONEXISTENT_PLUS_STEP_NOT_ZERO",
+      "ACTIVE_DUPLICATE_SEQUENCE_INDEX",
+      "ACTIVE_SKIPPED_SEQUENCE_INDEX",
+      "ACTIVE_BACKWARDS_OR_OUT_OF_ORDER_INDEX",
+      "COMPLETED_PLUS_ANY_STEP_WITHOUT_NEW_LIFECYCLE",
+      "IMPLICIT_RESTART_OF_COMPLETED_STREAM",
+      "MALFORMED_CLAIMED_STREAMING_EVENT",
+      "CAPACITY_EXHAUSTION_WITHOUT_EXPIRY_SLOT"
+    ],
+    "no_implicit_restart_after_completion": true,
+    "new_logical_stream_requires_explicit_lifecycle": true,
+    "completed_stream_cannot_accept_extra_steps": true,
+    "reuse_of_same_stream_id_after_expiry_or_reset_requires_new_step_0": true
+  },
+  "ordering_policy": {
+    "first_step_must_be_zero": true,
+    "subsequent_steps_must_equal_next_expected_index": true,
+    "duplicate_step_rejected": true,
+    "skipped_step_rejected": true,
+    "out_of_order_or_backwards_step_rejected": true,
+    "no_silent_coercion": true
+  },
+  "mutation_atomicity": {
+    "validate_fully_before_any_learned_stream_mutation": true,
+    "envelope_validation_precedes_event_triggered_mutation": true,
+    "opportunistic_expiry_cleanup_commits_only_with_accepted_operation": true,
+    "rejected_operation_rolls_back_event_triggered_expiry_cleanup": true,
+    "explicit_expire_idle_is_independent_maintenance": true,
+    "rejected_event_learned_stream_state_observationally_unchanged": true,
+    "rejected_input_must_not_mutate": [
+      "membrane_state",
+      "spike_or_reset_state",
+      "cumulative_spike_count",
+      "next_expected_sequence_index",
+      "completion_flag",
+      "success_counters",
+      "successful_activity_timestamps",
+      "learned_output",
+      "stream_lifecycle_state",
+      "resident_stream_map",
+      "event_triggered_idle_expiry_cleanup"
+    ],
+    "rejected_input_may_increment_failure_or_diagnostic_counters_only": true,
+    "failed_event_must_not_appear_successfully_processed": true
+  },
+  "bounds": {
+    "max_resident_learned_streams": 256,
+    "max_active_learned_streams": 256,
+    "max_active_learned_streams_is_alias_of_resident_bound": true,
+    "resident_states_counted_toward_capacity": ["ACTIVE", "COMPLETED"],
+    "resident_stream_count_includes_active_and_completed_until_expiry_or_reset": true,
+    "active_streams_cannot_exceed_resident_bound": true,
+    "completed_streams_consume_capacity_until_reset_or_expiry": true,
+    "max_stream_id_chars": 128,
+    "max_event_id_chars": 128,
+    "channels_per_step": 8,
+    "steps_per_stream": 20,
+    "max_sequence_index": 19,
+    "max_stored_temporal_raw_payload_history": 0,
+    "retain_only_computational_lif_state": true,
+    "alignment_note": "256 matches Phase 4 MAX_LEARNED_BATCH_EVENTS; 128 matches Phase 4 MAX_EVENT_ID_CHARS"
+  },
+  "idle_ttl": {
+    "value": 30000,
+    "unit": "milliseconds",
+    "applies_to_states": ["ACTIVE", "COMPLETED"],
+    "clock": "monotonic_idle_since_last_successful_stream_activity",
+    "expiry_removes_only_expired_stream": true,
+    "expiry_does_not_affect_other_streams": true,
+    "expiry_emits_no_learned_authority": true,
+    "same_stream_id_after_expiry_requires_new_lifecycle": true,
+    "not_wired_to_async_event_bus": true,
+    "rationale": "Longer than AsyncEventBus default handler timeout (2s) so a slow handler cannot expire an in-flight stream; short enough to forbid indefinite residency."
+  },
+  "capacity_policy": {
+    "on_limit_reached": "FAIL_CLOSED",
+    "counts_resident_active_and_completed": true,
+    "silent_eviction_of_active_streams_forbidden": true,
+    "lru_eviction_of_active_streams_forbidden": true,
+    "deterministic_idle_expiry_cleanup_before_capacity_rejection": true,
+    "rejected_capacity_rolls_back_event_triggered_expiry": true,
+    "after_expiry_cleanup_if_still_full": "REJECT_NEW_STREAM"
+  },
+  "multi_stream_isolation": {
+    "required": true,
+    "interleaved_streams_must_match_independent_execution": true,
+    "no_cross_stream_state_read_or_mutation": true,
+    "example_interleave": ["A0", "B0", "A1", "B1", "A19", "B19"]
+  },
+  "authority": {
+    "tool_authority": false,
+    "physical_actuation_authority": false,
+    "policy_authority": false,
+    "memory_mutation_authority": false,
+    "reflex_external_authority": false
+  },
+  "future_phase4_parity": {
+    "experiment": "EXP-5-002",
+    "reference": "accepted_phase4_window_provider",
+    "frozen_test_samples": 128,
+    "predicted_class_agreement_required": 128,
+    "spike_count_agreement_required": 128,
+    "max_abs_logit_difference": 1e-12,
+    "max_abs_probability_difference": 1e-12,
+    "tolerance_change_requires_separate_governed_decision_before_acceptance_experiment": true,
+    "not_executed_in_exp_5_001": true
+  },
+  "async_event_bus": {
+    "inspected_read_only": true,
+    "integrated": false,
+    "deferred_until": "EXP-5-004",
+    "required_future_invariants": [
+      "queue_and_backpressure_preserved",
+      "event_ttl_respected",
+      "tenant_session_trace_provenance_preserved",
+      "handler_failure_cannot_corrupt_stream_state",
+      "shutdown_clears_streaming_state_safely",
+      "no_bus_event_grants_tool_or_physical_authority"
+    ]
+  },
+  "runtime_dependencies": {
+    "python_stdlib_only_for_future_streaming_provider": true,
+    "torch": false,
+    "snntorch": false,
+    "numpy": false,
+    "norse": false
+  },
+  "not_authorized": [
+    "SNN_RETRAINING",
+    "PHASE4_ARTIFACT_OR_WEIGHT_MUTATION",
+    "STATEFUL_PROVIDER_IMPLEMENTATION_ACCEPTANCE",
+    "GLOBAL_STREAMING_PROVIDER_DEFAULT",
+    "QWEN_EXECUTION_OR_REGISTRY_CHANGE",
+    "CUDA_OR_GPU_CLAIM",
+    "LOIHI_FPGA_OR_SILICON_CLAIM",
+    "MEASURED_ENERGY_CLAIM",
+    "ASYNC_EVENT_BUS_WIRING",
+    "TOOL_OR_PHYSICAL_AUTHORITY"
+  ]
+}

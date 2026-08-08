@@ -1,0 +1,95 @@
+{
+  "experiment_id": "EXP-5-001",
+  "date": "2026-08-08",
+  "decision": "PHASE5_STREAMING_READINESS_VERIFIED",
+  "base_main_sha": "d4e25ce3be08c8d8df37fe68faf301cb0d906cae",
+  "branch": "feat/phase5a-exp5-001-streaming-readiness",
+  "phase4_prerequisite": {
+    "status": "COMPLETE_ACCEPTED",
+    "accepted_evidence_baseline": "05de2b04279a72ece4834a984461a505de1188b3",
+    "adr_0004_status": "ACCEPTED_PHASE_4",
+    "provider_id": "siona-neuro-learned-lif-v1",
+    "artifact_path": "artifacts/neuromorphic/phase4b-lif-final-membrane-v1.json",
+    "artifact_sha256": "dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc",
+    "artifact_mutated": false
+  },
+  "phase5_planning": {
+    "status": "ACCEPTED",
+    "planning_decision": "PHASE_5_PLANNING_ACCEPTED"
+  },
+  "provider_id_reserved": "siona-neuro-streaming-lif-v1",
+  "provider_activated": false,
+  "provider_global_default": false,
+  "provider_implementation_accepted": false,
+  "temporal_dimensions": {
+    "timesteps": 20,
+    "channels_per_step": 8,
+    "sequence_index_min": 0,
+    "sequence_index_max": 19
+  },
+  "lifecycle_states": ["NONEXISTENT", "ACTIVE", "COMPLETED"],
+  "ordering_policy": {
+    "first_step_must_be_zero": true,
+    "duplicate_step_rejected": true,
+    "skipped_step_rejected": true,
+    "out_of_order_or_backwards_step_rejected": true,
+    "completed_stream_cannot_accept_extra_steps": true,
+    "no_implicit_restart_after_completion": true,
+    "no_silent_coercion": true
+  },
+  "mutation_atomicity": {
+    "validate_fully_before_any_learned_stream_mutation": true,
+    "envelope_validation_precedes_event_triggered_mutation": true,
+    "opportunistic_expiry_cleanup_commits_only_with_accepted_operation": true,
+    "rejected_operation_rolls_back_event_triggered_expiry_cleanup": true,
+    "explicit_expire_idle_is_independent_maintenance": true,
+    "rejected_input_must_not_mutate_successful_state": true
+  },
+  "bounds": {
+    "max_resident_learned_streams": 256,
+    "max_active_learned_streams": 256,
+    "resident_states_counted_toward_capacity": ["ACTIVE", "COMPLETED"],
+    "max_stream_id_chars": 128,
+    "max_stored_temporal_raw_payload_history": 0
+  },
+  "idle_ttl": {
+    "value": 30000,
+    "unit": "milliseconds"
+  },
+  "capacity_policy": {
+    "on_limit_reached": "FAIL_CLOSED",
+    "silent_eviction_of_active_streams_forbidden": true,
+    "lru_eviction_of_active_streams_forbidden": true,
+    "deterministic_idle_expiry_cleanup_before_capacity_rejection": true,
+    "counts_resident_active_and_completed": true,
+    "rejected_capacity_rolls_back_event_triggered_expiry": true
+  },
+  "multi_stream_isolation_required": true,
+  "future_phase4_parity": {
+    "experiment": "EXP-5-002",
+    "frozen_test_samples": 128,
+    "predicted_class_agreement_required": 128,
+    "spike_count_agreement_required": 128,
+    "max_abs_logit_difference": 1e-12,
+    "max_abs_probability_difference": 1e-12,
+    "executed": false
+  },
+  "training_run_count": 0,
+  "qwen_run_count": 0,
+  "network_calls": 0,
+  "subprocess_calls": 0,
+  "tool_execution_count": 0,
+  "tool_authority": false,
+  "physical_actuation_authority": false,
+  "policy_authority": false,
+  "memory_mutation_authority": false,
+  "requirements_changed": false,
+  "model_registry_changed": false,
+  "artifact_mutated": false,
+  "async_event_bus_integrated": false,
+  "async_event_bus_deferred_until": "EXP-5-004",
+  "adr_0005_status": "PROPOSED",
+  "phase_5_status": "IN_PROGRESS",
+  "phase_5_implementation_accepted": false,
+  "next_blocker": "EXP-5-002_STATEFUL_PROVIDER_IMPLEMENTATION_AND_FULL_PHASE_4_PARITY"
+}

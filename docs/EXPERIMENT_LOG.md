@@ -814,3 +814,32 @@ Artifact references: docs/SIONA_PHASE_4D_BREADTH_SAFETY_GATE.md,
 Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase4d_learned_snn_breadth_safety
 ```
 
+```text
+Experiment ID: EXP-5-001
+Date: 2026-08-08
+Git commit: (feat/phase5a-exp5-001-streaming-readiness tip)
+Runtime mode: model-free streaming contract/lifecycle readiness (no training; no Qwen)
+Dataset: none (no inference; Phase 4 artifact read-only SHA check)
+Model/provider: siona-neuro-streaming-lif-v1 reserved only; not activated
+Neuromorphic backend: phase4b-lif-final-membrane-v1 reference unchanged
+Hardware: Intel i7-1165G7, Iris Xe, CPU-only
+Configuration:
+  artifact SHA-256 dfc548e4247ad740ffc2c62c68fb9ad0f9af01bcaecbdb41527aeeb275f4fdcc
+  20x8 steps; stream ID <=128; max 256 resident streams; idle TTL 30000 ms
+  fail-closed capacity; validate-before-mutate; raw history retention 0
+  AsyncEventBus inspected read-only; not wired
+Metrics:
+  training runs 0; Qwen runs 0; network 0; subprocess 0; tool executions 0
+Result: PHASE5_STREAMING_READINESS_VERIFIED
+Evidence:
+  docs/SIONA_PHASE_5A_STREAMING_READINESS.md
+  docs/evidence/EXP-5-001_STREAMING_NEUROMORPHIC_READINESS.json
+  config/phase5a_streaming_neuromorphic_contract.json
+Outstanding: EXP-5-002 stateful provider implementation + full Phase 4 parity
+Limitations: ADR 0005 remains Proposed; Phase 5 incomplete; streaming provider
+             not implemented or accepted; not neuromorphic silicon
+Artifact references: docs/SIONA_PHASE_5A_STREAMING_READINESS.md,
+                      docs/evidence/EXP-5-001_STREAMING_NEUROMORPHIC_READINESS.json
+Reproduction command: SSN_OFFLINE=1 python -m unittest ssn.tests.test_phase5a_streaming_readiness
+```
+

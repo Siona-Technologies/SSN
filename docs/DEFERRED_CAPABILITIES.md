@@ -16,7 +16,7 @@ and phase acceptance/planning/specification records.
 
 ### ID: SNN-STREAM-001
 - **Capability:** Persistent event-by-event / timestep-by-timestep stateful learned SNN software inference
-- **Status:** **Selected for governed Phase 5; planning accepted, implementation not started**
+- **Status:** **Selected for governed Phase 5; planning accepted; EXP-5-001 streaming readiness verified; stateful provider implementation not started**
 - **Reason:** Phase 4 proved the learned fixed-window SNN; SIONA already has a bounded asynchronous event bus, but the learned provider does not yet preserve membrane state across individual arriving temporal steps
 - **Planned implementation:** `siona-neuro-streaming-lif-v1` candidate using the unchanged accepted Phase 4 artifact and pure-Python LIF semantics
 - **Required evidence:** full 128-sample streaming/window parity, bounded multi-stream state, ordering/reset/TTL/isolation safety, AsyncEventBus backpressure/timeout/shutdown integration
